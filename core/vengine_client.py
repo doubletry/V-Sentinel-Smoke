@@ -385,6 +385,7 @@ class AsyncVEngineClient:
         model_name: str,
         conf: float = 0.5,
         nms: float = 0.7,
+        model_version: str = "",
         model_roi: list[dict] | None = None,
         *,
         image_bytes: bytes | None = None,
@@ -428,6 +429,7 @@ class AsyncVEngineClient:
             params = detection_service_pb2.DetectionParams(
                 base=base_pb2.InferenceParams(
                     model_name=model_name,
+                    model_version=model_version,
                     region_of_interest=model_roi_polygon,
                     # Detection uses model_roi: the server runs detection on the
                     # full image, then filters results to keep only boxes inside

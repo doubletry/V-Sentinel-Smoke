@@ -427,6 +427,8 @@ class BaseVideoProcessor(ABC):
         shape: tuple[int, ...],
         model_name: str,
         conf: float = 0.5,
+        nms: float = 0.7,
+        model_version: str = "",
         model_roi: list[dict] | None = None,
         image_bytes: bytes | None = None,
         image_key: str | None = None,
@@ -442,6 +444,8 @@ class BaseVideoProcessor(ABC):
             "shape": shape,
             "model_name": model_name,
             "conf": conf,
+            "nms": nms,
+            "model_version": model_version,
         }
         if model_roi is not None:
             detect_kwargs["model_roi"] = model_roi

@@ -81,6 +81,8 @@ class SmokeFireProcessor(BaseVideoProcessor):
             shape=shape,
             model_name=str(self.app_settings.get("smoke_detection_model_name") or DEFAULT_DETECTION_MODEL),
             conf=self._setting_float("smoke_detection_confidence", 0.35),
+            nms=self._setting_float("smoke_detection_nms", 0.7),
+            model_version=str(self.app_settings.get("smoke_detection_model_version") or ""),
             model_roi=primary_roi,
             image_bytes=encoded,
         )
