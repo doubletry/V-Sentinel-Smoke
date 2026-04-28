@@ -62,3 +62,12 @@ async def test_email_settings(
     email_client = request.app.state.email_client
     await email_client.reconnect_from_settings(merged_settings)
     return await email_client.send_test_email(app_settings, overrides=overrides)
+
+
+@router.get("/email/template-placeholders")
+async def get_email_template_placeholders() -> dict[str, list[str]]:
+    """Return supported event-email template placeholders.
+    返回事件邮件模板支持的占位符。"""
+    from core.email_client import AsyncEmailClient
+
+    return {"placeholders": AsyncEmailClient.available_template_placeholders()}

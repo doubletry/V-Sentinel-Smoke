@@ -353,7 +353,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { localeOptions } from '../i18n/index.js'
-import { processorApi } from '../api/index.js'
+import { processorApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useSourceStore } from '../stores/source.js'
 
@@ -363,7 +363,7 @@ const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const processorPluginOptions = ref([])
 const retentionDayOptions = [7, 15, 21, 30]
-const emailTemplatePlaceholders = ['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks']
+const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 
 const loading = ref(false)
@@ -490,6 +490,14 @@ async function reload() {
     ])
     Object.assign(form.value, data)
     processorPluginOptions.value = Array.isArray(plugins) ? plugins : []
+    try {
+      const placeholderData = await settingsApi.emailTemplatePlaceholders()
+      if (Array.isArray(placeholderData?.placeholders)) {
+        emailTemplatePlaceholders.value = placeholderData.placeholders
+      }
+    } catch (_) {
+      // Keep built-in placeholder list when the backend endpoint is unavailable.
+    }
     roiTagList.value = parseRoiTagOptions(form.value.roi_tag_options)
     syncRoiTagOptionsToForm()
   } catch (err) {

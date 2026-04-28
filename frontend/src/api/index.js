@@ -63,6 +63,7 @@ export const settingsApi = {
   get: () => api.get('/api/settings'),
   update: (data) => api.put('/api/settings', data),
   testEmail: (data) => api.post('/api/settings/email/test', data),
+  emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),
 }
 
 export default api
