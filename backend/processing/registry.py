@@ -5,13 +5,11 @@ from typing import Any, Type
 
 from backend.processing.base import BaseVideoProcessor
 from backend.processing.example import ExampleProcessor
-from backend.processing.truck import TruckMonitorProcessor
 from backend.models.schemas import ProcessorPluginInfo
 
 
 PROCESSOR_PLUGINS: dict[str, Type[BaseVideoProcessor]] = {
     "example": ExampleProcessor,
-    "truck": TruckMonitorProcessor,
 }
 
 

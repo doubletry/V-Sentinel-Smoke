@@ -71,7 +71,7 @@ class ProcessorManager:
             if source is None:
                 raise ValueError(f"Source not found: {source_id}")
 
-            plugin_name = self._app_settings.get("processor_plugin", "truck")
+            plugin_name = self._app_settings.get("processor_plugin", "example")
             processor_cls = resolve_processor_class(plugin_name)
 
             processor = processor_cls(
