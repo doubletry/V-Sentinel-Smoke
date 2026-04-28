@@ -31,16 +31,16 @@ class TestAsyncVEngineClient:
         await client.connect()
 
         assert "detection" in client._channels
-        assert "classification" in client._channels
-        assert "action" in client._channels
-        assert "ocr" in client._channels
-        assert "upload" in client._channels
+        assert "classification" not in client._channels
+        assert "action" not in client._channels
+        assert "ocr" not in client._channels
+        assert "upload" not in client._channels
 
         assert "detection" in client._stubs
-        assert "classification" in client._stubs
-        assert "action" in client._stubs
-        assert "ocr" in client._stubs
-        assert "upload" in client._stubs
+        assert "classification" not in client._stubs
+        assert "action" not in client._stubs
+        assert "ocr" not in client._stubs
+        assert "upload" not in client._stubs
 
         await client.close()
 

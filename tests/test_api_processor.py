@@ -78,7 +78,7 @@ class TestProcessorLogs:
         from backend.main import _should_capture_runtime_log
 
         processing_log_buffer.clear()
-        assert _should_capture_runtime_log("core.truck.processor") is True
+        assert _should_capture_runtime_log("core.smoke.processor") is True
         assert _should_capture_runtime_log("uvicorn.access") is False
         assert _should_capture_runtime_log("random.module") is False
 

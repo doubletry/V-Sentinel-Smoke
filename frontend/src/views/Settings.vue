@@ -303,7 +303,7 @@
               <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
               <div class="placeholder-tags">
                 <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
-                  {{ `{${item}}` }}
+                  {{ '{' + item + '}' }}
                 </el-tag>
               </div>
             </div>

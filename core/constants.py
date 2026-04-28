@@ -2,9 +2,9 @@
 V-Sentinel core 的通用共享常量。
 
 Only scene-agnostic constants stay here. Scene-specific values belong in the
-corresponding scene package such as ``core.truck.constants``.
+corresponding scene package such as ``core.smoke.constants``.
 这里只保留场景无关常量。场景相关常量应放到对应场景目录，例如
-``core.truck.constants``。
+``core.smoke.constants``。
 """
 
 from __future__ import annotations
@@ -44,9 +44,9 @@ FRAME_SAMPLE_INTERVAL: int = 1
 **Tuning guide / 调参指南**:
   Set to 1 to process every frame (no skipping).  At 25 fps, an interval of
   3 yields ~8 effective processing fps, which is usually sufficient for
-  truck monitoring while reducing GPU/CPU load by ~67%.
+  smoke/fire monitoring while reducing GPU/CPU load by ~67%.
   设为 1 则处理每帧（不跳过）。在 25fps 时，间隔 3 得到约 8 有效处理 fps，
-  通常足以用于卡车监控，同时减少约 67% 的 GPU/CPU 负载。"""
+  通常足以用于烟火监控，同时减少约 67% 的 GPU/CPU 负载。"""
 
 # ── RTSP reconnection / RTSP 重连 ────────────────────────────────────────────
 

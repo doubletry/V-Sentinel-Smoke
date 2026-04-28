@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import time
 from typing import Any
 
 import cv2
@@ -88,8 +89,10 @@ class SmokeFireProcessor(BaseVideoProcessor):
         )
         raw_detections = [det for det in detect_result["detections"] if str(det.get("label", "")).lower() in SMOKE_FIRE_LABELS]
         timestamp = datetime.now(timezone.utc).isoformat()
+        monotonic_ts = time.monotonic()
         post_result = self._post_processor.process_frame(
-            [self._to_post_detection(det) for det in raw_detections],
+            [self._to_post_detection(det, monotonic_ts) for det in raw_detections],
+            timestamp=monotonic_ts,
             frame=cv2.cvtColor(frame, cv2.COLOR_RGB2BGR),
         )
         confirmed = [self._from_post_detection(det) for det in post_result.filtered_detections]
@@ -100,7 +103,7 @@ class SmokeFireProcessor(BaseVideoProcessor):
         if post_result.has_alarm and confirmed:
             labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
             confidence = max(float(det.get("confidence", 0.0)) for det in confirmed)
-            image_base64 = self._encode_frame_base64(annotated)
+            image_base64 = self._encode_thumbnail(annotated)
             event = build_smoke_email_event(
                 timestamp=timestamp,
                 source_id=self.source_id,
@@ -125,26 +128,27 @@ class SmokeFireProcessor(BaseVideoProcessor):
             result.extra["smoke_event"] = event
         return result
 
-    def _to_post_detection(self, det: dict[str, Any]) -> Detection:
+    def _to_post_detection(self, det: dict[str, Any], timestamp: float) -> Detection:
         label = str(det.get("label", "")).lower()
-        class_id = DetectionClass.FIRE.value if label == FIRE_LABEL else DetectionClass.SMOKE.value
+        cls = DetectionClass.FIRE if label == FIRE_LABEL else DetectionClass.SMOKE
         return Detection(
             x1=float(det.get("x_min", 0.0)),
             y1=float(det.get("y_min", 0.0)),
             x2=float(det.get("x_max", 0.0)),
             y2=float(det.get("y_max", 0.0)),
             confidence=float(det.get("confidence", 0.0)),
-            class_id=class_id,
+            cls=cls,
+            timestamp=timestamp,
         )
 
     def _from_post_detection(self, det: Detection) -> dict[str, Any]:
-        label = FIRE_LABEL if det.class_id == DetectionClass.FIRE.value else SMOKE_LABEL
+        label = FIRE_LABEL if det.cls == DetectionClass.FIRE else SMOKE_LABEL
         return {
             "x_min": det.x1,
             "y_min": det.y1,
             "x_max": det.x2,
             "y_max": det.y2,
             "confidence": det.confidence,
-            "class_id": det.class_id,
+            "class_id": det.cls.value,
             "label": label,
         }

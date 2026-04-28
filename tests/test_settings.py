@@ -18,7 +18,7 @@ class TestSettingsDB:
         assert all_settings["timezone"] == "Asia/Shanghai"
         assert all_settings["site_title"] == "V-Sentinel"
         assert all_settings["favicon_url"] == "/favicon.ico"
-        assert all_settings["processor_plugin"] == "truck"
+        assert all_settings["processor_plugin"] == "smoke"
         assert "roi_tag_options" in all_settings
         assert all_settings["vengine_host"] == "localhost"
         assert all_settings["detection_port"] == "50051"
@@ -26,8 +26,10 @@ class TestSettingsDB:
         assert all_settings["email_from_address"] == ""
         assert all_settings["email_to_addresses"] == ""
         assert all_settings["email_port"] == "50055"
-        assert all_settings["daily_summary_hour"] == "23"
-        assert all_settings["daily_summary_minute"] == "59"
+        assert all_settings["email_event_enabled"] == "true"
+        assert all_settings["smoke_temporal_confirm_frames"] == "3"
+        assert all_settings["smoke_email_cooldown_seconds"] == "300"
+        assert "email_event_body_template" in all_settings
         assert all_settings["message_retention_days"] == "7"
 
     async def test_get_setting(self, init_db):
@@ -81,8 +83,10 @@ class TestSettingsAPI:
                 "email_to_addresses": "to1@example.com,to2@example.com",
                 "email_cc_addresses": "cc@example.com",
                 "email_port": "50060",
-                "daily_summary_hour": "21",
-                "daily_summary_minute": "30",
+                "email_event_enabled": "true",
+                "email_event_subject_template": "Alert {event_label}",
+                "smoke_temporal_confirm_frames": "5",
+                "smoke_email_cooldown_seconds": "60",
                 "message_retention_days": "14",
             },
         )
@@ -99,8 +103,10 @@ class TestSettingsAPI:
         assert data["email_to_addresses"] == "to1@example.com,to2@example.com"
         assert data["email_cc_addresses"] == "cc@example.com"
         assert data["email_port"] == "50060"
-        assert data["daily_summary_hour"] == "21"
-        assert data["daily_summary_minute"] == "30"
+        assert data["email_event_enabled"] == "true"
+        assert data["email_event_subject_template"] == "Alert {event_label}"
+        assert data["smoke_temporal_confirm_frames"] == "5"
+        assert data["smoke_email_cooldown_seconds"] == "60"
         assert data["message_retention_days"] == "14"
 
     async def test_update_empty(self, async_client: AsyncClient):
@@ -161,3 +167,9 @@ class TestVEngineClientAddresses:
         addrs = AsyncVEngineClient._build_addresses({})
         assert addrs["detection"] == "localhost:50051"
         assert addrs["upload"] == "localhost:50050"
+
+    async def test_email_template_placeholders_endpoint(self, async_client: AsyncClient):
+        resp = await async_client.get("/api/settings/email/template-placeholders")
+        assert resp.status_code == 200
+        placeholders = set(resp.json()["placeholders"])
+        assert {"local_time", "source_name", "event_type", "event_label"} <= placeholders

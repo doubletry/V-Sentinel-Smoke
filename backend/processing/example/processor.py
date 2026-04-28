@@ -8,7 +8,7 @@ from core.example.processor import ExampleProcessor as _CoreExampleProcessor
 
 if TYPE_CHECKING:
     from backend.api.ws import WSManager
-    from backend.processing.truck.agent import AnalysisAgent
+    from backend.processing.agent import AnalysisAgent
     from backend.vengine.client import AsyncVEngineClient
 
 

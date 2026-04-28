@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock
-
 from httpx import AsyncClient
 
 from backend.db.database import (
     build_analysis_message_image_url,
-    get_vehicle_visits_between,
     list_analysis_messages,
     save_analysis_message,
-    save_vehicle_visit,
     update_settings,
 )
 
@@ -146,56 +142,5 @@ class TestMessagesAPI:
         assert resp.status_code == 200
         data = resp.json()
         values = {item["value"] for item in data}
-        assert {"truck", "example"} <= values
+        assert {"smoke", "example"} <= values
 
-    async def test_today_vehicle_events_endpoint(self, async_client: AsyncClient):
-        now = datetime.now(timezone.utc).isoformat()
-        await save_vehicle_visit(
-            source_id="s1",
-            source_name="Cam1",
-            track_id=1,
-            enter_time=now,
-            exit_time=now,
-            plate="ABC123",
-            confirmed_actions=["ExteriorInspectionOfTruck"],
-            missing_actions=["TakePhotosOfGoods"],
-        )
-
-        resp = await async_client.get("/api/vehicle-events/today")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["visits"][0]["plate"] == "ABC123"
-        assert data["visits"][0]["confirmed_actions"] == ["车外检查"]
-        assert data["visits"][0]["missing_actions"] == ["货物拍照"]
-        assert "ABC123" in data["summary_text"]
-        assert "到达时间" in data["summary_text"]
-        assert "离开时间" in data["summary_text"]
-
-    async def test_send_summary_now_endpoint(self, async_client: AsyncClient):
-        from backend.main import app
-
-        app.state.email_client.send_daily_summary_email = AsyncMock(
-            return_value={"status": "SUCCESS"}
-        )
-        app.state.email_client.reconnect_from_settings = AsyncMock()
-
-        now = datetime.now(timezone.utc).isoformat()
-        await save_vehicle_visit(
-            source_id="s1",
-            source_name="Cam1",
-            track_id=1,
-            enter_time=now,
-            exit_time=now,
-            plate="XYZ888",
-            confirmed_actions=["车外检查"],
-            missing_actions=[],
-        )
-
-        resp = await async_client.post("/api/vehicle-events/send-summary-now")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "SUCCESS"
-        assert "XYZ888" in data["summary_text"]
-        assert "到达时间" in data["summary_text"]
-        assert "离开时间" in data["summary_text"]
-        app.state.email_client.send_daily_summary_email.assert_awaited_once()
