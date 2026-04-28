@@ -48,7 +48,7 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "ocr_enabled": "true",
     "upload_enabled": "true",
     # Processor plugin / 处理器插件
-    "processor_plugin": "truck",
+    "processor_plugin": "smoke",
     # MediaMTX
     "mediamtx_rtsp_addr": "rtsp://localhost:8554",
     "mediamtx_webrtc_addr": "http://localhost:8889",
