@@ -4,6 +4,17 @@ import config from '../config.js'
 import { settingsApi } from '../api/index.js'
 import { setI18nLocale } from '../i18n/index.js'
 
+const DEFAULT_EVENT_EMAIL_BODY_TEMPLATE = [
+  'Event: {event_label}',
+  'Time: {local_time} ({timezone})',
+  'Video source: {source_name} ({source_id})',
+  'Labels: {labels}',
+  'Highest confidence: {confidence_percent}',
+  'Detection count: {detection_count}',
+  'Frame ID: {frame_id}',
+  'Active tracks: {active_tracks}',
+].join('\n')
+
 const DEFAULT_UI_SETTINGS = {
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -22,7 +33,7 @@ const DEFAULT_UI_SETTINGS = {
   email_event_enabled: 'true',
   email_timed_enabled: 'false',
   email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
-  email_event_body_template: 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nLabels: {labels}\nHighest confidence: {confidence_percent}\nDetection count: {detection_count}\nFrame ID: {frame_id}\nActive tracks: {active_tracks}',
+  email_event_body_template: DEFAULT_EVENT_EMAIL_BODY_TEMPLATE,
   smoke_detection_model_name: 'smoke-fire-detection',
   smoke_detection_model_version: '',
   smoke_temporal_confirm_frames: '3',

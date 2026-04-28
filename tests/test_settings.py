@@ -30,6 +30,7 @@ class TestSettingsDB:
         assert all_settings["smoke_temporal_confirm_frames"] == "3"
         assert all_settings["smoke_email_cooldown_seconds"] == "300"
         assert "email_event_body_template" in all_settings
+        assert "{event_label}" in all_settings["email_event_body_template"]
         assert all_settings["message_retention_days"] == "7"
 
     async def test_get_setting(self, init_db):

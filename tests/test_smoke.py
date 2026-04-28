@@ -56,3 +56,22 @@ class TestSmokeProcessor:
         assert result.messages[0]["level"] == "alert"
         assert result.extra["email_event"]["event_type"] == "smoke"
         assert result.extra["email_event"]["image_base64"]
+
+    def test_processor_reads_postprocess_config_from_settings(self):
+        processor = SmokeFireProcessor(
+            source_id="s1",
+            source_name="Cam1",
+            rtsp_url="",
+            rois=[],
+            vengine_client=None,
+            app_settings={
+                "smoke_temporal_confirm_frames": "7",
+                "smoke_email_cooldown_seconds": "90",
+                "smoke_enable_appearance_filter": "false",
+                "smoke_iou_threshold": "0.45",
+            },
+        )
+        config = processor._post_processor.config
+        assert config.temporal_confirm_frames == 7
+        assert config.enable_smoke_appearance_filter is False
+        assert config.iou_threshold == 0.45
