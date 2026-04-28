@@ -186,6 +186,53 @@
           <p class="service-tip">{{ t('settings.serviceToggleTip') }}</p>
         </section>
 
+
+        <section class="settings-section">
+          <h2>{{ t('settings.smokeScene') }}</h2>
+          <el-form-item :label="t('settings.smokeDetectionModelName')">
+            <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionModelVersion')">
+            <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionConfidence')">
+            <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionNms')">
+            <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
+            <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
+            <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeMaxMissFrames')">
+            <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAlarmHoldTime')">
+            <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAppearanceFilter')">
+            <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAdvancedThresholds')">
+            <div class="smoke-threshold-grid">
+              <el-input v-model="form.smoke_min_confidence_smoke" :placeholder="t('settings.smokeMinConfidenceSmoke')" />
+              <el-input v-model="form.smoke_min_confidence_fire" :placeholder="t('settings.smokeMinConfidenceFire')" />
+              <el-input v-model="form.smoke_min_bbox_area_ratio" :placeholder="t('settings.smokeMinBboxAreaRatio')" />
+              <el-input v-model="form.smoke_max_bbox_area_ratio" :placeholder="t('settings.smokeMaxBboxAreaRatio')" />
+              <el-input v-model="form.smoke_min_aspect_ratio" :placeholder="t('settings.smokeMinAspectRatio')" />
+              <el-input v-model="form.smoke_max_aspect_ratio" :placeholder="t('settings.smokeMaxAspectRatio')" />
+              <el-input v-model="form.smoke_motion_blur_max_speed" :placeholder="t('settings.smokeMotionBlurMaxSpeed')" />
+              <el-input v-model="form.smoke_motion_blur_min_confidence" :placeholder="t('settings.smokeMotionBlurMinConfidence')" />
+              <el-input v-model="form.smoke_appearance_min_score" :placeholder="t('settings.smokeAppearanceMinScore')" />
+              <el-input v-model="form.smoke_appearance_min_history" :placeholder="t('settings.smokeAppearanceMinHistory')" />
+              <el-input v-model="form.smoke_iou_threshold" :placeholder="t('settings.smokeIouThreshold')" />
+            </div>
+          </el-form-item>
+        </section>
+
         <section class="settings-section">
           <h2>{{ t('settings.mediamtx') }}</h2>
           <el-form-item :label="t('settings.rtspAddress')">
@@ -197,7 +244,7 @@
         </section>
 
         <section class="settings-section">
-          <h2>{{ t('settings.emailSummary') }}</h2>
+          <h2>{{ t('settings.emailNotifications') }}</h2>
           <el-form-item :label="t('settings.emailFromAddress')">
             <el-input
               v-model="form.email_from_address"
@@ -237,11 +284,29 @@
               placeholder="cc1@example.com,cc2@example.com"
             />
           </el-form-item>
-          <el-form-item :label="t('settings.dailySummaryHour')">
-            <el-input v-model="form.daily_summary_hour" placeholder="23" />
+          <el-form-item :label="t('settings.emailEventEnabled')">
+            <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
           </el-form-item>
-          <el-form-item :label="t('settings.dailySummaryMinute')">
-            <el-input v-model="form.daily_summary_minute" placeholder="59" />
+          <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
+            <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
+          </el-form-item>
+          <el-form-item :label="t('settings.emailEventSubjectTemplate')">
+            <el-input v-model="form.email_event_subject_template" />
+          </el-form-item>
+          <el-form-item :label="t('settings.emailEventBodyTemplate')">
+            <div class="field-stack">
+              <el-input
+                v-model="form.email_event_body_template"
+                type="textarea"
+                :rows="8"
+              />
+              <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
+              <div class="placeholder-tags">
+                <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
+                  {{ `{${item}}` }}
+                </el-tag>
+              </div>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.messageRetentionDays')">
             <el-select v-model="form.message_retention_days" style="width: 100%">
@@ -298,6 +363,7 @@ const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const processorPluginOptions = ref([])
 const retentionDayOptions = [7, 15, 21, 30]
+const emailTemplatePlaceholders = ['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks']
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 
 const loading = ref(false)
@@ -309,7 +375,7 @@ const roiTagList = ref([])
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'truck',
+  processor_plugin: 'smoke',
   site_title: '',
   site_description: '',
   favicon_url: '/favicon.ico',
@@ -321,10 +387,10 @@ const form = ref({
   ocr_port: '',
   upload_port: '',
   detection_enabled: 'true',
-  classification_enabled: 'true',
-  action_enabled: 'true',
-  ocr_enabled: 'true',
-  upload_enabled: 'true',
+  classification_enabled: 'false',
+  action_enabled: 'false',
+  ocr_enabled: 'false',
+  upload_enabled: 'false',
   mediamtx_rtsp_addr: '',
   mediamtx_webrtc_addr: '',
   email_from_address: '',
@@ -332,8 +398,31 @@ const form = ref({
   email_to_addresses: '',
   email_cc_addresses: '',
   email_port: '50055',
-  daily_summary_hour: '23',
-  daily_summary_minute: '59',
+  email_event_enabled: 'true',
+  email_timed_enabled: 'false',
+  email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
+  email_event_body_template: 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nLabels: {labels}\nHighest confidence: {confidence_percent}\nDetection count: {detection_count}\nFrame ID: {frame_id}\nActive tracks: {active_tracks}',
+  smoke_detection_model_name: 'smoke-fire-detection',
+  smoke_detection_model_version: '',
+  smoke_detection_confidence: '0.35',
+  smoke_detection_nms: '0.7',
+  smoke_min_confidence_smoke: '0.35',
+  smoke_min_confidence_fire: '0.40',
+  smoke_temporal_confirm_frames: '3',
+  smoke_temporal_confirm_window: '2.0',
+  smoke_max_miss_frames: '5',
+  smoke_min_bbox_area_ratio: '0.0005',
+  smoke_max_bbox_area_ratio: '0.60',
+  smoke_min_aspect_ratio: '0.2',
+  smoke_max_aspect_ratio: '8.0',
+  smoke_motion_blur_max_speed: '100.0',
+  smoke_motion_blur_min_confidence: '0.65',
+  smoke_enable_appearance_filter: 'true',
+  smoke_appearance_min_score: '0.42',
+  smoke_appearance_min_history: '2',
+  smoke_iou_threshold: '0.3',
+  smoke_alarm_hold_time: '3.0',
+  smoke_email_cooldown_seconds: '300',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
@@ -412,7 +501,7 @@ async function reload() {
 
 async function save() {
   saving.value = true
-  const previousPlugin = appSettingsStore.settings?.processor_plugin || 'truck'
+  const previousPlugin = appSettingsStore.settings?.processor_plugin || 'smoke'
   try {
     syncRoiTagOptionsToForm()
     const pluginChanged = previousPlugin !== form.value.processor_plugin
@@ -620,6 +709,19 @@ onMounted(async () => {
 .roi-tag-input-row {
   display: flex;
   gap: 8px;
+}
+
+.placeholder-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.smoke-threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  width: 100%;
 }
 
 .roi-tag-hint {

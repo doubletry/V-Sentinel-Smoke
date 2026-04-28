@@ -7,7 +7,7 @@ import { setI18nLocale } from '../i18n/index.js'
 const DEFAULT_UI_SETTINGS = {
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'truck',
+  processor_plugin: 'smoke',
   site_title: config.siteName,
   site_description: config.siteDescription,
   favicon_url: '/favicon.ico',
@@ -19,8 +19,14 @@ const DEFAULT_UI_SETTINGS = {
   email_to_addresses: '',
   email_cc_addresses: '',
   email_port: '50055',
-  daily_summary_hour: '23',
-  daily_summary_minute: '59',
+  email_event_enabled: 'true',
+  email_timed_enabled: 'false',
+  email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
+  email_event_body_template: 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nLabels: {labels}\nHighest confidence: {confidence_percent}\nDetection count: {detection_count}\nFrame ID: {frame_id}\nActive tracks: {active_tracks}',
+  smoke_detection_model_name: 'smoke-fire-detection',
+  smoke_detection_model_version: '',
+  smoke_temporal_confirm_frames: '3',
+  smoke_email_cooldown_seconds: '300',
   message_retention_days: '7',
 }
 
