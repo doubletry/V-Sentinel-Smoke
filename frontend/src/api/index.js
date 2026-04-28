@@ -57,10 +57,6 @@ export const messagesApi = {
   list: (params = {}) => api.get('/api/messages', { params }),
 }
 
-export const vehicleEventsApi = {
-  today: () => api.get('/api/vehicle-events/today'),
-  sendSummaryNow: () => api.post('/api/vehicle-events/send-summary-now'),
-}
 
 // Settings API
 export const settingsApi = {
