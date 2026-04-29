@@ -55,8 +55,21 @@ Message thumbnails are written to the filesystem and are no longer stored inside
 This container does **not** start MediaMTX or any other sidecar service.
 
 - If you need the 视频墙 page to play live video, configure an external RTSP/WebRTC gateway in the Settings page.
+- Configure **MediaMTX RTSP / WebRTC usernames and passwords** as well when the gateway is protected by authentication.
+- When the MediaMTX RTSP address or RTSP credentials change, V-Sentinel rewrites saved source RTSP URLs automatically so existing online sources keep the same route path under the new gateway.
+- When the MediaMTX WebRTC address or WebRTC credentials change, frontend playback reconnects by using the new WHEP settings.
 - If you need AI inference, configure the V-Engine service addresses in the Settings page.
 - If you need daily-summary email delivery, configure the email service in the Settings page.
+
+## Smoke / fire scene operations
+
+The smoke/fire plugin includes advanced post-processing thresholds in the Settings page.
+
+- Start by tuning the basic detector parameters (`Detection Confidence`, `NMS`).
+- Use temporal settings (`Confirm Frames`, `Confirm Window`, `Max Miss Frames`) to balance stability vs. responsiveness.
+- Keep advanced appearance thresholds at their defaults unless you are targeting a specific false-positive pattern such as glare, white hard-edged objects, or motion blur.
+
+The settings page now includes inline descriptions for each smoke/fire advanced parameter so operators can tune them without reading the processor source code.
 
 ## Upgrade
 

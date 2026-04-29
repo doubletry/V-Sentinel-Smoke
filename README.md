@@ -139,25 +139,65 @@ FastAPI automatically serves the built frontend from `/` when `frontend/dist/` e
 
 ## Configuration
 
-Create a `.env` file in the project root to override defaults:
+Only a small set of runtime options are environment-based. Create a `.env` file
+in the project root if you need to override them:
 
 ```dotenv
-# V-Engine service addresses
-DETECTION_ADDR=localhost:50051
-CLASSIFICATION_ADDR=localhost:50052
-ACTION_ADDR=localhost:50053
-OCR_ADDR=localhost:50054
-UPLOAD_ADDR=localhost:50050
-
-# Optional external video gateway (for Video Wall playback only)
-MEDIAMTX_RTSP_ADDR=rtsp://localhost:8554
-MEDIAMTX_WEBRTC_ADDR=http://localhost:8889
+# HTTP service port
+BACKEND_PORT=8000
 
 # Database
 DB_PATH=./v_sentinel.db
 ```
 
+Most operational settings are stored in the database and edited in the **Settings**
+page after the app starts, including:
+
+- V-Engine host/ports and service toggles
+- MediaMTX RTSP / WebRTC base addresses
+- MediaMTX RTSP / WebRTC usernames and passwords
+- smoke/fire detection thresholds
+- email notification templates and recipients
+
 Runtime message thumbnails are persisted beside the database in `message_thumbnails/`.
+
+### MediaMTX gateway settings
+
+The Video Wall uses an external MediaMTX-compatible gateway.
+
+- **RTSP Address** is the base address used when creating online sources.
+- **RTSP Username / Password** are injected into saved RTSP URLs so protected
+  streams can be opened without manual URL editing.
+- **WebRTC Address** is the base WHEP address used by the frontend player.
+- **WebRTC Username / Password** are sent when the browser negotiates playback.
+
+When the MediaMTX RTSP address or RTSP credentials change, V-Sentinel
+automatically rewrites all saved online-source RTSP URLs to keep the same route
+path under the new base address. When the WebRTC address or WebRTC credentials
+change, existing frontend players reconnect with the new playback settings.
+
+### Smoke / fire advanced settings
+
+The smoke/fire scene uses a multi-stage post-processor:
+
+- **Detection Confidence / NMS** tune the raw detector output.
+- **Temporal Confirm Frames / Window / Max Miss Frames** control how many
+  consistent detections are required before an alarm is considered real.
+- **Alarm Hold Time** keeps the alarm active briefly after short detection gaps.
+- **Advanced thresholds** filter glare, white objects, motion blur, hard edges,
+  and static clutter that can look like smoke.
+
+If your scene is already stable, keep the advanced thresholds at their defaults
+and only adjust them when you see a clear false-positive pattern.
+
+### Email template placeholders
+
+Event email templates support placeholders returned by
+`/api/settings/email/template-placeholders`, including:
+
+`{site_title}`, `{local_time}`, `{timezone}`, `{source_name}`, `{source_id}`,
+`{event_type}`, `{event_label}`, `{labels}`, `{confidence_percent}`,
+`{detection_count}`, `{frame_id}`, and `{active_tracks}`.
 
 ### Frontend proxy port
 

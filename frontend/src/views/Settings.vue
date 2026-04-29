@@ -190,45 +190,69 @@
         <section class="settings-section">
           <h2>{{ t('settings.smokeScene') }}</h2>
           <el-form-item :label="t('settings.smokeDetectionModelName')">
-            <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+              <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeDetectionModelVersion')">
-            <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+              <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeDetectionConfidence')">
-            <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+              <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeDetectionNms')">
-            <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+              <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
-            <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+              <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
-            <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+              <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeMaxMissFrames')">
-            <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+              <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeAlarmHoldTime')">
-            <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+            <div class="field-stack">
+              <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+              <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeAppearanceFilter')">
-            <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+            <div class="field-stack">
+              <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+              <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.smokeAdvancedThresholds')">
-            <div class="smoke-threshold-grid">
-              <el-input v-model="form.smoke_min_confidence_smoke" :placeholder="t('settings.smokeMinConfidenceSmoke')" />
-              <el-input v-model="form.smoke_min_confidence_fire" :placeholder="t('settings.smokeMinConfidenceFire')" />
-              <el-input v-model="form.smoke_min_bbox_area_ratio" :placeholder="t('settings.smokeMinBboxAreaRatio')" />
-              <el-input v-model="form.smoke_max_bbox_area_ratio" :placeholder="t('settings.smokeMaxBboxAreaRatio')" />
-              <el-input v-model="form.smoke_min_aspect_ratio" :placeholder="t('settings.smokeMinAspectRatio')" />
-              <el-input v-model="form.smoke_max_aspect_ratio" :placeholder="t('settings.smokeMaxAspectRatio')" />
-              <el-input v-model="form.smoke_motion_blur_max_speed" :placeholder="t('settings.smokeMotionBlurMaxSpeed')" />
-              <el-input v-model="form.smoke_motion_blur_min_confidence" :placeholder="t('settings.smokeMotionBlurMinConfidence')" />
-              <el-input v-model="form.smoke_appearance_min_score" :placeholder="t('settings.smokeAppearanceMinScore')" />
-              <el-input v-model="form.smoke_appearance_min_history" :placeholder="t('settings.smokeAppearanceMinHistory')" />
-              <el-input v-model="form.smoke_iou_threshold" :placeholder="t('settings.smokeIouThreshold')" />
+            <div class="field-stack">
+              <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+              <div class="smoke-threshold-grid">
+                <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
+                  <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
+                  <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
+                  <p class="form-hint">{{ t(item.hintKey) }}</p>
+                </div>
+              </div>
             </div>
           </el-form-item>
         </section>
@@ -388,6 +412,28 @@ const processorPluginOptions = ref([])
 const retentionDayOptions = [7, 15, 21, 30]
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
+const smokeAdvancedFields = [
+  { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
+  { key: 'smoke_min_confidence_fire', labelKey: 'settings.smokeMinConfidenceFire', hintKey: 'settings.smokeMinConfidenceFireHint', placeholder: '0.40' },
+  { key: 'smoke_min_bbox_area_ratio', labelKey: 'settings.smokeMinBboxAreaRatio', hintKey: 'settings.smokeMinBboxAreaRatioHint', placeholder: '0.0005' },
+  { key: 'smoke_max_bbox_area_ratio', labelKey: 'settings.smokeMaxBboxAreaRatio', hintKey: 'settings.smokeMaxBboxAreaRatioHint', placeholder: '0.60' },
+  { key: 'smoke_min_aspect_ratio', labelKey: 'settings.smokeMinAspectRatio', hintKey: 'settings.smokeMinAspectRatioHint', placeholder: '0.2' },
+  { key: 'smoke_max_aspect_ratio', labelKey: 'settings.smokeMaxAspectRatio', hintKey: 'settings.smokeMaxAspectRatioHint', placeholder: '8.0' },
+  { key: 'smoke_motion_blur_max_speed', labelKey: 'settings.smokeMotionBlurMaxSpeed', hintKey: 'settings.smokeMotionBlurMaxSpeedHint', placeholder: '100.0' },
+  { key: 'smoke_motion_blur_min_confidence', labelKey: 'settings.smokeMotionBlurMinConfidence', hintKey: 'settings.smokeMotionBlurMinConfidenceHint', placeholder: '0.65' },
+  { key: 'smoke_appearance_min_score', labelKey: 'settings.smokeAppearanceMinScore', hintKey: 'settings.smokeAppearanceMinScoreHint', placeholder: '0.42' },
+  { key: 'smoke_appearance_min_history', labelKey: 'settings.smokeAppearanceMinHistory', hintKey: 'settings.smokeAppearanceMinHistoryHint', placeholder: '2' },
+  { key: 'smoke_appearance_high_confidence_bypass', labelKey: 'settings.smokeAppearanceHighConfidenceBypass', hintKey: 'settings.smokeAppearanceHighConfidenceBypassHint', placeholder: '0.82' },
+  { key: 'smoke_overexposed_ratio_threshold', labelKey: 'settings.smokeOverexposedRatioThreshold', hintKey: 'settings.smokeOverexposedRatioThresholdHint', placeholder: '0.18' },
+  { key: 'smoke_white_object_ratio_threshold', labelKey: 'settings.smokeWhiteObjectRatioThreshold', hintKey: 'settings.smokeWhiteObjectRatioThresholdHint', placeholder: '0.62' },
+  { key: 'smoke_hard_boundary_density_threshold', labelKey: 'settings.smokeHardBoundaryDensityThreshold', hintKey: 'settings.smokeHardBoundaryDensityThresholdHint', placeholder: '0.14' },
+  { key: 'smoke_hard_laplacian_threshold', labelKey: 'settings.smokeHardLaplacianThreshold', hintKey: 'settings.smokeHardLaplacianThresholdHint', placeholder: '520.0' },
+  { key: 'smoke_fast_motion_energy_threshold', labelKey: 'settings.smokeFastMotionEnergyThreshold', hintKey: 'settings.smokeFastMotionEnergyThresholdHint', placeholder: '0.16' },
+  { key: 'smoke_static_confirm_frames', labelKey: 'settings.smokeStaticConfirmFrames', hintKey: 'settings.smokeStaticConfirmFramesHint', placeholder: '5' },
+  { key: 'smoke_static_max_center_shift', labelKey: 'settings.smokeStaticMaxCenterShift', hintKey: 'settings.smokeStaticMaxCenterShiftHint', placeholder: '10.0' },
+  { key: 'smoke_static_max_area_change_ratio', labelKey: 'settings.smokeStaticMaxAreaChangeRatio', hintKey: 'settings.smokeStaticMaxAreaChangeRatioHint', placeholder: '0.08' },
+  { key: 'smoke_iou_threshold', labelKey: 'settings.smokeIouThreshold', hintKey: 'settings.smokeIouThresholdHint', placeholder: '0.3' },
+]
 
 const loading = ref(false)
 const saving = ref(false)
@@ -447,6 +493,15 @@ const form = ref({
   smoke_enable_appearance_filter: 'true',
   smoke_appearance_min_score: '0.42',
   smoke_appearance_min_history: '2',
+  smoke_appearance_high_confidence_bypass: '0.82',
+  smoke_overexposed_ratio_threshold: '0.18',
+  smoke_white_object_ratio_threshold: '0.62',
+  smoke_hard_boundary_density_threshold: '0.14',
+  smoke_hard_laplacian_threshold: '520.0',
+  smoke_fast_motion_energy_threshold: '0.16',
+  smoke_static_confirm_frames: '5',
+  smoke_static_max_center_shift: '10.0',
+  smoke_static_max_area_change_ratio: '0.08',
   smoke_iou_threshold: '0.3',
   smoke_alarm_hold_time: '3.0',
   smoke_email_cooldown_seconds: '300',
@@ -776,6 +831,19 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
   width: 100%;
+}
+
+.smoke-threshold-item {
+  padding: 10px;
+  border: 1px solid #2d3650;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.smoke-threshold-label {
+  color: #c8d5f0;
+  font-size: 12px;
+  margin-bottom: 6px;
 }
 
 .roi-tag-hint {
