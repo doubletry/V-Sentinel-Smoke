@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+
+def _has_text(value: str | None) -> bool:
+    return bool(str(value or "").strip())
 
 
 class ROIPoint(BaseModel):
@@ -34,7 +38,18 @@ class VideoSourceCreate(BaseModel):
     创建新视频源的模式。"""
 
     name: str
-    rtsp_url: str
+    rtsp_url: str | None = None
+    route_path: str | None = None
+
+    @model_validator(mode="after")
+    def validate_source_address(self) -> "VideoSourceCreate":
+        has_rtsp = _has_text(self.rtsp_url)
+        has_route = _has_text(self.route_path)
+        if has_rtsp and has_route:
+            raise ValueError("Use either rtsp_url or route_path, not both")
+        if not has_rtsp and not has_route:
+            raise ValueError("Either rtsp_url or route_path is required")
+        return self
 
 
 class VideoSourceUpdate(BaseModel):
@@ -43,7 +58,16 @@ class VideoSourceUpdate(BaseModel):
 
     name: str | None = None
     rtsp_url: str | None = None
+    route_path: str | None = None
     rois: list[ROICreate] | None = None
+
+    @model_validator(mode="after")
+    def validate_source_address(self) -> "VideoSourceUpdate":
+        has_rtsp = _has_text(self.rtsp_url)
+        has_route = _has_text(self.route_path)
+        if has_rtsp and has_route:
+            raise ValueError("Use either rtsp_url or route_path, not both")
+        return self
 
 
 class VideoSource(BaseModel):

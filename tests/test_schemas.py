@@ -75,6 +75,11 @@ class TestVideoSourceCreate:
         assert s.name == "cam1"
         assert s.rtsp_url == "rtsp://host/live"
 
+    def test_valid_with_route_path(self):
+        s = VideoSourceCreate(name="cam1", route_path="live/cam1")
+        assert s.name == "cam1"
+        assert s.route_path == "live/cam1"
+
     def test_missing_name(self):
         with pytest.raises(ValidationError):
             VideoSourceCreate(rtsp_url="rtsp://host/live")
@@ -83,18 +88,34 @@ class TestVideoSourceCreate:
         with pytest.raises(ValidationError):
             VideoSourceCreate(name="cam1")
 
+    def test_rejects_both_url_and_route_path(self):
+        with pytest.raises(ValidationError):
+            VideoSourceCreate(
+                name="cam1",
+                rtsp_url="rtsp://host/live",
+                route_path="cam1",
+            )
+
 
 class TestVideoSourceUpdate:
     def test_all_optional(self):
         u = VideoSourceUpdate()
         assert u.name is None
         assert u.rtsp_url is None
+        assert u.route_path is None
         assert u.rois is None
 
     def test_partial(self):
         u = VideoSourceUpdate(name="new name")
         assert u.name == "new name"
         assert u.rtsp_url is None
+
+    def test_rejects_both_url_and_route_path(self):
+        with pytest.raises(ValidationError):
+            VideoSourceUpdate(
+                rtsp_url="rtsp://host/live",
+                route_path="cam1",
+            )
 
 
 class TestVideoSource:

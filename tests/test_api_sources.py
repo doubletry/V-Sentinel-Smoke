@@ -6,6 +6,8 @@ from urllib.parse import quote
 import pytest
 from httpx import AsyncClient
 
+from backend.db.database import build_source_rtsp_url
+
 
 class TestHealthEndpoint:
     async def test_health(self, async_client: AsyncClient):
@@ -38,6 +40,30 @@ class TestCreateSource:
     async def test_create_missing_field(self, async_client: AsyncClient):
         resp = await async_client.post("/api/sources", json={"name": "x"})
         assert resp.status_code == 422
+
+    async def test_create_from_route_path_uses_current_settings(self, async_client: AsyncClient):
+        settings_resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
+                "mediamtx_rtsp_username": "stream-user",
+                "mediamtx_rtsp_password": "stream-pass",
+            },
+        )
+        assert settings_resp.status_code == 200
+
+        resp = await async_client.post(
+            "/api/sources",
+            json={"name": "Route Camera", "route_path": "cam1"},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["rtsp_url"] == build_source_rtsp_url(
+            "rtsp://gateway.example.com:9554/live",
+            "cam1",
+            username="stream-user",
+            password="stream-pass",
+        )
 
 
 class TestListSources:
@@ -127,6 +153,34 @@ class TestUpdateSource:
             "/api/sources/nope", json={"name": "X"}
         )
         assert resp.status_code == 404
+
+    async def test_update_route_path_uses_current_settings(
+        self, async_client: AsyncClient, sample_source_data: dict
+    ):
+        create_resp = await async_client.post("/api/sources", json=sample_source_data)
+        source_id = create_resp.json()["id"]
+
+        settings_resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/base",
+                "mediamtx_rtsp_username": "stream-user",
+                "mediamtx_rtsp_password": "stream-pass",
+            },
+        )
+        assert settings_resp.status_code == 200
+
+        resp = await async_client.put(
+            f"/api/sources/{source_id}",
+            json={"route_path": "cam2"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["rtsp_url"] == build_source_rtsp_url(
+            "rtsp://gateway.example.com:9554/base",
+            "cam2",
+            username="stream-user",
+            password="stream-pass",
+        )
 
 
 class TestDeleteSource:

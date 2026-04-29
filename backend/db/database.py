@@ -326,6 +326,56 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     )
 
 
+async def _get_setting_from_db(
+    db: aiosqlite.Connection,
+    key: str,
+    default: str = "",
+) -> str:
+    async with db.execute(
+        "SELECT value FROM app_settings WHERE key = ?",
+        (key,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return default
+    return str(row[0] or default)
+
+
+async def _resolve_source_rtsp_url(
+    db: aiosqlite.Connection,
+    *,
+    rtsp_url: str | None = None,
+    route_path: str | None = None,
+) -> str:
+    route = _normalize_route_path(route_path)
+    if route:
+        rtsp_base_address = await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_addr",
+            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", ""),
+        )
+        rtsp_username = await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_username",
+            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_username", ""),
+        )
+        rtsp_password = await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_password",
+            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_password", ""),
+        )
+        resolved_rtsp_url = build_source_rtsp_url(
+            rtsp_base_address,
+            route,
+            username=rtsp_username,
+            password=rtsp_password,
+        )
+        if not resolved_rtsp_url:
+            raise ValueError("MediaMTX RTSP base address is not configured")
+        return resolved_rtsp_url
+    return str(rtsp_url or "").strip()
+
+
 def _normalize_base_address(value: str | None) -> str:
     return str(value or "").strip().rstrip("/")
 
@@ -424,15 +474,20 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
     source_id = str(uuid.uuid4())
     created_at = _now_iso()
     async with _db_session() as db:
+        resolved_rtsp_url = await _resolve_source_rtsp_url(
+            db,
+            rtsp_url=source.rtsp_url,
+            route_path=source.route_path,
+        )
         await db.execute(
             "INSERT INTO video_sources (id, name, rtsp_url, created_at) VALUES (?, ?, ?, ?)",
-            (source_id, source.name, source.rtsp_url, created_at),
+            (source_id, source.name, resolved_rtsp_url, created_at),
         )
         await db.commit()
     return VideoSource(
         id=source_id,
         name=source.name,
-        rtsp_url=source.rtsp_url,
+        rtsp_url=resolved_rtsp_url,
         rois=[],
         created_at=created_at,
     )
@@ -492,7 +547,16 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
         if data.name is not None:
             fields.append("name = ?")
             values.append(data.name)
-        if data.rtsp_url is not None:
+        if data.route_path is not None:
+            fields.append("rtsp_url = ?")
+            values.append(
+                await _resolve_source_rtsp_url(
+                    db,
+                    rtsp_url=None,
+                    route_path=data.route_path,
+                )
+            )
+        elif data.rtsp_url is not None:
             fields.append("rtsp_url = ?")
             values.append(data.rtsp_url)
         if fields:

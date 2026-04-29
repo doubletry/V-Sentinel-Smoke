@@ -24,6 +24,8 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
     创建新的视频源。"""
     try:
         return await db.create_source(source)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         if "UNIQUE constraint failed" in str(exc):
             raise HTTPException(
@@ -63,7 +65,10 @@ async def get_source(source_id: str) -> VideoSource:
 async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource:
     """Update a video source (name, rtsp_url, and/or ROIs).
     更新视频源（名称、RTSP URL 和/或 ROI）。"""
-    source = await db.update_source(source_id, data)
+    try:
+        source = await db.update_source(source_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     return source
