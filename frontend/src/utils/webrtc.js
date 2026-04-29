@@ -1,4 +1,5 @@
 import config from '../config.js'
+import { buildWebRtcUrlWithAuth } from './sourceAddress.js'
 
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '')
@@ -15,8 +16,26 @@ function normalizeRoutePath(value) {
  * @param {string} webrtcBaseUrl - MediaMTX WebRTC base address from settings
  * @returns {object} - { pc: RTCPeerConnection, stop: Function }
  */
-export async function connectWebRTC(streamPath, videoEl, webrtcBaseUrl) {
-  const base = normalizeBaseUrl(webrtcBaseUrl || config.mediamtxWebrtcUrl)
+function buildBasicAuthHeader(username, password) {
+  const normalizedUsername = String(username || '').trim()
+  if (!normalizedUsername) return {}
+
+  const encoded = window.btoa(unescape(encodeURIComponent(`${normalizedUsername}:${String(password || '')}`)))
+  return {
+    Authorization: `Basic ${encoded}`,
+  }
+}
+
+export async function connectWebRTC(
+  streamPath,
+  videoEl,
+  webrtcBaseUrl,
+  webrtcUsername = '',
+  webrtcPassword = ''
+) {
+  const base = normalizeBaseUrl(
+    buildWebRtcUrlWithAuth(webrtcBaseUrl || config.mediamtxWebrtcUrl, webrtcUsername, webrtcPassword)
+  )
   const route = normalizeRoutePath(streamPath)
   const whepUrl = `${base}/${route}/whep`
 
@@ -49,7 +68,10 @@ export async function connectWebRTC(streamPath, videoEl, webrtcBaseUrl) {
   try {
     response = await fetch(whepUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/sdp' },
+      headers: {
+        'Content-Type': 'application/sdp',
+        ...buildBasicAuthHeader(webrtcUsername, webrtcPassword),
+      },
       body: pc.localDescription.sdp,
     })
   } catch (err) {

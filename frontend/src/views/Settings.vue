@@ -238,9 +238,32 @@
           <el-form-item :label="t('settings.rtspAddress')">
             <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
           </el-form-item>
+          <el-form-item :label="t('settings.rtspUsername')">
+            <el-input v-model="form.mediamtx_rtsp_username" placeholder="stream-user" />
+          </el-form-item>
+          <el-form-item :label="t('settings.rtspPassword')">
+            <el-input
+              v-model="form.mediamtx_rtsp_password"
+              type="password"
+              show-password
+              placeholder="stream-pass"
+            />
+          </el-form-item>
           <el-form-item :label="t('settings.webrtcAddress')">
             <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
           </el-form-item>
+          <el-form-item :label="t('settings.webrtcUsername')">
+            <el-input v-model="form.mediamtx_webrtc_username" placeholder="viewer" />
+          </el-form-item>
+          <el-form-item :label="t('settings.webrtcPassword')">
+            <el-input
+              v-model="form.mediamtx_webrtc_password"
+              type="password"
+              show-password
+              placeholder="viewer-pass"
+            />
+          </el-form-item>
+          <p class="service-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
         </section>
 
         <section class="settings-section">
@@ -392,7 +415,11 @@ const form = ref({
   ocr_enabled: 'false',
   upload_enabled: 'false',
   mediamtx_rtsp_addr: '',
+  mediamtx_rtsp_username: '',
+  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: '',
+  mediamtx_webrtc_username: '',
+  mediamtx_webrtc_password: '',
   email_from_address: '',
   email_from_auth_code: '',
   email_to_addresses: '',
@@ -510,11 +537,22 @@ async function reload() {
 async function save() {
   saving.value = true
   const previousPlugin = appSettingsStore.settings?.processor_plugin || 'smoke'
+  const previousSettings = appSettingsStore.settings || {}
   try {
     syncRoiTagOptionsToForm()
     const pluginChanged = previousPlugin !== form.value.processor_plugin
+    const mediamtxRtspChanged = (
+      String(previousSettings.mediamtx_rtsp_addr || '') !== String(form.value.mediamtx_rtsp_addr || '')
+      || String(previousSettings.mediamtx_rtsp_username || '') !== String(form.value.mediamtx_rtsp_username || '')
+      || String(previousSettings.mediamtx_rtsp_password || '') !== String(form.value.mediamtx_rtsp_password || '')
+    )
+    const mediamtxWebrtcChanged = (
+      String(previousSettings.mediamtx_webrtc_addr || '') !== String(form.value.mediamtx_webrtc_addr || '')
+      || String(previousSettings.mediamtx_webrtc_username || '') !== String(form.value.mediamtx_webrtc_username || '')
+      || String(previousSettings.mediamtx_webrtc_password || '') !== String(form.value.mediamtx_webrtc_password || '')
+    )
     let runningSourceIds = []
-    if (pluginChanged) {
+    if (pluginChanged || mediamtxRtspChanged) {
       await sourceStore.syncProcessorStatus()
       runningSourceIds = sourceStore.getRunningSourceIdsSnapshot()
     }
@@ -523,14 +561,22 @@ async function save() {
     Object.assign(form.value, data)
     roiTagList.value = parseRoiTagOptions(form.value.roi_tag_options)
     appSettingsStore.applyLanguage(form.value.ui_language)
+    if (mediamtxRtspChanged || mediamtxWebrtcChanged) {
+      await sourceStore.fetchSources()
+      sourceStore.syncAssignedSourceReferences()
+    }
 
-    if (!pluginChanged) {
+    if (!pluginChanged && !mediamtxRtspChanged) {
       ElMessage.success(t('settings.settingsSaved'))
       return
     }
 
     if (!runningSourceIds.length) {
-      ElMessage.success(t('settings.settingsSavedRestartRequired'))
+      ElMessage.success(
+        pluginChanged
+          ? t('settings.settingsSavedRestartRequired')
+          : t('settings.settingsSavedSourceUrlsSynced')
+      )
       return
     }
 

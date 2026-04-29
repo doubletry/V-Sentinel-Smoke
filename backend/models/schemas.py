@@ -142,7 +142,11 @@ class AppSettingsUpdate(BaseModel):
     processor_plugin: str | None = None
 
     mediamtx_rtsp_addr: str | None = None
+    mediamtx_rtsp_username: str | None = None
+    mediamtx_rtsp_password: str | None = None
     mediamtx_webrtc_addr: str | None = None
+    mediamtx_webrtc_username: str | None = None
+    mediamtx_webrtc_password: str | None = None
     email_from_address: str | None = None
     email_from_auth_code: str | None = None
     email_to_addresses: str | None = None

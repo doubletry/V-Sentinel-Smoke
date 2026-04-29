@@ -8,6 +8,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import aiosqlite
 from loguru import logger
@@ -325,6 +326,98 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     )
 
 
+def _normalize_base_address(value: str | None) -> str:
+    return str(value or "").strip().rstrip("/")
+
+
+def _normalize_route_path(value: str | None) -> str:
+    return str(value or "").strip().strip("/")
+
+
+def _compose_netloc_with_auth(
+    parsed_base,
+    username: str | None = None,
+    password: str | None = None,
+) -> str:
+    host = parsed_base.hostname or ""
+    if not host:
+        return parsed_base.netloc
+    port = f":{parsed_base.port}" if parsed_base.port is not None else ""
+    auth_username = str(username or "").strip()
+    auth_password = str(password or "")
+    if not auth_username:
+        return f"{host}{port}"
+    auth = quote(auth_username, safe="")
+    if auth_password:
+        auth += f":{quote(auth_password, safe='')}"
+    return f"{auth}@{host}{port}"
+
+
+def build_source_rtsp_url(
+    rtsp_base_address: str,
+    route_path: str,
+    *,
+    username: str | None = None,
+    password: str | None = None,
+) -> str:
+    base = _normalize_base_address(rtsp_base_address)
+    route = _normalize_route_path(route_path)
+    if not base or not route:
+        return ""
+
+    parsed_base = urlsplit(base)
+    if parsed_base.scheme and parsed_base.netloc:
+        base_path = parsed_base.path.rstrip("/")
+        full_path = f"{base_path}/{route}" if base_path else f"/{route}"
+        return urlunsplit(
+            (
+                parsed_base.scheme,
+                _compose_netloc_with_auth(parsed_base, username, password),
+                full_path,
+                parsed_base.query,
+                parsed_base.fragment,
+            )
+        )
+
+    auth_username = str(username or "").strip()
+    auth_password = str(password or "")
+    auth = ""
+    if auth_username:
+        auth = auth_username if not auth_password else f"{auth_username}:{auth_password}"
+        auth = f"{auth}@"
+    return f"{auth}{base}/{route}"
+
+
+def extract_source_route_path(
+    rtsp_url: str,
+    rtsp_base_address: str | None = None,
+) -> str:
+    full = str(rtsp_url or "").strip()
+    if not full:
+        return ""
+
+    parsed_full = urlsplit(full)
+    full_path = _normalize_route_path(parsed_full.path if parsed_full.scheme else full)
+    base = _normalize_base_address(rtsp_base_address)
+    if not base:
+        return full_path
+
+    parsed_base = urlsplit(base)
+    if (
+        parsed_full.scheme
+        and parsed_base.scheme
+        and parsed_full.scheme == parsed_base.scheme
+        and parsed_full.hostname == parsed_base.hostname
+        and parsed_full.port == parsed_base.port
+    ):
+        base_path = _normalize_route_path(parsed_base.path)
+        if base_path and full_path.startswith(f"{base_path}/"):
+            return _normalize_route_path(full_path[len(base_path) + 1 :])
+        if not base_path:
+            return full_path
+    return full_path
+
+
 async def create_source(source: VideoSourceCreate) -> VideoSource:
     """Insert a new video source into the database.
     向数据库插入新的视频源。"""
@@ -497,6 +590,43 @@ async def update_settings(data: dict[str, str]) -> dict[str, str]:
             )
         await db.commit()
     return await get_all_settings()
+
+
+async def rewrite_source_rtsp_urls(
+    *,
+    old_rtsp_base_address: str,
+    new_rtsp_base_address: str,
+    new_rtsp_username: str = "",
+    new_rtsp_password: str = "",
+) -> int:
+    """Rewrite persisted source RTSP URLs when the MediaMTX base changes.
+    当 MediaMTX 基地址变更时，重写已保存的视频源 RTSP URL。"""
+    async with _db_session() as db:
+        async with db.execute("SELECT id, rtsp_url FROM video_sources ORDER BY created_at") as cursor:
+            rows = await cursor.fetchall()
+
+        updated_count = 0
+        for source_id, current_rtsp_url in rows:
+            route_path = extract_source_route_path(
+                str(current_rtsp_url or ""),
+                old_rtsp_base_address,
+            )
+            next_rtsp_url = build_source_rtsp_url(
+                new_rtsp_base_address,
+                route_path,
+                username=new_rtsp_username,
+                password=new_rtsp_password,
+            )
+            if not next_rtsp_url or next_rtsp_url == current_rtsp_url:
+                continue
+            await db.execute(
+                "UPDATE video_sources SET rtsp_url = ? WHERE id = ?",
+                (next_rtsp_url, source_id),
+            )
+            updated_count += 1
+
+        await db.commit()
+    return updated_count
 
 
 async def prune_analysis_messages(retention_days: int) -> None:

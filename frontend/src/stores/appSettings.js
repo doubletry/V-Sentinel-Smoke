@@ -24,7 +24,11 @@ const DEFAULT_UI_SETTINGS = {
   favicon_url: '/favicon.ico',
   roi_tag_options: '["person","vehicle","intrusion"]',
   mediamtx_rtsp_addr: 'rtsp://localhost:8554',
+  mediamtx_rtsp_username: '',
+  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: config.mediamtxWebrtcUrl || 'http://localhost:8889',
+  mediamtx_webrtc_username: '',
+  mediamtx_webrtc_password: '',
   email_from_address: '',
   email_from_auth_code: '',
   email_to_addresses: '',
@@ -94,6 +98,18 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const mediamtxWebrtcAddr = computed(
     () => settings.value.mediamtx_webrtc_addr || DEFAULT_UI_SETTINGS.mediamtx_webrtc_addr
   )
+  const mediamtxRtspUsername = computed(
+    () => settings.value.mediamtx_rtsp_username || DEFAULT_UI_SETTINGS.mediamtx_rtsp_username
+  )
+  const mediamtxRtspPassword = computed(
+    () => settings.value.mediamtx_rtsp_password || DEFAULT_UI_SETTINGS.mediamtx_rtsp_password
+  )
+  const mediamtxWebrtcUsername = computed(
+    () => settings.value.mediamtx_webrtc_username || DEFAULT_UI_SETTINGS.mediamtx_webrtc_username
+  )
+  const mediamtxWebrtcPassword = computed(
+    () => settings.value.mediamtx_webrtc_password || DEFAULT_UI_SETTINGS.mediamtx_webrtc_password
+  )
 
   async function fetchSettings(force = false) {
     if (loaded.value && !force) {
@@ -147,6 +163,10 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     roiTagOptions,
     mediamtxRtspAddr,
     mediamtxWebrtcAddr,
+    mediamtxRtspUsername,
+    mediamtxRtspPassword,
+    mediamtxWebrtcUsername,
+    mediamtxWebrtcPassword,
     fetchSettings,
     updateSettings,
     testEmail,

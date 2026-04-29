@@ -7,7 +7,8 @@ import pytest
 from httpx import AsyncClient
 
 from backend.config import DEFAULT_APP_SETTINGS
-from backend.db.database import get_all_settings, get_setting, update_settings
+from backend.db.database import create_source, get_all_settings, get_setting, get_source, update_settings
+from backend.models.schemas import VideoSourceCreate
 
 
 class TestSettingsDB:
@@ -32,6 +33,8 @@ class TestSettingsDB:
         assert "email_event_body_template" in all_settings
         assert "{event_label}" in all_settings["email_event_body_template"]
         assert all_settings["message_retention_days"] == "7"
+        assert all_settings["mediamtx_rtsp_username"] == ""
+        assert all_settings["mediamtx_webrtc_username"] == ""
 
     async def test_get_setting(self, init_db):
         val = await get_setting("vengine_host")
@@ -89,6 +92,12 @@ class TestSettingsAPI:
                 "smoke_temporal_confirm_frames": "5",
                 "smoke_email_cooldown_seconds": "60",
                 "message_retention_days": "14",
+                "mediamtx_rtsp_addr": "rtsp://stream.example.com:8554/live",
+                "mediamtx_rtsp_username": "stream-user",
+                "mediamtx_rtsp_password": "stream-pass",
+                "mediamtx_webrtc_addr": "https://stream.example.com:8889/whep",
+                "mediamtx_webrtc_username": "viewer",
+                "mediamtx_webrtc_password": "viewer-pass",
             },
         )
         assert resp.status_code == 200
@@ -109,6 +118,12 @@ class TestSettingsAPI:
         assert data["smoke_temporal_confirm_frames"] == "5"
         assert data["smoke_email_cooldown_seconds"] == "60"
         assert data["message_retention_days"] == "14"
+        assert data["mediamtx_rtsp_addr"] == "rtsp://stream.example.com:8554/live"
+        assert data["mediamtx_rtsp_username"] == "stream-user"
+        assert data["mediamtx_rtsp_password"] == "stream-pass"
+        assert data["mediamtx_webrtc_addr"] == "https://stream.example.com:8889/whep"
+        assert data["mediamtx_webrtc_username"] == "viewer"
+        assert data["mediamtx_webrtc_password"] == "viewer-pass"
 
     async def test_update_empty(self, async_client: AsyncClient):
         """Empty update should return current settings."""
@@ -142,6 +157,31 @@ class TestSettingsAPI:
         assert data["status"] == "SUCCESS"
         app.state.email_client.reconnect_from_settings.assert_awaited_once()
         app.state.email_client.send_test_email.assert_awaited_once()
+
+    async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
+        self,
+        async_client: AsyncClient,
+    ):
+        source = await create_source(
+            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://localhost:8554/cam1")
+        )
+
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
+                "mediamtx_rtsp_username": "stream-user",
+                "mediamtx_rtsp_password": "stream-pass",
+            },
+        )
+
+        assert resp.status_code == 200
+        updated_source = await get_source(source.id)
+        assert updated_source is not None
+        assert (
+            updated_source.rtsp_url
+            == "rtsp://stream-user:stream-pass@gateway.example.com:9554/live/cam1"
+        )
 
 
 class TestVEngineClientAddresses:

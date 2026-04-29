@@ -156,7 +156,7 @@ import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useSourceStore } from '../stores/source.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
-import { buildRtspUrl, extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
+import { buildRtspUrlWithAuth, extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 
 const store = useSourceStore()
 const appSettingsStore = useAppSettingsStore()
@@ -204,7 +204,12 @@ function onResultDragStart(event, resultStream) {
 
 async function addSource() {
   const routePath = normalizeRoutePath(form.route_path)
-  const rtspUrl = buildRtspUrl(appSettingsStore.mediamtxRtspAddr, routePath)
+  const rtspUrl = buildRtspUrlWithAuth(
+    appSettingsStore.mediamtxRtspAddr,
+    routePath,
+    appSettingsStore.mediamtxRtspUsername,
+    appSettingsStore.mediamtxRtspPassword
+  )
 
   if (!form.name || !routePath) {
     ElMessage.warning(t('sourceList.fillAllFields'))
@@ -253,7 +258,12 @@ async function saveEdit() {
   if (!editingSourceId.value) return
 
   const routePath = normalizeRoutePath(editForm.route_path)
-  const rtspUrl = buildRtspUrl(appSettingsStore.mediamtxRtspAddr, routePath)
+  const rtspUrl = buildRtspUrlWithAuth(
+    appSettingsStore.mediamtxRtspAddr,
+    routePath,
+    appSettingsStore.mediamtxRtspUsername,
+    appSettingsStore.mediamtxRtspPassword
+  )
 
   if (!editForm.name || !routePath) {
     ElMessage.warning(t('sourceList.fillAllFields'))

@@ -31,6 +31,7 @@ async def update_settings(data: AppSettingsUpdate, request: Request) -> dict[str
     if not updates:
         return await db.get_all_settings()
 
+    previous_settings = await db.get_all_settings()
     result = await db.update_settings(updates)
     request.app.title = result.get("site_title") or request.app.title
     if "message_retention_days" in updates:
@@ -38,6 +39,19 @@ async def update_settings(data: AppSettingsUpdate, request: Request) -> dict[str
             await db.prune_analysis_messages(int(result.get("message_retention_days", "7")))
         except (TypeError, ValueError) as exc:
             logger.warning("Invalid message retention days while pruning: {}", exc)
+
+    mediamtx_rtsp_keys = {
+        "mediamtx_rtsp_addr",
+        "mediamtx_rtsp_username",
+        "mediamtx_rtsp_password",
+    }
+    if mediamtx_rtsp_keys.intersection(updates):
+        await db.rewrite_source_rtsp_urls(
+            old_rtsp_base_address=previous_settings.get("mediamtx_rtsp_addr", ""),
+            new_rtsp_base_address=result.get("mediamtx_rtsp_addr", ""),
+            new_rtsp_username=result.get("mediamtx_rtsp_username", ""),
+            new_rtsp_password=result.get("mediamtx_rtsp_password", ""),
+        )
 
     # Reconnect V-Engine client with new addresses / 使用新地址重连 V-Engine 客户端
     vengine_client = request.app.state.vengine_client
