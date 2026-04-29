@@ -22,12 +22,12 @@ export const useMessageStore = defineStore('message', () => {
   async function fetchMessages(nextPage = page.value, nextPageSize = pageSize.value) {
     loading.value = true
     try {
-        const data = await messagesApi.list({
-          page: nextPage,
-          page_size: nextPageSize,
-          source_id: filterSource.value || undefined,
-          false_positive_only: falsePositiveOnly.value || undefined,
-        })
+      const data = await messagesApi.list({
+        page: nextPage,
+        page_size: nextPageSize,
+        source_id: filterSource.value || undefined,
+        false_positive_only: falsePositiveOnly.value || undefined,
+      })
       page.value = Number(data.page || nextPage)
       pageSize.value = Number(data.page_size || nextPageSize)
       total.value = Number(data.total || 0)

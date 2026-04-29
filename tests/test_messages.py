@@ -190,8 +190,8 @@ class TestMessagesAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["false_positive"] is True
-        assert any(path.endswith(f"{message_id}.jpg") for path in data["exported_files"])
-        assert any(path.endswith(f"{message_id}_detected.jpg") for path in data["exported_files"])
+        assert any(path.endswith(".jpg") and not path.endswith("_detected.jpg") for path in data["exported_files"])
+        assert any(path.endswith("_detected.jpg") for path in data["exported_files"])
 
         filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
         assert filtered.status_code == 200

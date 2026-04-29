@@ -308,19 +308,22 @@ def export_false_positive_images(
     """Copy original/detected images into the false-positive export directory.
     将原图/检测图复制到误报导出目录。"""
     exported: list[str] = []
-    day = str(timestamp or "")[:10] or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = str(timestamp or "")[:10].strip()
+    if not MESSAGE_IMAGE_DAY_RE.fullmatch(day):
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     target_dir = get_false_positive_dir() / day
     target_dir.mkdir(parents=True, exist_ok=True)
+    export_basename = uuid.uuid4().hex
 
     original_path = _message_image_path_from_url(str(original_image_url or ""))
     if original_path is not None and original_path.is_file():
-        destination = target_dir / f"{message_id}.jpg"
+        destination = target_dir / f"{export_basename}.jpg"
         shutil.copy2(original_path, destination)
         exported.append(str(destination))
 
     detected_path = _message_image_path_from_url(str(detected_image_url or ""))
     if detected_path is not None and detected_path.is_file():
-        destination = target_dir / f"{message_id}_detected.jpg"
+        destination = target_dir / f"{export_basename}_detected.jpg"
         shutil.copy2(detected_path, destination)
         exported.append(str(destination))
 
@@ -812,7 +815,7 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
                 str(message.get("source_id") or ""),
                 str(message.get("level") or "info"),
                 str(message.get("message") or ""),
-                detected_image_url,
+                None,
                 original_image_url,
                 detected_image_url,
                 false_positive,

@@ -4,6 +4,7 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from pathlib import PurePosixPath
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -143,6 +144,7 @@ async def lifespan(app: FastAPI):
         app_settings=app_settings,
         email_client=email_client,
     )
+    app.state.processor_manager = processor_manager
     await processor_manager.start_agent()
 
     logger.info("{} started successfully", settings.app_name)
@@ -197,10 +199,14 @@ _frontend_index = _frontend_dist / "index.html"
 
 
 def _resolve_frontend_asset(full_path: str) -> Path | None:
-    requested = str(full_path or "").strip().lstrip("/")
-    if not requested:
+    requested = str(full_path or "").strip()
+    if not requested or "\\" in requested:
         return None
-    candidate = (_frontend_dist / requested).resolve()
+    pure_path = PurePosixPath("/" + requested.lstrip("/"))
+    safe_parts = [part for part in pure_path.parts if part not in {"", "/"}]
+    if not safe_parts or any(part in {".", ".."} for part in safe_parts):
+        return None
+    candidate = _frontend_dist.resolve().joinpath(*safe_parts).resolve()
     try:
         candidate.relative_to(_frontend_dist.resolve())
     except ValueError:
