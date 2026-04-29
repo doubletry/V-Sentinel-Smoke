@@ -344,6 +344,8 @@ class MyProcessor(BaseVideoProcessor):
 ./scripts/build_docker.sh
 docker run -d \
   --name v-sentinel \
+  --add-host=host.docker.internal:host-gateway \
+  --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
   -e DB_PATH=/app/data/v_sentinel.db \
   -v "$(pwd)/data:/app/data" \
@@ -353,6 +355,7 @@ docker run -d \
 - 前端、REST API、WebSocket 和消息缩略图统一由 `8000` 端口提供
 - 不再需要 `docker-compose`
 - 镜像内不再打包 MediaMTX；如需视频墙播放，请在设置页配置外部 RTSP/WebRTC 网关
+- 容器启动时会自动合并 `NO_PROXY` / `no_proxy` 默认值，覆盖 localhost、Docker 宿主机别名和常见局域网网段，避免本地服务流量被错误走代理
 
 详见 [`docs/docker-deployment.md`](docs/docker-deployment.md)。
 

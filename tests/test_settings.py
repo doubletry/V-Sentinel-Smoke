@@ -236,6 +236,23 @@ class TestVEngineClientAddresses:
         assert addrs["detection"] == "localhost:50051"
         assert addrs["upload"] == "localhost:50050"
 
+    def test_build_addresses_resolves_docker_internal_gateway(self, monkeypatch):
+        from backend.vengine.client import AsyncVEngineClient
+
+        monkeypatch.setattr(
+            AsyncVEngineClient,
+            "_detect_docker_host_gateway",
+            staticmethod(lambda: "172.17.0.1"),
+        )
+
+        addrs = AsyncVEngineClient._build_addresses({
+            "vengine_host": "docker.internal",
+            "detection_port": "3139",
+        })
+
+        assert addrs["detection"] == "172.17.0.1:3139"
+        assert addrs["upload"] == "172.17.0.1:50050"
+
     async def test_email_template_placeholders_endpoint(self, async_client: AsyncClient):
         resp = await async_client.get("/api/settings/email/template-placeholders")
         assert resp.status_code == 200

@@ -67,6 +67,9 @@ RUN --mount=type=secret,id=build_proxy_ca,required=false \
 
 RUN mkdir -p /app/data
 
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
 EXPOSE 8000
 
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8000}"]

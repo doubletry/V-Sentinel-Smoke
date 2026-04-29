@@ -364,6 +364,8 @@ This repository now ships a **single-container** deployment flow.
 ./scripts/build_docker.sh
 docker run -d \
   --name v-sentinel \
+  --add-host=host.docker.internal:host-gateway \
+  --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
   -e DB_PATH=/app/data/v_sentinel.db \
   -v "$(pwd)/data:/app/data" \
@@ -373,6 +375,7 @@ docker run -d \
 - Frontend, REST API, WebSocket, and persisted message thumbnails are all served from port `8000`
 - `docker-compose` is no longer required
 - MediaMTX is not bundled into the image; configure any external RTSP/WebRTC gateway in the Settings page if you need live video playback
+- The container runtime now merges `NO_PROXY` / `no_proxy` defaults for localhost, Docker host aliases, and private LAN ranges so local service traffic bypasses proxies by default
 
 See [`docs/docker-deployment.md`](docs/docker-deployment.md) for details.
 

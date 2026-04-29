@@ -15,6 +15,8 @@ DB.  No pydantic ``Settings`` object is required.
 """
 from __future__ import annotations
 
+import socket
+import struct
 import secrets
 import time
 
@@ -51,6 +53,8 @@ _DEFAULT_APP_SETTINGS: dict[str, str] = {
     "upload_enabled": "true",
 }
 
+_DOCKER_HOST_ALIASES = {"docker.internal", "host.docker.internal"}
+
 
 class AsyncVEngineClient:
     """Async gRPC client for all V-Engine services.
@@ -83,10 +87,52 @@ class AsyncVEngineClient:
     # ── Address resolution / 地址解析 ────────────────────────────────────────
 
     @staticmethod
-    def _build_addresses(app_settings: dict[str, str]) -> dict[str, str]:
+    def _detect_docker_host_gateway() -> str:
+        """Best-effort detection of the Docker bridge gateway from /proc/net/route.
+        尽力从 /proc/net/route 检测 Docker 网桥默认网关。"""
+        try:
+            with open("/proc/net/route", encoding="utf-8") as route_file:
+                next(route_file, None)  # skip header
+                for line in route_file:
+                    fields = line.strip().split()
+                    if len(fields) < 4:
+                        continue
+                    destination = fields[1]
+                    gateway = fields[2]
+                    flags = int(fields[3], 16)
+                    # 0x2 is Linux's RTF_GATEWAY flag in /proc/net/route.
+                    # "00000000" is the 0.0.0.0 default route destination.
+                    if destination != "00000000" or not (flags & 0x2):
+                        continue
+                    # /proc/net/route stores gateway IPs as little-endian hex.
+                    return socket.inet_ntoa(struct.pack("<L", int(gateway, 16)))
+        except OSError as exc:
+            logger.debug("Unable to inspect /proc/net/route for Docker gateway detection: {}", exc)
+            return ""
+        except (ValueError, struct.error) as exc:
+            logger.debug("Unable to parse Docker gateway from /proc/net/route: {}", exc)
+            return ""
+        return ""
+
+    @classmethod
+    def _normalize_service_host(cls, host: str) -> str:
+        """Normalize special Docker host aliases when they are used from inside a container.
+        在容器内使用特殊 Docker 主机别名时进行归一化。"""
+        normalized_host = (host or "").strip()
+        if normalized_host not in _DOCKER_HOST_ALIASES:
+            return normalized_host
+
+        gateway_ip = cls._detect_docker_host_gateway()
+        if gateway_ip:
+            logger.info("Resolved Docker host alias '{}' to '{}'", normalized_host, gateway_ip)
+            return gateway_ip
+        return normalized_host
+
+    @classmethod
+    def _build_addresses(cls, app_settings: dict[str, str]) -> dict[str, str]:
         """Build ``{service: host:port}`` from settings dict.
         从设置字典构建 ``{服务名: 主机:端口}`` 映射。"""
-        host = app_settings.get("vengine_host", "localhost")
+        host = cls._normalize_service_host(app_settings.get("vengine_host", "localhost"))
         return {
             "detection": f"{host}:{app_settings.get('detection_port', '50051')}",
             "classification": f"{host}:{app_settings.get('classification_port', '50052')}",
