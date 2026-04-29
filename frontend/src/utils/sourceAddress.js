@@ -45,17 +45,6 @@ export function buildRtspUrlWithAuth(rtspBaseAddress, routePath, username, passw
   return parsed.toString()
 }
 
-export function buildWebRtcUrlWithAuth(webrtcBaseAddress, username, password) {
-  const base = normalizeBaseAddress(webrtcBaseAddress)
-  if (!base) return ''
-
-  const parsed = tryParseUrl(base)
-  if (!parsed) return base
-
-  applyCredentials(parsed, username, password)
-  return parsed.toString()
-}
-
 export function extractRoutePath(rtspUrl, rtspBaseAddress) {
   const full = String(rtspUrl || '').trim()
   if (!full) return ''
