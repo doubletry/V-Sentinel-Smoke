@@ -600,7 +600,13 @@ async def rewrite_source_rtsp_urls(
     new_rtsp_password: str = "",
 ) -> int:
     """Rewrite persisted source RTSP URLs when the MediaMTX base changes.
-    当 MediaMTX 基地址变更时，重写已保存的视频源 RTSP URL。"""
+    当 MediaMTX 基地址变更时，重写已保存的视频源 RTSP URL。
+
+    ``old_rtsp_base_address`` is only used to extract each source's existing
+    route path before rebuilding the URL with the new base address and
+    credentials.
+    ``old_rtsp_base_address`` 仅用于从现有 URL 中提取原路由路径，然后再用新的
+    基地址和认证信息重新拼装 URL。"""
     async with _db_session() as db:
         async with db.execute("SELECT id, rtsp_url FROM video_sources ORDER BY created_at") as cursor:
             rows = await cursor.fetchall()

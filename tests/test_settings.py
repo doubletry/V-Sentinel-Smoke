@@ -7,7 +7,14 @@ import pytest
 from httpx import AsyncClient
 
 from backend.config import DEFAULT_APP_SETTINGS
-from backend.db.database import create_source, get_all_settings, get_setting, get_source, update_settings
+from backend.db.database import (
+    create_source,
+    get_all_settings,
+    get_setting,
+    get_source,
+    rewrite_source_rtsp_urls,
+    update_settings,
+)
 from backend.models.schemas import VideoSourceCreate
 
 
@@ -62,6 +69,26 @@ class TestSettingsDB:
         all_settings = await get_all_settings()
         # Should still only have the default keys (no duplicates)
         assert all_settings["vengine_host"] == "localhost"
+
+    async def test_rewrite_source_rtsp_urls(self, init_db):
+        source = await create_source(
+            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://localhost:8554/cam1")
+        )
+
+        updated = await rewrite_source_rtsp_urls(
+            old_rtsp_base_address="rtsp://localhost:8554",
+            new_rtsp_base_address="rtsp://gateway.example.com:9554/live",
+            new_rtsp_username="stream-user",
+            new_rtsp_password="stream-pass",
+        )
+
+        assert updated == 1
+        rewritten = await get_source(source.id)
+        assert rewritten is not None
+        assert (
+            rewritten.rtsp_url
+            == "rtsp://stream-user:stream-pass@gateway.example.com:9554/live/cam1"
+        )
 
 
 class TestSettingsAPI:
