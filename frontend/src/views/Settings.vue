@@ -245,7 +245,12 @@
           </el-form-item>
           <el-form-item :label="t('settings.smokeAdvancedThresholds')">
             <div class="field-stack">
-              <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+              <div class="settings-inline-actions">
+                <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+                <el-button size="small" @click="resetSmokeAdvancedThresholds">
+                  {{ t('settings.resetAdvancedThresholds') }}
+                </el-button>
+              </div>
               <div class="smoke-threshold-grid">
                 <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
                   <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
@@ -412,6 +417,42 @@ const processorPluginOptions = ref([])
 const retentionDayOptions = [7, 15, 21, 30]
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
+const SMOKE_ADVANCED_DEFAULTS = {
+  smoke_enable_appearance_filter: 'true',
+  smoke_min_confidence_smoke: '0.35',
+  smoke_min_confidence_fire: '0.40',
+  smoke_min_bbox_area_ratio: '0.0005',
+  smoke_max_bbox_area_ratio: '0.60',
+  smoke_min_aspect_ratio: '0.2',
+  smoke_max_aspect_ratio: '8.0',
+  smoke_motion_blur_max_speed: '100.0',
+  smoke_motion_blur_min_confidence: '0.65',
+  smoke_appearance_min_score: '0.42',
+  smoke_appearance_min_history: '2',
+  smoke_appearance_high_confidence_bypass: '0.82',
+  smoke_overexposed_ratio_threshold: '0.18',
+  smoke_white_object_ratio_threshold: '0.62',
+  smoke_hard_boundary_density_threshold: '0.14',
+  smoke_hard_laplacian_threshold: '520.0',
+  smoke_fast_motion_energy_threshold: '0.16',
+  smoke_static_confirm_frames: '5',
+  smoke_static_max_center_shift: '10.0',
+  smoke_static_max_area_change_ratio: '0.08',
+  smoke_iou_threshold: '0.3',
+}
+const PROCESSOR_RESTART_SETTING_KEYS = [
+  'processor_plugin',
+  'smoke_detection_model_name',
+  'smoke_detection_model_version',
+  'smoke_detection_confidence',
+  'smoke_detection_nms',
+  'smoke_temporal_confirm_frames',
+  'smoke_temporal_confirm_window',
+  'smoke_max_miss_frames',
+  'smoke_alarm_hold_time',
+  'smoke_email_cooldown_seconds',
+  ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
+]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
   { key: 'smoke_min_confidence_fire', labelKey: 'settings.smokeMinConfidenceFire', hintKey: 'settings.smokeMinConfidenceFireHint', placeholder: '0.40' },
@@ -596,6 +637,12 @@ async function save() {
   try {
     syncRoiTagOptionsToForm()
     const pluginChanged = previousPlugin !== form.value.processor_plugin
+    const processorConfigChanged = (
+      pluginChanged
+      || PROCESSOR_RESTART_SETTING_KEYS.some(
+        (key) => String(previousSettings[key] || '') !== String(form.value[key] || '')
+      )
+    )
     const mediamtxRtspChanged = (
       String(previousSettings.mediamtx_rtsp_addr || '') !== String(form.value.mediamtx_rtsp_addr || '')
       || String(previousSettings.mediamtx_rtsp_username || '') !== String(form.value.mediamtx_rtsp_username || '')
@@ -607,7 +654,7 @@ async function save() {
       || String(previousSettings.mediamtx_webrtc_password || '') !== String(form.value.mediamtx_webrtc_password || '')
     )
     let runningSourceIds = []
-    if (pluginChanged || mediamtxRtspChanged) {
+    if (processorConfigChanged || mediamtxRtspChanged) {
       await sourceStore.syncProcessorStatus()
       runningSourceIds = sourceStore.getRunningSourceIdsSnapshot()
     }
@@ -621,14 +668,14 @@ async function save() {
       sourceStore.syncAssignedSourceReferences()
     }
 
-    if (!pluginChanged && !mediamtxRtspChanged) {
+    if (!processorConfigChanged && !mediamtxRtspChanged) {
       ElMessage.success(t('settings.settingsSaved'))
       return
     }
 
     if (!runningSourceIds.length) {
       ElMessage.success(
-        pluginChanged
+        processorConfigChanged
           ? t('settings.settingsSavedRestartRequired')
           : t('settings.settingsSavedSourceUrlsSynced')
       )
@@ -701,6 +748,10 @@ function onSiteIconChange(uploadFile) {
 
 function resetSiteIcon() {
   form.value.favicon_url = '/favicon.ico'
+}
+
+function resetSmokeAdvancedThresholds() {
+  Object.assign(form.value, SMOKE_ADVANCED_DEFAULTS)
 }
 
 async function startAllServices() {
@@ -824,6 +875,14 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.settings-inline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .smoke-threshold-grid {

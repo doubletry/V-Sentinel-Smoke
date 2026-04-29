@@ -23,6 +23,11 @@
             :value="src.id"
           />
         </el-select>
+        <el-switch
+          v-model="falsePositiveOnly"
+          :active-text="t('messages.falsePositiveOnly')"
+          @change="handleFalsePositiveFilterChange"
+        />
         <el-button
           v-if="store.pendingCount > 0"
           size="small"
@@ -36,7 +41,7 @@
     </div>
 
     <el-scrollbar ref="scrollbar" class="messages-scroll">
-      <MessageList :messages="store.messages" />
+      <MessageList :messages="store.messages" @mark-false-positive="handleMarkFalsePositive" />
     </el-scrollbar>
     <div class="messages-pagination">
       <el-pagination
@@ -64,6 +69,7 @@ const store = useMessageStore()
 const sourceStore = useSourceStore()
 const { t } = useI18n()
 const filterSource = ref('')
+const falsePositiveOnly = ref(false)
 const scrollbar = ref(null)
 
 // Auto-scroll to top (newest first)
@@ -88,8 +94,18 @@ async function handleFilterChange(value) {
   await store.fetchMessages(1, store.pageSize)
 }
 
+async function handleFalsePositiveFilterChange(value) {
+  store.setFalsePositiveOnly(value)
+  await store.fetchMessages(1, store.pageSize)
+}
+
 async function jumpToLatest() {
   await store.fetchMessages(1, store.pageSize)
+}
+
+async function handleMarkFalsePositive(message) {
+  await store.markFalsePositive(message.id)
+  await store.fetchMessages(store.page, store.pageSize)
 }
 
 onMounted(() => {

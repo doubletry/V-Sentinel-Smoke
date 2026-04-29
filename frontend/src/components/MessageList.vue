@@ -7,23 +7,44 @@
       :class="[`level-${msg.level}`, { 'agent-summary': msg.source_id === '__agent__' }]"
     >
       <div class="msg-header">
-        <el-tag
-          :type="levelType(msg.level)"
-          size="small"
-          effect="dark"
-        >
+        <el-tag :type="levelType(msg.level)" size="small" effect="dark">
           {{ msg.source_id === '__agent__' ? t('messageList.summary') : msg.level.toUpperCase() }}
+        </el-tag>
+        <el-tag v-if="msg.false_positive" type="warning" size="small" effect="plain">
+          {{ t('messageList.falsePositive') }}
         </el-tag>
         <span class="msg-source">{{ msg.source_name }}</span>
         <span class="msg-time">{{ formatTimeWithTimezone(msg.timestamp, appSettingsStore.timeZone) }}</span>
       </div>
       <div class="msg-body">{{ msg.message }}</div>
-      <div v-if="messageImageSrc(msg)" class="msg-image">
-        <img
-          :src="messageImageSrc(msg)"
-          alt="snapshot"
-          @dblclick="openPreview(messageImageSrc(msg))"
-        />
+      <div v-if="hasAnyImage(msg)" class="msg-image-grid">
+        <div v-if="originalImageSrc(msg)" class="msg-image-card">
+          <div class="msg-image-title">{{ t('messageList.originalImage') }}</div>
+          <img
+            :src="originalImageSrc(msg)"
+            alt="original snapshot"
+            @dblclick="openPreview(originalImageSrc(msg))"
+          />
+        </div>
+        <div v-if="detectedImageSrc(msg)" class="msg-image-card">
+          <div class="msg-image-title">{{ t('messageList.detectedImage') }}</div>
+          <img
+            :src="detectedImageSrc(msg)"
+            alt="detected snapshot"
+            @dblclick="openPreview(detectedImageSrc(msg))"
+          />
+        </div>
+      </div>
+      <div class="msg-actions">
+        <el-button
+          v-if="msg.id && !msg.false_positive"
+          size="small"
+          type="warning"
+          plain
+          @click="emit('mark-false-positive', msg)"
+        >
+          {{ t('messageList.markFalsePositive') }}
+        </el-button>
       </div>
     </div>
 
@@ -44,12 +65,13 @@ import { useI18n } from 'vue-i18n'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
 
-const props = defineProps({
+defineProps({
   messages: {
     type: Array,
     default: () => [],
   },
 })
+const emit = defineEmits(['mark-false-positive'])
 
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
@@ -61,10 +83,22 @@ function levelType(level) {
   return map[level] ?? ''
 }
 
-function messageImageSrc(message) {
+function originalImageSrc(message) {
+  if (message?.original_image_url) return message.original_image_url
+  if (message?.original_image_base64) return `data:image/jpeg;base64,${message.original_image_base64}`
+  return ''
+}
+
+function detectedImageSrc(message) {
+  if (message?.detected_image_url) return message.detected_image_url
   if (message?.image_url) return message.image_url
+  if (message?.detected_image_base64) return `data:image/jpeg;base64,${message.detected_image_base64}`
   if (message?.image_base64) return `data:image/jpeg;base64,${message.image_base64}`
   return ''
+}
+
+function hasAnyImage(message) {
+  return Boolean(originalImageSrc(message) || detectedImageSrc(message))
 }
 
 function openPreview(imageSrc) {
@@ -138,11 +172,25 @@ function openPreview(imageSrc) {
   line-height: 1.5;
 }
 
-.msg-image {
+.msg-image-grid {
   margin-top: 8px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.msg-image img {
+.msg-image-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.msg-image-title {
+  color: #9aa6c0;
+  font-size: 12px;
+}
+
+.msg-image-card img {
   width: auto;
   max-width: min(100%, 360px);
   max-height: 220px;
@@ -150,6 +198,12 @@ function openPreview(imageSrc) {
   object-fit: contain;
   cursor: zoom-in;
   image-rendering: auto;
+}
+
+.msg-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .preview-image {

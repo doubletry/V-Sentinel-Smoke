@@ -258,3 +258,19 @@ class TestVEngineClientAddresses:
         assert resp.status_code == 200
         placeholders = set(resp.json()["placeholders"])
         assert {"local_time", "source_name", "event_type", "event_label"} <= placeholders
+
+    async def test_update_settings_refreshes_processor_manager_snapshot(
+        self,
+        async_client: AsyncClient,
+    ):
+        from backend.main import processor_manager
+
+        assert processor_manager._app_settings["smoke_detection_model_name"] == "smoke-fire-detection"
+
+        resp = await async_client.put(
+            "/api/settings",
+            json={"smoke_detection_model_name": "updated-model"},
+        )
+
+        assert resp.status_code == 200
+        assert processor_manager._app_settings["smoke_detection_model_name"] == "updated-model"

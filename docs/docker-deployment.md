@@ -49,6 +49,7 @@ Mount `/app/data` so the following are retained:
 
 - `v_sentinel.db`
 - `message_thumbnails/`
+- `false_positives/`
 
 Message thumbnails are written to the filesystem and are no longer stored inside SQLite.
 

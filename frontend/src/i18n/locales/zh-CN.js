@@ -102,6 +102,7 @@ export default {
     connected: '已连接',
     disconnected: '未连接',
     allSources: '全部视频源',
+    falsePositiveOnly: '只看误报',
     clear: '清空',
     pageSize: '每页条数',
     newMessages: '有 {count} 条新消息',
@@ -120,6 +121,10 @@ export default {
   },
   messageList: {
     summary: '汇总',
+    falsePositive: '误报',
+    originalImage: '原图',
+    detectedImage: '检测图',
+    markFalsePositive: '标记为误报',
     noMessages: '暂无消息',
   },
   service: {
@@ -221,6 +226,7 @@ export default {
     smokeAppearanceFilterHint: '结合软边界、反光、白物体、纹理和运动等图像证据过滤烟雾误报；现场反光多时建议开启。',
     smokeAdvancedThresholds: '高级阈值',
     smokeAdvancedThresholdsHint: '以下参数主要用于处理反光、白色物体、运动模糊和静态误报；若现场效果正常，建议优先保持默认值。',
+    resetAdvancedThresholds: '重置高级阈值',
     smokeMinConfidenceSmoke: '烟雾最低置信度',
     smokeMinConfidenceSmokeHint: '单独控制 smoke 类别的最低置信度，低于该值直接丢弃。',
     smokeMinConfidenceFire: '火焰最低置信度',

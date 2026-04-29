@@ -159,7 +159,7 @@ page after the app starts, including:
 - smoke/fire detection thresholds
 - email notification templates and recipients
 
-Runtime message thumbnails are persisted beside the database in `message_thumbnails/`.
+Runtime message thumbnails are persisted beside the database in `message_thumbnails/`. Exported false-positive original/detected images are persisted in `false_positives/`.
 
 ### MediaMTX gateway settings
 

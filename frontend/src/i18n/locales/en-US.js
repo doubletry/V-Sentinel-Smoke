@@ -102,6 +102,7 @@ export default {
     connected: 'Connected',
     disconnected: 'Disconnected',
     allSources: 'All sources',
+    falsePositiveOnly: 'False positives only',
     clear: 'Clear',
     pageSize: 'Page size',
     newMessages: '{count} new message(s)',
@@ -120,6 +121,10 @@ export default {
   },
   messageList: {
     summary: 'Summary',
+    falsePositive: 'False Positive',
+    originalImage: 'Original',
+    detectedImage: 'Detected',
+    markFalsePositive: 'Mark as False Positive',
     noMessages: 'No messages yet',
   },
   service: {
@@ -221,6 +226,7 @@ export default {
     smokeAppearanceFilterHint: 'Uses soft edges, glare, white-object, texture, and motion evidence to reject smoke false positives.',
     smokeAdvancedThresholds: 'Advanced Thresholds',
     smokeAdvancedThresholdsHint: 'These thresholds mainly handle glare, white objects, motion blur, and static false positives. Keep defaults unless the scene requires tuning.',
+    resetAdvancedThresholds: 'Reset advanced thresholds',
     smokeMinConfidenceSmoke: 'Smoke Min Confidence',
     smokeMinConfidenceSmokeHint: 'Minimum confidence for the smoke class. Lower values are discarded immediately.',
     smokeMinConfidenceFire: 'Fire Min Confidence',

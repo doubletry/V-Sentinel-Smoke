@@ -156,7 +156,7 @@ DB_PATH=./v_sentinel.db
 - 烟火检测阈值
 - 邮件通知模板和收件人
 
-运行时消息缩略图会保存在数据库同级目录下的 `message_thumbnails/` 中。
+运行时消息缩略图会保存在数据库同级目录下的 `message_thumbnails/` 中，标记为误报后导出的原图与检测图会保存在 `false_positives/` 中。
 
 ### MediaMTX 网关配置
 

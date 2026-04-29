@@ -50,6 +50,32 @@ class TestMessagePersistence:
         assert resp.status_code == 200
         assert resp.content == b"jpeg-bytes"
 
+    async def test_save_message_persists_original_and_detected_images(self, async_client: AsyncClient):
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "hello",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
+        )
+
+        rows = await list_analysis_messages(limit=10)
+        assert rows["items"][0]["original_image_url"].startswith("/api/messages/")
+        assert rows["items"][0]["detected_image_url"].startswith("/api/messages/")
+
+        original_resp = await async_client.get(rows["items"][0]["original_image_url"])
+        detected_resp = await async_client.get(rows["items"][0]["detected_image_url"])
+        assert original_resp.status_code == 200
+        assert detected_resp.status_code == 200
+        assert original_resp.content == b"original-bytes"
+        assert detected_resp.content == b"detected-bytes"
+
     async def test_retention_prunes_old_messages(self, init_db):
         await update_settings({"message_retention_days": "1"})
         old_timestamp = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
@@ -115,6 +141,7 @@ class TestMessagesAPI:
         assert data["items"][0]["level"] == "warning"
         assert data["total"] == 1
         assert "image_url" in data["items"][0]
+        assert data["items"][0]["false_positive"] is False
 
     async def test_list_persisted_messages_paginates(self, async_client: AsyncClient):
         for index in range(25):
@@ -144,3 +171,31 @@ class TestMessagesAPI:
         values = {item["value"] for item in data}
         assert {"smoke", "example"} <= values
 
+    async def test_mark_false_positive_exports_images_and_can_filter(self, async_client: AsyncClient, _tmp_db: str):
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
+        )
+
+        resp = await async_client.post(f"/api/messages/{message_id}/false-positive")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["false_positive"] is True
+        assert any(path.endswith(f"{message_id}.jpg") for path in data["exported_files"])
+        assert any(path.endswith(f"{message_id}_detected.jpg") for path in data["exported_files"])
+
+        filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
+        assert filtered.status_code == 200
+        filtered_data = filtered.json()
+        assert len(filtered_data["items"]) == 1
+        assert filtered_data["items"][0]["id"] == message_id
+        assert filtered_data["items"][0]["false_positive"] is True

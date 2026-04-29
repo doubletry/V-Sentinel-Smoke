@@ -103,7 +103,8 @@ class SmokeFireProcessor(BaseVideoProcessor):
         if post_result.has_alarm and confirmed:
             labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
             confidence = max(float(det.get("confidence", 0.0)) for det in confirmed)
-            image_base64 = self._encode_thumbnail(annotated)
+            original_image_base64 = self._encode_thumbnail(frame)
+            detected_image_base64 = self._encode_thumbnail(annotated)
             event = build_smoke_email_event(
                 timestamp=timestamp,
                 source_id=self.source_id,
@@ -113,7 +114,7 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 detection_count=len(confirmed),
                 frame_id=post_result.frame_id,
                 active_tracks=post_result.active_tracks,
-                image_base64=image_base64,
+                image_base64=detected_image_base64,
             )
             message = f"Detected {event['event_label']} on {self.source_name} ({len(confirmed)} confirmed detection(s))"
             result.messages.append({
@@ -122,7 +123,9 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 "source_id": self.source_id,
                 "level": "alert",
                 "message": message,
-                "image_base64": image_base64,
+                "image_base64": detected_image_base64,
+                "original_image_base64": original_image_base64,
+                "detected_image_base64": detected_image_base64,
             })
             result.extra["email_event"] = event
             result.extra["smoke_event"] = event

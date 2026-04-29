@@ -41,6 +41,11 @@ class ProcessorManager:
         self._lock = asyncio.Lock()
         self._agent = AnalysisAgent(ws_manager=ws_manager, email_client=email_client)
 
+    def update_app_settings(self, app_settings: dict[str, str]) -> None:
+        """Replace the settings snapshot used for newly started processors.
+        更新新启动处理器使用的设置快照。"""
+        self._app_settings = dict(app_settings)
+
     async def start_agent(self) -> None:
         """Start the analysis agent (called once during app startup).
         启动分析代理（应用启动时调用一次）。"""

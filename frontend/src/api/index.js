@@ -55,6 +55,7 @@ export const processorApi = {
 
 export const messagesApi = {
   list: (params = {}) => api.get('/api/messages', { params }),
+  markFalsePositive: (id) => api.post(`/api/messages/${id}/false-positive`),
 }
 
 

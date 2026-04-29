@@ -5,9 +5,9 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from loguru import logger
 
 from backend.api import processor as processor_router
@@ -193,6 +193,45 @@ async def health() -> dict:
 
 # ── Static files (production: serve built frontend) / 静态文件（生产环境：托管构建后的前端） ──
 _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
-if _frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
+_frontend_index = _frontend_dist / "index.html"
+
+
+def _resolve_frontend_asset(full_path: str) -> Path | None:
+    requested = str(full_path or "").strip().lstrip("/")
+    if not requested:
+        return None
+    candidate = (_frontend_dist / requested).resolve()
+    try:
+        candidate.relative_to(_frontend_dist.resolve())
+    except ValueError:
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+if _frontend_index.is_file():
     logger.info("Serving frontend from {}", _frontend_dist)
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index() -> FileResponse:
+    if not _frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(_frontend_index)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def frontend_spa(full_path: str) -> FileResponse:
+    if full_path.startswith(("api/", "ws/")):
+        raise HTTPException(status_code=404, detail="Not Found")
+    if not _frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    asset_path = _resolve_frontend_asset(full_path)
+    if asset_path is not None:
+        return FileResponse(asset_path)
+    if "." in Path(full_path).name:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    return FileResponse(_frontend_index)

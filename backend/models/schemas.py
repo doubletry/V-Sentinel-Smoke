@@ -110,6 +110,7 @@ class AnalysisMessage(BaseModel):
     """Real-time analysis message broadcast via WebSocket.
     通过 WebSocket 广播的实时分析消息。"""
 
+    id: str | None = None
     timestamp: str
     source_name: str
     source_id: str
@@ -117,6 +118,11 @@ class AnalysisMessage(BaseModel):
     message: str
     image_url: str | None = None
     image_base64: str | None = None
+    original_image_url: str | None = None
+    original_image_base64: str | None = None
+    detected_image_url: str | None = None
+    detected_image_base64: str | None = None
+    false_positive: bool = False
 
 
 class ProcessorPluginInfo(BaseModel):
