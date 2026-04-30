@@ -953,6 +953,24 @@ async def mark_analysis_message_false_positive(message_id: str) -> dict[str, obj
     }
 
 
+async def unmark_analysis_message_false_positive(message_id: str) -> dict[str, object] | None:
+    """Clear the false-positive flag for one persisted message.
+    清除单条已持久化消息的误报标记。"""
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE analysis_messages SET false_positive = 0 WHERE id = ?",
+            (message_id,),
+        )
+        await db.commit()
+    if cursor.rowcount <= 0:
+        return None
+    return {
+        "id": message_id,
+        "false_positive": False,
+        "exported_files": [],
+    }
+
+
 async def get_analysis_message_image_path(message_id: str, *, kind: str = "detected") -> Path | None:
     """Resolve one persisted original/detected image path for a message ID.
     解析单条消息 ID 对应的原图或检测图路径。"""

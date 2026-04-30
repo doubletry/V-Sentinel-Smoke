@@ -115,15 +115,28 @@ export const useMessageStore = defineStore('message', () => {
     falsePositiveOnly.value = Boolean(value)
   }
 
+  function applyFalsePositiveFilterToLocalMessages() {
+    if (!falsePositiveOnly.value) return
+    messages.value = messages.value.filter((item) => item.false_positive)
+  }
+
   async function markFalsePositive(messageId) {
     const result = await messagesApi.markFalsePositive(messageId)
     const target = messages.value.find((item) => item.id === messageId)
     if (target) {
       target.false_positive = true
     }
-    if (falsePositiveOnly.value) {
-      messages.value = messages.value.filter((item) => item.false_positive)
+    applyFalsePositiveFilterToLocalMessages()
+    return result
+  }
+
+  async function unmarkFalsePositive(messageId) {
+    const result = await messagesApi.unmarkFalsePositive(messageId)
+    const target = messages.value.find((item) => item.id === messageId)
+    if (target) {
+      target.false_positive = false
     }
+    applyFalsePositiveFilterToLocalMessages()
     return result
   }
 
@@ -145,5 +158,6 @@ export const useMessageStore = defineStore('message', () => {
     setFilterSource,
     setFalsePositiveOnly,
     markFalsePositive,
+    unmarkFalsePositive,
   }
 })

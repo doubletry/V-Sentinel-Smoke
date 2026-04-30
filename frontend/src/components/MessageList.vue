@@ -45,6 +45,15 @@
         >
           {{ t('messageList.markFalsePositive') }}
         </el-button>
+        <el-button
+          v-if="msg.id && msg.false_positive"
+          size="small"
+          type="info"
+          plain
+          @click="emit('unmark-false-positive', msg)"
+        >
+          {{ t('messageList.unmarkFalsePositive') }}
+        </el-button>
       </div>
     </div>
 
@@ -71,7 +80,7 @@ defineProps({
     default: () => [],
   },
 })
-const emit = defineEmits(['mark-false-positive'])
+const emit = defineEmits(['mark-false-positive', 'unmark-false-positive'])
 
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()

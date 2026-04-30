@@ -125,6 +125,7 @@ export default {
     originalImage: '原图',
     detectedImage: '检测图',
     markFalsePositive: '标记为误报',
+    unmarkFalsePositive: '取消误报标记',
     noMessages: '暂无消息',
   },
   service: {

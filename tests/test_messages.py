@@ -199,3 +199,25 @@ class TestMessagesAPI:
         assert len(filtered_data["items"]) == 1
         assert filtered_data["items"][0]["id"] == message_id
         assert filtered_data["items"][0]["false_positive"] is True
+
+    async def test_unmark_false_positive_clears_filter_match(self, async_client: AsyncClient):
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted",
+                "false_positive": True,
+            }
+        )
+
+        resp = await async_client.delete(f"/api/messages/{message_id}/false-positive")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["false_positive"] is False
+
+        filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
+        assert filtered.status_code == 200
+        filtered_data = filtered.json()
+        assert filtered_data["items"] == []

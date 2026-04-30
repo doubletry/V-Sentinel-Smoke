@@ -125,6 +125,7 @@ export default {
     originalImage: 'Original',
     detectedImage: 'Detected',
     markFalsePositive: 'Mark as False Positive',
+    unmarkFalsePositive: 'Clear False Positive',
     noMessages: 'No messages yet',
   },
   service: {

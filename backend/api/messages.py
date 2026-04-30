@@ -7,6 +7,7 @@ from backend.db.database import (
     get_analysis_message_image_path,
     list_analysis_messages,
     mark_analysis_message_false_positive,
+    unmark_analysis_message_false_positive,
 )
 from backend.models.schemas import AnalysisMessage, PaginatedMessagesResponse
 
@@ -42,6 +43,16 @@ async def mark_message_false_positive(message_id: str) -> dict[str, object]:
     """Mark a message as false positive and export its original/detected images.
     将消息标记为误报并导出原图/检测图。"""
     result = await mark_analysis_message_false_positive(message_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return result
+
+
+@router.delete("/{message_id}/false-positive")
+async def unmark_message_false_positive(message_id: str) -> dict[str, object]:
+    """Clear the false-positive flag for a message.
+    清除消息的误报标记。"""
+    result = await unmark_analysis_message_false_positive(message_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Message not found")
     return result
