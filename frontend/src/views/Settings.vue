@@ -428,7 +428,12 @@ const retentionDayOptions = [7, 15, 21, 30]
 // Also referenced by the template to decide whether to render smoke-specific fields.
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
-const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_]{1,32}(?:-[A-Za-z0-9_]{1,32}){0,2}$/
+// Plugin tab names are exactly `plugin-{sceneId}`. Scene IDs may contain
+// letters, numbers, underscores, and hyphens; the 64-character cap keeps URL
+// hash parsing predictable without constraining existing built-in IDs.
+// 插件分页名称固定为 `plugin-{sceneId}`。场景 ID 可包含字母、数字、下划线和连字符；
+// 64 字符上限用于让 URL hash 解析保持可预期，同时不影响内置场景。
+const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/
 const activeSettingsTab = ref(readInitialSettingsTab())
 const sceneDefinitions = ref([])
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
@@ -642,8 +647,7 @@ function resetInvalidSettingsTab() {
 
 function onSettingsTabChange(tabName) {
   if (typeof window === 'undefined') return
-  const nextHash = `#${tabName}`
-  if (window.location.hash !== nextHash) {
+  if (window.location.hash.slice(1) !== tabName) {
     const url = new URL(window.location.href)
     url.hash = tabName
     window.history.replaceState(null, '', url)
