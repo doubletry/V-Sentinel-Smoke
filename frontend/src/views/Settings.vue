@@ -575,7 +575,7 @@ function sceneDefaultConfigRows(sceneId) {
   const config = sceneById(sceneId)?.default_config || {}
   return Object.entries(config).map(([key, value]) => ({
     key,
-    value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+    value: value === null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value),
   }))
 }
 

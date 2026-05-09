@@ -201,6 +201,29 @@ class TestUpdateSource:
         assert updated.scene_id == "template"
         assert updated.rois == []
 
+    async def test_empty_roi_list_explicitly_clears_rois(self):
+        src = await create_source(
+            VideoSourceCreate(name="Clear ROI", rtsp_url="rtsp://clear-roi", scene_id="smoke")
+        )
+        await update_source(
+            src.id,
+            VideoSourceUpdate(
+                rois=[
+                    ROICreate(
+                        type="rectangle",
+                        points=[ROIPoint(x=0.1, y=0.2), ROIPoint(x=0.8, y=0.9)],
+                        tag="smoke_zone",
+                    )
+                ]
+            ),
+        )
+
+        updated = await update_source(src.id, VideoSourceUpdate(rois=[]))
+
+        assert updated is not None
+        assert updated.scene_id == "smoke"
+        assert updated.rois == []
+
     async def test_not_found(self):
         result = await update_source("bad", VideoSourceUpdate(name="X"))
         assert result is None

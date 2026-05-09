@@ -161,6 +161,7 @@ const selectionPos = ref({ x: 0, y: 0 })
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const boundScene = computed(() =>
   sceneById.value.get(props.source?.scene_id ?? DEFAULT_SCENE_ID)
+  || sceneById.value.get(DEFAULT_SCENE_ID)
 )
 const tagOptions = computed(() => boundScene.value?.default_roi_tags || [])
 

@@ -205,6 +205,10 @@ const localizedScenes = computed(() =>
 )
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 
+function defaultSceneId() {
+  return scenes.value[0]?.id ?? DEFAULT_SCENE_ID
+}
+
 function sceneLabel(sceneId) {
   const resolvedSceneId = sceneId ?? DEFAULT_SCENE_ID
   const scene = sceneById.value.get(resolvedSceneId)
@@ -261,7 +265,7 @@ async function addSource() {
     showAddDialog.value = false
     form.name = ''
     form.route_path = ''
-    form.scene_id = scenes.value[0]?.id || DEFAULT_SCENE_ID
+    form.scene_id = defaultSceneId()
     ElMessage.success(t('sourceList.sourceAdded'))
   } catch (err) {
     ElMessage.error(err.message || t('sourceList.failedToAdd'))
@@ -350,7 +354,7 @@ onMounted(async () => {
     })
   }
   scenes.value = await scenesApi.list().catch(() => [])
-  form.scene_id = scenes.value[0]?.id || DEFAULT_SCENE_ID
+  form.scene_id = defaultSceneId()
 })
 </script>
 
