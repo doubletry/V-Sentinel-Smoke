@@ -197,12 +197,15 @@ DB_PATH=./v_sentinel.db
 - 一个视频源只绑定一个场景，当前内置场景为 `smoke`。
 - 新增 `/api/scenes` 暴露场景元数据，后续前端可按场景动态渲染普通配置与专家模式配置。
 - 新增 `/api/video-gateways` 管理视频网关。默认网关为 MediaMTX，RTSP 后端拉流和 WebRTC 前端播放共享同一套账号密码。
-- 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；运行时事件通知已通过通知调度器投递，邮件通知直接使用 SMTP，不再依赖邮件微服务。
+- 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；运行时事件通知已通过通知调度器投递，邮件通知直接使用 SMTP。
 - 新增 `/api/access/roles` 暴露三级权限模型：用户、操作员、管理员。
 - 设置页面增加“专家模式”，默认隐藏烟火高级阈值与线程池等低频配置，降低普通用户配置成本。
 - 管理和操作类接口已接入角色权限校验；客户端需要通过 `/api/auth/login` 获取 HMAC 签名 Bearer token。生产部署必须配置 `V_SENTINEL_AUTH_SECRET` 以及三类角色密码环境变量。
 
 当前阶段优先面向空白数据库，不处理旧数据库迁移。
+
+真实运行截图和接口冒烟验证记录见
+[`docs/runtime-verification.md`](docs/runtime-verification.md)。
 
 ### 前端代理端口
 

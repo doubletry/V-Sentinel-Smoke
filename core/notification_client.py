@@ -32,8 +32,8 @@ class NotificationPayload:
 
 
 class SmtpNotificationProvider:
-    """Direct SMTP email provider; replaces the previous email microservice path.
-    直接 SMTP 邮件通知服务，用于替代原邮件微服务路径。"""
+    """Direct SMTP email provider for notification delivery.
+    用于通知投递的直接 SMTP 邮件服务。"""
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = dict(config)
