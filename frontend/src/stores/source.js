@@ -13,7 +13,14 @@ const NO_RTSP_BASE_ADDRESS = ''
 let gridAssignmentStorageWarningShown = false
 
 function stripResultStreamSuffix(value) {
-  return String(value || '').replace(/_processed$/, '')
+  if (!value) return ''
+  return String(value).replace(/_processed$/, '')
+}
+
+function buildAssignmentDedupKey(source) {
+  if (source?.id) return `source:${source.id}`
+  if (source?.streamPath) return `stream:${source.streamPath}`
+  return ''
 }
 
 function extractRoutePathFromLegacyStreamPath(value) {
@@ -403,7 +410,11 @@ export const useSourceStore = defineStore('source', () => {
     const nextAssignments = {}
     const nextPersistedAssignments = {}
     Array.from(
-      new Map((preferredSources || []).map((source) => [source.id || source.streamPath, source])).values()
+      new Map(
+        (preferredSources || [])
+          .map((source) => [buildAssignmentDedupKey(source), source])
+          .filter(([key]) => Boolean(key))
+      ).values()
     ).forEach((source, index) => {
       const persisted = buildPersistedAssignment(source)
       if (!persisted) return
