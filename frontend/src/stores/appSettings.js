@@ -45,7 +45,7 @@ const DEFAULT_UI_SETTINGS = {
   message_retention_days: '7',
 }
 
-function parseRoiTagOptions(raw) {
+export function parseRoiTagOptions(raw) {
   if (Array.isArray(raw)) {
     return Array.from(
       new Set(raw.map((item) => String(item || '').trim()).filter(Boolean))
@@ -71,17 +71,27 @@ function parseRoiTagOptions(raw) {
   )
 }
 
-function withDefaults(data = {}) {
-  return {
-    ...DEFAULT_UI_SETTINGS,
-    ...data,
-  }
-}
-
 export const useAppSettingsStore = defineStore('appSettings', () => {
-  const settings = ref(withDefaults())
+  const settingsSchema = ref({
+    defaults: { ...DEFAULT_UI_SETTINGS },
+    sections: [],
+  })
+  const schemaLoaded = ref(false)
   const loading = ref(false)
   const loaded = ref(false)
+  const settingsDefaults = computed(() => ({
+    ...DEFAULT_UI_SETTINGS,
+    ...(settingsSchema.value?.defaults || {}),
+  }))
+  const settingsSections = computed(() => settingsSchema.value?.sections || [])
+  const settings = ref({ ...settingsDefaults.value })
+
+  function withDefaults(data = {}) {
+    return {
+      ...settingsDefaults.value,
+      ...data,
+    }
+  }
 
   const siteTitle = computed(() => settings.value.site_title || DEFAULT_UI_SETTINGS.site_title)
   const siteDescription = computed(() => settings.value.site_description || DEFAULT_UI_SETTINGS.site_description)
@@ -111,6 +121,24 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     () => settings.value.mediamtx_webrtc_password || DEFAULT_UI_SETTINGS.mediamtx_webrtc_password
   )
 
+  async function fetchSettingsSchema(force = false) {
+    if (schemaLoaded.value && !force) {
+      return settingsSchema.value
+    }
+
+    const data = await settingsApi.schema()
+    settingsSchema.value = {
+      defaults: {
+        ...DEFAULT_UI_SETTINGS,
+        ...(data?.defaults || {}),
+      },
+      sections: Array.isArray(data?.sections) ? data.sections : [],
+    }
+    schemaLoaded.value = true
+    settings.value = withDefaults(settings.value)
+    return settingsSchema.value
+  }
+
   async function fetchSettings(force = false) {
     if (loaded.value && !force) {
       return settings.value
@@ -118,6 +146,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
 
     loading.value = true
     try {
+      await fetchSettingsSchema(force)
       const data = await settingsApi.get()
       settings.value = withDefaults(data)
       loaded.value = true
@@ -128,6 +157,9 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   }
 
   async function updateSettings(payload) {
+    if (!schemaLoaded.value) {
+      await fetchSettingsSchema()
+    }
     const data = await settingsApi.update(payload)
     settings.value = withDefaults(data)
     loaded.value = true
@@ -152,6 +184,9 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
 
   return {
     settings,
+    settingsSchema,
+    settingsDefaults,
+    settingsSections,
     loading,
     loaded,
     siteTitle,
@@ -167,6 +202,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     mediamtxRtspPassword,
     mediamtxWebrtcUsername,
     mediamtxWebrtcPassword,
+    fetchSettingsSchema,
     fetchSettings,
     updateSettings,
     testEmail,

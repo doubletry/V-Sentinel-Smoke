@@ -63,6 +63,7 @@ export const messagesApi = {
 // Settings API
 export const settingsApi = {
   get: () => api.get('/api/settings'),
+  schema: () => api.get('/api/settings/schema'),
   update: (data) => api.put('/api/settings', data),
   testEmail: (data) => api.post('/api/settings/email/test', data),
   emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),

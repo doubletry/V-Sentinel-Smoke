@@ -58,7 +58,7 @@ SETTINGS_SECTIONS: tuple[dict[str, object], ...] = (
     },
     {
         "id": "mediamtx",
-        "title_key": "settings.videoGateway",
+        "title_key": "settings.mediamtx",
         "fields": (
             {
                 "key": "mediamtx_rtsp_addr",
