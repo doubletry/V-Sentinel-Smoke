@@ -430,11 +430,12 @@ const retentionDayOptions = [7, 15, 21, 30]
 const SMOKE_SCENE_ID = 'smoke'
 // Plugin tab names are exactly `plugin-{sceneId}`. Scene IDs must start with a
 // letter, number, or underscore, and later characters may also include hyphens.
-// The 64-character cap applies to the full tab name and keeps URL hash parsing
+// Scene IDs are capped at 57 characters here; with the `plugin-` prefix this
+// makes the full tab name at most 64 characters and keeps URL hash parsing
 // predictable without constraining existing built-in IDs.
 // 插件分页名称固定为 `plugin-{sceneId}`。场景 ID 必须以字母、数字或下划线开头，
-// 后续字符还可以包含连字符。64 字符上限作用于完整分页名称，用于让 URL hash
-// 解析保持可预期，同时不影响内置场景。
+// 后续字符还可以包含连字符。这里将场景 ID 限制为 57 字符，加上 `plugin-`
+// 前缀后完整分页名称最多 64 字符，用于让 URL hash 解析保持可预期，同时不影响内置场景。
 const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 const activeSettingsTab = ref(readInitialSettingsTab())
 const sceneDefinitions = ref([])
@@ -618,6 +619,7 @@ function readInitialSettingsTab() {
 }
 
 function isValidSettingsTabName(tabName) {
+  if (typeof tabName !== 'string') return false
   return tabName === 'platform' || PLUGIN_TAB_NAME_PATTERN.test(tabName)
 }
 
