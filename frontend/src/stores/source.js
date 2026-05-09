@@ -412,8 +412,10 @@ export const useSourceStore = defineStore('source', () => {
     Array.from(
       new Map(
         (preferredSources || [])
-          .map((source) => [buildAssignmentDedupKey(source), source])
-          .filter(([key]) => Boolean(key))
+          .flatMap((source) => {
+            const key = buildAssignmentDedupKey(source)
+            return key ? [[key, source]] : []
+          })
       ).values()
     ).forEach((source, index) => {
       const persisted = buildPersistedAssignment(source)
