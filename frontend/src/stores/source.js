@@ -6,7 +6,9 @@ import { i18n } from '../i18n/index.js'
 import { extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 
 const GRID_ASSIGNMENTS_STORAGE_KEY = 'v-sentinel.grid.assignments'
-const LEGACY_RTSP_BASE_ADDRESS = ''
+// Legacy persisted result tiles may not know the current MediaMTX base,
+// so route extraction falls back to parsing the full RTSP URL as-is.
+const NO_RTSP_BASE_ADDRESS = ''
 
 let gridAssignmentStorageWarningShown = false
 
@@ -134,6 +136,8 @@ export const useSourceStore = defineStore('source', () => {
   function hydrateResultAssignment(source, assignment) {
     if (!source) return null
 
+    // Keep persisted result tiles until processor status has loaded; otherwise
+    // a page refresh would wipe valid result assignments before status sync finishes.
     if (processorStatusLoaded.value && !isResultStreamActive(source.id)) {
       return null
     }
@@ -141,7 +145,7 @@ export const useSourceStore = defineStore('source', () => {
     // Persisted result tiles may come from older storage without routePath.
     // In that case, derive the path from the saved RTSP URL without assuming a base address.
     const routePath = normalizeRoutePath(
-      assignment.routePath || extractRoutePath(source.rtsp_url, LEGACY_RTSP_BASE_ADDRESS)
+      assignment.routePath || extractRoutePath(source.rtsp_url, NO_RTSP_BASE_ADDRESS)
     )
     if (!routePath) return null
 
@@ -216,7 +220,10 @@ export const useSourceStore = defineStore('source', () => {
     await sourcesApi.delete(id)
     sources.value = sources.value.filter((s) => s.id !== id)
     const cellsToDelete = Object.entries(persistedGridAssignments.value)
-      .filter(([, assignment]) => assignment.sourceId === id || assignment.originalSourceId === id)
+      .filter(([, assignment]) => (
+        (assignment.type === 'source' && assignment.sourceId === id)
+        || (assignment.type === 'result' && assignment.originalSourceId === id)
+      ))
       .map(([cell]) => cell)
     cellsToDelete.forEach((cell) => {
       delete persistedGridAssignments.value[cell]
