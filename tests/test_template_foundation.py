@@ -11,6 +11,7 @@ from backend.models.schemas import (
     NotificationProviderCreate,
     VideoSourceCreate,
 )
+from backend.auth.security import create_access_token
 from backend.notifications.dispatcher import NotificationDispatcher
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 
@@ -135,27 +136,52 @@ class TestRbacFoundation:
         assert "users:*" in roles["admin"]["permissions"]
 
     async def test_user_cannot_update_admin_settings(self, async_client: AsyncClient):
+        token = create_access_token(username="u", role="user")["access_token"]
         resp = await async_client.put(
             "/api/settings",
-            headers={"X-User-Role": "user"},
+            headers={"Authorization": f"Bearer {token}"},
             json={"site_title": "Denied"},
         )
         assert resp.status_code == 403
 
     async def test_operator_can_create_source_but_user_cannot(self, async_client: AsyncClient):
+        user_token = create_access_token(username="u", role="user")["access_token"]
+        operator_token = create_access_token(username="op", role="operator")["access_token"]
         denied = await async_client.post(
             "/api/sources",
-            headers={"X-User-Role": "user"},
+            headers={"Authorization": f"Bearer {user_token}"},
             json={"name": "Denied", "rtsp_url": "rtsp://localhost:8554/denied"},
         )
         assert denied.status_code == 403
 
         allowed = await async_client.post(
             "/api/sources",
-            headers={"X-User-Role": "operator"},
+            headers={"Authorization": f"Bearer {operator_token}"},
             json={"name": "Allowed", "rtsp_url": "rtsp://localhost:8554/allowed"},
         )
         assert allowed.status_code == 201
+
+    async def test_login_returns_signed_token_and_me(self, async_client: AsyncClient):
+        login_resp = await async_client.post(
+            "/api/auth/login",
+            json={"username": "operator1", "password": "operator-secret", "role": "operator"},
+        )
+        assert login_resp.status_code == 200
+        token = login_resp.json()["access_token"]
+        me_resp = await async_client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert me_resp.status_code == 200
+        assert me_resp.json() == {"username": "operator1", "role": "operator"}
+
+    async def test_mutation_requires_bearer_token(self, async_client: AsyncClient):
+        resp = await async_client.put(
+            "/api/settings",
+            headers={"Authorization": ""},
+            json={"site_title": "Denied"},
+        )
+        assert resp.status_code == 401
 
 
 class TestSmtpNotificationProvider:

@@ -240,6 +240,33 @@ class RoleInfo(BaseModel):
     permissions: list[str]
 
 
+class AuthLoginRequest(BaseModel):
+    """Login payload for role-based API access.
+    角色 API 访问的登录载荷。"""
+
+    username: str
+    password: str
+    role: UserRole
+
+
+class AuthTokenResponse(BaseModel):
+    """Signed bearer token returned after login.
+    登录后返回的签名 Bearer token。"""
+
+    access_token: str
+    token_type: str = "bearer"
+    role: UserRole
+    expires_at: str
+
+
+class CurrentUser(BaseModel):
+    """Authenticated principal returned by /api/auth/me.
+    /api/auth/me 返回的已认证主体。"""
+
+    username: str
+    role: UserRole
+
+
 class ProcessorStartRequest(BaseModel):
     """Request body to start processing for a specific video source.
     启动指定视频源处理的请求体。"""

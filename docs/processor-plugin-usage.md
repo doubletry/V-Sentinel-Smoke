@@ -56,11 +56,22 @@ RBAC roles are intentionally simple at this stage:
 The next implementation phases should wire these definitions into request-time
 authorization and frontend route/action guards.
 
-Role enforcement is now activated for mutating management/operation APIs. The
-frontend sends the active role through the `X-User-Role` header, currently read
-from `localStorage.v_sentinel_role` with `admin` as the development fallback.
-Production deployments should replace this header-only development mechanism
-with authenticated sessions or tokens.
+Role enforcement is activated for mutating management/operation APIs. Clients
+must first call `POST /api/auth/login` with a configured role password and then
+send `Authorization: Bearer <token>`. Tokens are HMAC-signed and expire after
+eight hours.
+
+Production deployments must configure:
+
+```bash
+export V_SENTINEL_AUTH_SECRET='<long-random-secret>'
+export V_SENTINEL_ADMIN_PASSWORD='<admin-password>'
+export V_SENTINEL_OPERATOR_PASSWORD='<operator-password>'
+export V_SENTINEL_USER_PASSWORD='<user-password>'
+```
+
+The frontend only forwards `localStorage.v_sentinel_token` as a bearer token; it
+does not accept a client-controlled role header.
 
 ## Frontend expert mode
 

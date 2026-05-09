@@ -9,9 +9,11 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (cfg) => {
-    const role = window.localStorage?.getItem('v_sentinel_role') || 'admin'
+    const token = window.localStorage?.getItem('v_sentinel_token')
     cfg.headers = cfg.headers || {}
-    cfg.headers['X-User-Role'] = role
+    if (token) {
+      cfg.headers.Authorization = `Bearer ${token}`
+    }
     return cfg
   },
   (error) => Promise.reject(error)
@@ -71,6 +73,11 @@ export const settingsApi = {
   update: (data) => api.put('/api/settings', data),
   testEmail: (data) => api.post('/api/settings/email/test', data),
   emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),
+}
+
+export const authApi = {
+  login: (data) => api.post('/api/auth/login', data),
+  me: () => api.get('/api/auth/me'),
 }
 
 export const scenesApi = {

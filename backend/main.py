@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 
 from backend.api import access as access_router
+from backend.api import auth as auth_router
 from backend.api import notifications as notifications_router
 from backend.api import processor as processor_router
 from backend.api import messages as messages_router
@@ -186,6 +187,7 @@ app.include_router(scenes_router.router)
 app.include_router(video_gateways_router.router)
 app.include_router(notifications_router.router)
 app.include_router(access_router.router)
+app.include_router(auth_router.router)
 app.include_router(processor_router.router)
 app.include_router(messages_router.router)
 app.include_router(settings_router.router)
