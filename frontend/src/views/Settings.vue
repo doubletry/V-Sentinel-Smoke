@@ -426,6 +426,7 @@ const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
 const SMOKE_SCENE_ID = 'smoke'
+const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*$/
 const activeSettingsTab = ref(readInitialSettingsTab())
 const sceneDefinitions = ref([])
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
@@ -598,13 +599,13 @@ function readInitialSettingsTab() {
     return 'platform'
   }
   const hashTab = window.location.hash.slice(1)
-  if (hashTab === 'platform' || /^plugin-[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*$/.test(hashTab)) {
+  if (hashTab === 'platform' || PLUGIN_TAB_NAME_PATTERN.test(hashTab)) {
     return hashTab
   }
   return 'platform'
 }
 
-function ensureActiveSettingsTab() {
+function resetInvalidSettingsTab() {
   if (activeSettingsTab.value === 'platform') return
   if (!sceneDefinitions.value.length) return
   const activeSceneId = activeSettingsTab.value.replace(/^plugin-/, '')
@@ -630,7 +631,7 @@ async function reload() {
     ])
     Object.assign(form.value, data)
     sceneDefinitions.value = Array.isArray(scenes) ? scenes : []
-    ensureActiveSettingsTab()
+    resetInvalidSettingsTab()
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
       if (Array.isArray(placeholderData?.placeholders)) {
