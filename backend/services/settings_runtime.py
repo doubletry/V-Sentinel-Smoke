@@ -7,9 +7,6 @@ from backend.db import database as db
 
 
 async def update_runtime_settings(app: FastAPI, updates: dict[str, str]) -> dict[str, str]:
-    if not updates:
-        return await db.get_all_settings()
-
     previous_settings = await db.get_all_settings()
     result = await db.update_settings(updates)
     app.title = result.get("site_title") or app.title

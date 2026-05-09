@@ -106,7 +106,7 @@ const emailTemplatePlaceholders = ref([
   'active_tracks',
 ])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
-const processorRestartSettingKeys = [
+const baseProcessorRestartSettingKeys = [
   'processor_plugin',
   'smoke_detection_model_name',
   'smoke_detection_model_version',
@@ -208,7 +208,7 @@ const retentionDayOptions = computed(() => {
   if (Array.isArray(options) && options.length) {
     return options.map((value) => Number(value)).filter((value) => Number.isFinite(value))
   }
-  return [7, 14, 30]
+  return [1, 3, 7, 14, 30]
 })
 
 const smokeAdvancedDefaults = computed(() => Object.fromEntries(
@@ -217,6 +217,11 @@ const smokeAdvancedDefaults = computed(() => Object.fromEntries(
     String(appSettingsStore.settingsDefaults?.[key] ?? fallback),
   ])
 ))
+const processorRestartSettingKeys = computed(() => Array.from(new Set([
+  ...baseProcessorRestartSettingKeys,
+  'smoke_enable_appearance_filter',
+  ...smokeAdvancedFields.map((item) => item.key),
+])))
 
 function syncRoiTagOptionsToForm() {
   form.value.roi_tag_options = JSON.stringify(roiTagList.value)
@@ -282,11 +287,8 @@ async function save() {
     syncRoiTagOptionsToForm()
     const processorConfigChanged = (
       previousPlugin !== form.value.processor_plugin
-      || processorRestartSettingKeys.some(
+      || processorRestartSettingKeys.value.some(
         (key) => String(previousSettings[key] || '') !== String(form.value[key] || '')
-      )
-      || smokeAdvancedFields.some(
-        (item) => String(previousSettings[item.key] || '') !== String(form.value[item.key] || '')
       )
     )
     const mediamtxRtspChanged = (

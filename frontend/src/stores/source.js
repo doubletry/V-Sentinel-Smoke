@@ -42,6 +42,8 @@ export const useSourceStore = defineStore('source', () => {
       Object.entries(gridAssignments.value)
         .map(([cell, source]) => {
           if (source?.isResult) {
+            // Result streams only exist while the original processor is running,
+            // so drop stale result tiles after stop/reload to avoid dead playback.
             return source.originalSourceId && runningSourceIds.value.has(source.originalSourceId)
               ? [cell, source]
               : null
