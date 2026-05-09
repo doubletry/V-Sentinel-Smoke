@@ -426,7 +426,7 @@ const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
 const SMOKE_SCENE_ID = 'smoke'
-const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*$/
+const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_]{1,32}(?:-[A-Za-z0-9_]{1,32}){0,2}$/
 const activeSettingsTab = ref(readInitialSettingsTab())
 const sceneDefinitions = ref([])
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
@@ -605,14 +605,31 @@ function readInitialSettingsTab() {
   return 'platform'
 }
 
+function extractSceneIdFromTabName(tabName) {
+  if (!PLUGIN_TAB_NAME_PATTERN.test(tabName)) {
+    return ''
+  }
+  return tabName.slice('plugin-'.length)
+}
+
+/**
+ * Keep the selected Settings tab valid after asynchronous scene loading.
+ * 保证异步加载场景后当前设置分页仍然有效。
+ *
+ * A valid tab is either the platform tab or a plugin tab whose scene ID exists
+ * in the `/api/scenes` response. If an invalid hash was supplied, reset to the
+ * platform tab instead of rendering an empty pane.
+ * 有效分页必须是平台分页，或 `/api/scenes` 返回场景对应的插件分页。
+ * 如果 URL hash 无效，则回退到平台设置，避免显示空白分页。
+ */
 function resetInvalidSettingsTab() {
   if (activeSettingsTab.value === 'platform') return
   if (!sceneDefinitions.value.length) return
-  if (!PLUGIN_TAB_NAME_PATTERN.test(activeSettingsTab.value)) {
+  const activeSceneId = extractSceneIdFromTabName(activeSettingsTab.value)
+  if (!activeSceneId) {
     activeSettingsTab.value = 'platform'
     return
   }
-  const activeSceneId = activeSettingsTab.value.replace(/^plugin-/, '')
   if (!sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
     activeSettingsTab.value = 'platform'
   }
