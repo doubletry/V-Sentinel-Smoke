@@ -425,6 +425,8 @@ const appSettingsStore = useAppSettingsStore()
 const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
+// Also referenced by the template to decide whether to render smoke-specific fields.
+// 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
 const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_]{1,32}(?:-[A-Za-z0-9_]{1,32}){0,2}$/
 const activeSettingsTab = ref(readInitialSettingsTab())
@@ -599,6 +601,9 @@ function readInitialSettingsTab() {
     return 'platform'
   }
   const hashTab = window.location.hash.slice(1)
+  // Only validate the URL shape here; existence is checked after `/api/scenes`
+  // finishes loading in resetInvalidSettingsTab().
+  // 这里只校验 URL 形态；实际场景是否存在会在 `/api/scenes` 加载后校验。
   if (hashTab === 'platform' || PLUGIN_TAB_NAME_PATTERN.test(hashTab)) {
     return hashTab
   }
@@ -639,11 +644,9 @@ function onSettingsTabChange(tabName) {
   if (typeof window === 'undefined') return
   const nextHash = `#${tabName}`
   if (window.location.hash !== nextHash) {
-    window.history.replaceState(
-      null,
-      '',
-      `${window.location.pathname}${window.location.search}${nextHash}`
-    )
+    const url = new URL(window.location.href)
+    url.hash = tabName
+    window.history.replaceState(null, '', url)
   }
 }
 
