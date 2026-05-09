@@ -76,7 +76,10 @@ class ProcessorManager:
             if source is None:
                 raise ValueError(f"Source not found: {source_id}")
 
-            plugin_name = self._app_settings.get("processor_plugin", "smoke")
+            # Each source binds to exactly one scene. The legacy global
+            # processor_plugin remains a fallback for older callers.
+            # 每个视频源只绑定一个场景；旧的全局 processor_plugin 仅作为兼容兜底。
+            plugin_name = source.scene_id or self._app_settings.get("processor_plugin", "smoke")
             processor_cls = resolve_processor_class(plugin_name)
 
             processor = processor_cls(
@@ -101,6 +104,7 @@ class ProcessorManager:
                 "source_id": source_id,
                 "source_name": source.name,
                 "processor_plugin": plugin_name,
+                "scene_id": plugin_name,
             }
 
     async def stop_processor(self, source_id: str) -> dict:

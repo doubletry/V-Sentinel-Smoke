@@ -20,6 +20,22 @@ class TestSceneFoundation:
         resp = await async_client.get("/api/scenes/missing")
         assert resp.status_code == 404
 
+    async def test_source_persists_single_scene_binding(self, async_client: AsyncClient):
+        resp = await async_client.post(
+            "/api/sources",
+            json={
+                "name": "Scene Camera",
+                "route_path": "scene-cam",
+                "scene_id": "smoke",
+                "notification_policy_ids": ["default-alert-policy"],
+            },
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["scene_id"] == "smoke"
+        assert data["route_path"] == "scene-cam"
+        assert data["notification_policy_ids"] == ["default-alert-policy"]
+
 
 class TestVideoGatewayFoundation:
     async def test_default_gateway_uses_shared_credentials(self, async_client: AsyncClient):

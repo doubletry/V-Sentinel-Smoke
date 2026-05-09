@@ -198,12 +198,16 @@ class TestProcessorManager:
         with pytest.raises(ValueError, match="Source not found"):
             await mgr.start_processor("nonexistent")
 
-    async def test_start_processor_uses_configured_plugin(self, init_db):
+    async def test_start_processor_uses_source_scene(self, init_db):
         source = await create_source(
-            VideoSourceCreate(name="cam-1", rtsp_url="rtsp://localhost:8554/cam1")
+            VideoSourceCreate(
+                name="cam-1",
+                rtsp_url="rtsp://localhost:8554/cam1",
+                scene_id="example",
+            )
         )
         mgr = self._make_manager()
-        mgr._app_settings["processor_plugin"] = "example"
+        mgr._app_settings["processor_plugin"] = "smoke"
 
         processor = MagicMock(status="stopped")
         processor.start = AsyncMock()
@@ -219,6 +223,7 @@ class TestProcessorManager:
         processor.start.assert_awaited_once()
         assert mgr._processors[source.id] is processor
         assert result["processor_plugin"] == "example"
+        assert result["scene_id"] == "example"
 
     async def test_stop_all_empty(self):
         mgr = self._make_manager()
