@@ -35,6 +35,10 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 18080
 
 ![真实运行平台设置截图](screenshots/runtime-settings-platform.png)
 
+### 设置页（插件设置分页）
+
+![真实运行插件设置截图](screenshots/runtime-settings-plugin-smoke.png)
+
 ### 设置页（专家模式截图）
 
 ![真实运行设置页截图](screenshots/runtime-settings-expert-mode.png)
