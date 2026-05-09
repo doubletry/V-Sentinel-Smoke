@@ -4,28 +4,54 @@ import { sourcesApi, processorApi } from '../api/index.js'
 import ElMessage from 'element-plus/es/components/message/index'
 import { i18n } from '../i18n/index.js'
 
+const GRID_ASSIGNMENTS_STORAGE_KEY = 'v-sentinel.grid.assignments'
+
+function loadStoredGridAssignments() {
+  if (typeof window === 'undefined') return {}
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(GRID_ASSIGNMENTS_STORAGE_KEY) || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
 export const useSourceStore = defineStore('source', () => {
   const sources = ref([])
   const loading = ref(false)
   const runningSourceIds = ref(new Set())
 
   // Grid cell assignments: cellIndex -> source
-  const gridAssignments = ref({})
+  const gridAssignments = ref(loadStoredGridAssignments())
 
   const isRunning = computed(() => (sourceId) => runningSourceIds.value.has(sourceId))
   const runningCount = computed(() => runningSourceIds.value.size)
+
+  function persistGridAssignments() {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      GRID_ASSIGNMENTS_STORAGE_KEY,
+      JSON.stringify(gridAssignments.value)
+    )
+  }
 
   function syncAssignedSourceReferences() {
     const latestById = new Map(sources.value.map((source) => [source.id, source]))
     gridAssignments.value = Object.fromEntries(
       Object.entries(gridAssignments.value)
         .map(([cell, source]) => {
-          if (source?.isResult) return [cell, source]
+          if (source?.isResult) {
+            return source.originalSourceId && runningSourceIds.value.has(source.originalSourceId)
+              ? [cell, source]
+              : null
+          }
           const latest = latestById.get(source?.id)
           return latest ? [cell, latest] : null
         })
         .filter(Boolean)
     )
+    persistGridAssignments()
   }
 
   async function fetchSources() {
@@ -63,6 +89,7 @@ export const useSourceStore = defineStore('source', () => {
       if (src.id === id) delete gridAssignments.value[cell]
     }
     runningSourceIds.value.delete(id)
+    syncAssignedSourceReferences()
   }
 
   async function startProcessing(sourceId) {
@@ -132,6 +159,7 @@ export const useSourceStore = defineStore('source', () => {
         statuses.filter((s) => s.status === 'running').map((s) => s.source_id)
       )
       runningSourceIds.value = running
+      syncAssignedSourceReferences()
     } catch (_) {
       // Ignore
     }
@@ -207,10 +235,28 @@ export const useSourceStore = defineStore('source', () => {
 
   function assignToCell(cellIndex, source) {
     gridAssignments.value[cellIndex] = source
+    persistGridAssignments()
   }
 
   function removeFromCell(cellIndex) {
     delete gridAssignments.value[cellIndex]
+    persistGridAssignments()
+  }
+
+  function clearGridAssignments() {
+    gridAssignments.value = {}
+    persistGridAssignments()
+  }
+
+  function autoAssignSources(preferredSources = []) {
+    const nextAssignments = {}
+    Array.from(
+      new Map((preferredSources || []).map((source) => [source.id || source.streamPath, source])).values()
+    ).forEach((source, index) => {
+      nextAssignments[index] = source
+    })
+    gridAssignments.value = nextAssignments
+    persistGridAssignments()
   }
 
   return {
@@ -234,5 +280,7 @@ export const useSourceStore = defineStore('source', () => {
     restartProcessing,
     assignToCell,
     removeFromCell,
+    clearGridAssignments,
+    autoAssignSources,
   }
 })

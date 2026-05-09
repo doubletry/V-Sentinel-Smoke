@@ -2,18 +2,29 @@
   <div class="video-grid-container">
     <!-- Toolbar -->
     <div class="grid-toolbar">
-      <span class="toolbar-label">{{ t('common.layout') }}:</span>
-      <el-button-group>
-        <el-button
-          v-for="layout in layouts"
-          :key="layout.cols"
-          :type="currentCols === layout.cols ? 'primary' : 'default'"
-          size="small"
-          @click="setLayout(layout.cols)"
-        >
-          {{ t(layout.labelKey) }}
+      <div class="toolbar-group">
+        <span class="toolbar-label">{{ t('common.layout') }}:</span>
+        <el-button-group>
+          <el-button
+            v-for="layout in layouts"
+            :key="layout.cols"
+            :type="currentCols === layout.cols ? 'primary' : 'default'"
+            size="small"
+            @click="setLayout(layout.cols)"
+          >
+            {{ t(layout.labelKey) }}
+          </el-button>
+        </el-button-group>
+      </div>
+      <div class="toolbar-group toolbar-group--actions">
+        <span class="toolbar-label">{{ t('videoGrid.assignedCount', { count: assignedCount }) }}</span>
+        <el-button size="small" @click="autoAssignVisibleSources">
+          {{ t('videoGrid.autoFill') }}
         </el-button>
-      </el-button-group>
+        <el-button size="small" type="warning" @click="clearAllCells">
+          {{ t('videoGrid.clearGrid') }}
+        </el-button>
+      </div>
     </div>
 
     <!-- Grid -->
@@ -139,6 +150,7 @@ const gridStyle = computed(() => ({
 }))
 
 const assignments = computed(() => store.gridAssignments)
+const assignedCount = computed(() => Object.keys(assignments.value || {}).length)
 
 function setLayout(cols) {
   if (!ALLOWED_LAYOUTS.includes(cols)) return
@@ -173,6 +185,23 @@ function removeCell(cellIdx) {
   store.removeFromCell(cellIdx)
   if (roiCellIndex.value === cellIdx) roiCellIndex.value = null
   if (roiPreviewCellIndex.value === cellIdx) roiPreviewCellIndex.value = null
+}
+
+function clearAllCells() {
+  store.clearGridAssignments()
+  roiCellIndex.value = null
+  roiPreviewCellIndex.value = null
+}
+
+function autoAssignVisibleSources() {
+  const runningSources = store.sources.filter((source) => store.isRunning(source.id))
+  const candidates = (runningSources.length ? runningSources : store.sources).slice(
+    0,
+    totalCells.value
+  )
+  store.autoAssignSources(candidates)
+  roiCellIndex.value = null
+  roiPreviewCellIndex.value = null
 }
 
 function onDrop(event, cellIdx) {
@@ -211,12 +240,24 @@ function onDrop(event, cellIdx) {
 .grid-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
   padding: 8px 12px;
   background: #1a1a2e;
   border-bottom: 1px solid #333;
   flex-shrink: 0;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-group--actions {
+  justify-content: flex-end;
 }
 
 .toolbar-label {
@@ -279,5 +320,12 @@ function onDrop(event, cellIdx) {
 
 .cell-controls :deep(.el-button span) {
   white-space: nowrap;
+}
+
+@media (max-width: 920px) {
+  .grid-toolbar,
+  .toolbar-group--actions {
+    justify-content: flex-start;
+  }
 }
 </style>

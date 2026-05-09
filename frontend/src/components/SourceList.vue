@@ -1,13 +1,21 @@
 <template>
   <div class="source-list">
-    <!-- Top section: Video Sources -->
+    <SourcePanelSummary
+      :total-sources="store.sources.length"
+      :running-count="store.runningCount"
+      :rtsp-base="appSettingsStore.mediamtxRtspAddr"
+      :bulk-action="bulkAction"
+      @add="showAddDialog = true"
+      @start-all="handleStartAll"
+      @stop-all="handleStopAll"
+    />
+
     <div class="section sources-section">
       <div class="list-header">
-        <span class="list-title">{{ t('sourceList.title') }}</span>
-        <el-button type="primary" size="small" @click="showAddDialog = true">
-          <el-icon><Plus /></el-icon>
-          {{ t('common.add') }}
-        </el-button>
+        <div>
+          <span class="list-title">{{ t('sourceList.title') }}</span>
+          <p class="list-subtitle">{{ t('sourceList.manageHint') }}</p>
+        </div>
       </div>
 
       <el-scrollbar class="sources-scroll">
@@ -38,19 +46,10 @@
             >
               {{ store.isRunning(source.id) ? t('sourceList.stop') : t('sourceList.analyze') }}
             </el-button>
-            <el-button
-              size="small"
-              :title="t('common.edit')"
-              @click="openEditDialog(source)"
-            >
+            <el-button size="small" :title="t('common.edit')" @click="openEditDialog(source)">
               <el-icon><EditPen /></el-icon>
             </el-button>
-            <el-button
-              size="small"
-              type="danger"
-              :title="t('common.delete')"
-              @click="confirmDelete(source)"
-            >
+            <el-button size="small" type="danger" :title="t('common.delete')" @click="confirmDelete(source)">
               <el-icon><Delete /></el-icon>
             </el-button>
           </div>
@@ -63,10 +62,12 @@
       </el-scrollbar>
     </div>
 
-    <!-- Bottom section: Result Streams (auto-detected) -->
     <div class="section results-section">
       <div class="list-header results-header">
-        <span class="list-title">{{ t('sourceList.resultStreams') }}</span>
+        <div>
+          <span class="list-title">{{ t('sourceList.resultStreams') }}</span>
+          <p class="list-subtitle">{{ t('sourceList.resultsHint') }}</p>
+        </div>
       </div>
 
       <el-scrollbar class="sources-scroll">
@@ -93,69 +94,37 @@
       </el-scrollbar>
     </div>
 
-    <!-- Add Source Dialog -->
-    <el-dialog
+    <SourceEditorDialog
       v-model="showAddDialog"
       :title="t('sourceList.addSource')"
-      width="400px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="form" label-width="80px" @submit.prevent="addSource">
-        <el-form-item :label="t('sourceList.name')" required>
-          <el-input v-model="form.name" :placeholder="t('sourceList.name')" />
-        </el-form-item>
-        <el-form-item :label="t('sourceList.routePath')" required>
-          <el-input
-            v-model="form.route_path"
-            :placeholder="t('sourceList.routePlaceholder')"
-          />
-        </el-form-item>
-        <div class="route-hint">{{ t('sourceList.routeHint', { base: appSettingsStore.mediamtxRtspAddr }) }}</div>
-      </el-form>
-      <template #footer>
-        <el-button @click="showAddDialog = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="addLoading" @click="addSource">
-          {{ t('common.add') }}
-        </el-button>
-      </template>
-    </el-dialog>
+      :submit-label="t('common.add')"
+      :form="form"
+      :loading="addLoading"
+      :rtsp-base="appSettingsStore.mediamtxRtspAddr"
+      @submit="addSource"
+    />
 
-    <!-- Edit Source Dialog -->
-    <el-dialog
+    <SourceEditorDialog
       v-model="showEditDialog"
       :title="t('sourceList.editSource')"
-      width="400px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="editForm" label-width="80px" @submit.prevent="saveEdit">
-        <el-form-item :label="t('sourceList.name')" required>
-          <el-input v-model="editForm.name" :placeholder="t('sourceList.name')" />
-        </el-form-item>
-        <el-form-item :label="t('sourceList.routePath')" required>
-          <el-input
-            v-model="editForm.route_path"
-            :placeholder="t('sourceList.routePlaceholder')"
-          />
-        </el-form-item>
-        <div class="route-hint">{{ t('sourceList.routeHint', { base: appSettingsStore.mediamtxRtspAddr }) }}</div>
-      </el-form>
-      <template #footer>
-        <el-button @click="showEditDialog = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="editLoading" @click="saveEdit">
-          {{ t('common.save') }}
-        </el-button>
-      </template>
-    </el-dialog>
+      :submit-label="t('common.save')"
+      :form="editForm"
+      :loading="editLoading"
+      :rtsp-base="appSettingsStore.mediamtxRtspAddr"
+      @submit="saveEdit"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
-import { useSourceStore } from '../stores/source.js'
+import SourceEditorDialog from './source/SourceEditorDialog.vue'
+import SourcePanelSummary from './source/SourcePanelSummary.vue'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { useSourceStore } from '../stores/source.js'
 import { extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 
 const store = useSourceStore()
@@ -165,17 +134,13 @@ const showAddDialog = ref(false)
 const showEditDialog = ref(false)
 const addLoading = ref(false)
 const editLoading = ref(false)
+const bulkAction = ref('')
 const actionLoading = reactive({})
 const editingSourceId = ref('')
 
 const form = reactive({ name: '', route_path: '' })
 const editForm = reactive({ name: '', route_path: '' })
 
-/**
- * Computed result streams from running analysis sources.
- * Each running source automatically gets a corresponding result stream
- * with the path `{route}_processed`.
- */
 const resultStreams = computed(() => {
   return store.sources
     .filter((s) => store.isRunning(s.id))
@@ -197,7 +162,6 @@ function onDragStart(event, source) {
 }
 
 function onResultDragStart(event, resultStream) {
-  // Pass virtual result stream data for drag-and-drop into the grid
   event.dataTransfer.setData('result-stream', JSON.stringify(resultStream))
   event.dataTransfer.effectAllowed = 'copy'
 }
@@ -225,6 +189,24 @@ async function addSource() {
     ElMessage.error(err.message || t('sourceList.failedToAdd'))
   } finally {
     addLoading.value = false
+  }
+}
+
+async function handleStartAll() {
+  bulkAction.value = 'start'
+  try {
+    await store.startAllProcessing()
+  } finally {
+    bulkAction.value = ''
+  }
+}
+
+async function handleStopAll() {
+  bulkAction.value = 'stop'
+  try {
+    await store.stopAllProcessing()
+  } finally {
+    bulkAction.value = ''
   }
 }
 
@@ -308,13 +290,57 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style>
 .source-list {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: #1a1a2e;
   border-right: 1px solid #333;
+}
+
+.source-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid #333;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.source-summary__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.source-summary__stat,
+.source-summary__route {
+  border: 1px solid #33405f;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(10, 12, 24, 0.35);
+  color: #dce7ff;
+}
+
+.source-summary__route {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: #a9b9dd;
+  word-break: break-all;
+}
+
+.source-summary__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: #7f8bad;
+}
+
+.source-summary__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .section {
@@ -356,64 +382,62 @@ onMounted(async () => {
   color: #ccc;
 }
 
+.list-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #7f8bad;
+}
+
 .sources-scroll {
   flex: 1;
 }
 
 .source-item {
-  padding: 10px 12px;
-  border-bottom: 1px solid #222;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #2a2a3e;
   cursor: grab;
-  transition: background 0.15s;
+  transition: background 0.2s;
 }
 
 .source-item:hover {
-  background: rgba(64, 158, 255, 0.08);
+  background: #24243e;
 }
 
-.result-item {
-  background: rgba(103, 194, 58, 0.03);
-}
-
-.result-item:hover {
-  background: rgba(103, 194, 58, 0.08);
+.source-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .source-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #ddd;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
   margin-bottom: 4px;
 }
 
 .result-name {
-  color: #a3d977;
+  color: #67c23a;
 }
 
 .source-url {
-  font-size: 11px;
-  color: #666;
-  word-break: break-all;
-}
-
-.route-hint {
-  margin-top: 2px;
-  color: #7587af;
   font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .source-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 8px;
-  flex-wrap: nowrap;
-}
-
-.source-actions :deep(.el-button span) {
-  white-space: nowrap;
+  gap: 4px;
+  margin-left: 12px;
+  flex-shrink: 0;
 }
 
 .empty-hint {
@@ -421,9 +445,30 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
   gap: 8px;
-  color: #555;
+  padding: 32px 16px;
+  color: #666;
   font-size: 13px;
+}
+
+.route-hint {
+  color: #8f9fbe;
+  font-size: 12px;
+}
+
+@media (max-width: 920px) {
+  .source-summary__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .source-item {
+    align-items: flex-start;
+    gap: 10px;
+    flex-direction: column;
+  }
+
+  .source-actions {
+    margin-left: 0;
+  }
 }
 </style>
