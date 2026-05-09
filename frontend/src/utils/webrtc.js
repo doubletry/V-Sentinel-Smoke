@@ -34,21 +34,25 @@ async function sendOffer(whepUrl, offerSdp, authHeaders) {
   }
 }
 
-async function patchLocalCandidates(sessionUrl, offerData, candidates) {
+async function patchLocalCandidates(sessionUrl, offerData, candidates, authHeaders = {}) {
   if (!sessionUrl || !candidates.length) return
 
   await fetch(sessionUrl, {
     method: 'PATCH',
-    headers: buildWhepPatchHeaders(),
+    headers: {
+      ...buildWhepPatchHeaders(),
+      ...authHeaders,
+    },
     body: generateSdpFragment(offerData, candidates),
   })
 }
 
-function deleteSession(sessionUrl) {
+function deleteSession(sessionUrl, authHeaders = {}) {
   if (!sessionUrl) return
 
   fetch(sessionUrl, {
     method: 'DELETE',
+    headers: authHeaders,
   }).catch(() => {
     // Ignore cleanup failures.
   })
@@ -75,6 +79,7 @@ export async function connectWebRTC(
     throw new Error('Missing WebRTC gateway address')
   }
 
+  const authHeaders = buildWhepEndpointHeaders(webrtcUsername, webrtcPassword)
   const offerHeaders = buildWhepEndpointHeaders(webrtcUsername, webrtcPassword, {
     'Content-Type': 'application/sdp',
   })
@@ -110,7 +115,7 @@ export async function connectWebRTC(
     patchInFlight = true
     const candidatesToPatch = pendingPatchCandidates.splice(0)
     try {
-      await patchLocalCandidates(sessionUrl, offerData, candidatesToPatch)
+      await patchLocalCandidates(sessionUrl, offerData, candidatesToPatch, authHeaders)
     } catch (error) {
       console.warn(
         'Failed to send ICE candidates to WHEP session (connection quality may be affected):',
@@ -166,7 +171,7 @@ export async function connectWebRTC(
     stop: () => {
       if (stopped) return
       stopped = true
-      deleteSession(sessionUrl)
+      deleteSession(sessionUrl, authHeaders)
       pc.close()
     },
   }

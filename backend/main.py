@@ -229,7 +229,7 @@ async def frontend_index() -> FileResponse:
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def frontend_spa(full_path: str) -> FileResponse:
-    if full_path.startswith(("api/", "ws/")):
+    if full_path in {"docs", "redoc", "openapi.json"} or full_path.startswith(("api/", "ws/")):
         raise HTTPException(status_code=404, detail="Not Found")
     if not _frontend_index.is_file():
         raise HTTPException(status_code=404, detail="Not Found")

@@ -26,7 +26,7 @@
         <div class="false-positive-filter">
           <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
           <el-switch
-            v-model="falsePositiveOnly"
+            v-model="store.falsePositiveOnly"
             @change="handleFalsePositiveFilterChange"
           />
         </div>
@@ -75,7 +75,6 @@ const store = useMessageStore()
 const sourceStore = useSourceStore()
 const { t } = useI18n()
 const filterSource = ref('')
-const falsePositiveOnly = ref(false)
 const scrollbar = ref(null)
 
 // Auto-scroll to top (newest first)
