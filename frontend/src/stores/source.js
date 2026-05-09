@@ -6,8 +6,17 @@ import { i18n } from '../i18n/index.js'
 import { extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 
 const GRID_ASSIGNMENTS_STORAGE_KEY = 'v-sentinel.grid.assignments'
+const LEGACY_RTSP_BASE_ADDRESS = ''
 
 let gridAssignmentStorageWarningShown = false
+
+function stripProcessedSuffix(value) {
+  return String(value || '').replace(/_processed$/, '')
+}
+
+function extractRoutePathFromLegacyStreamPath(value) {
+  return normalizeRoutePath(value.routePath || stripProcessedSuffix(value.streamPath))
+}
 
 function normalizePersistedAssignment(value) {
   if (!value || typeof value !== 'object') return null
@@ -31,7 +40,7 @@ function normalizePersistedAssignment(value) {
     return {
       type: 'result',
       originalSourceId: String(value.originalSourceId),
-      routePath: normalizeRoutePath(value.routePath || String(value.streamPath || '').replace(/_processed$/, '')),
+      routePath: extractRoutePathFromLegacyStreamPath(value),
     }
   }
 
@@ -74,7 +83,7 @@ function buildPersistedAssignment(source) {
       ? {
           type: 'result',
           originalSourceId: String(source.originalSourceId),
-          routePath: normalizeRoutePath(String(source.streamPath || '').replace(/_processed$/, '')),
+          routePath: normalizeRoutePath(stripProcessedSuffix(source.streamPath)),
         }
       : null
   }
@@ -129,8 +138,10 @@ export const useSourceStore = defineStore('source', () => {
       return null
     }
 
+    // Persisted result tiles may come from older storage without routePath.
+    // In that case, derive the path from the saved RTSP URL without assuming a base address.
     const routePath = normalizeRoutePath(
-      assignment.routePath || extractRoutePath(source.rtsp_url, '')
+      assignment.routePath || extractRoutePath(source.rtsp_url, LEGACY_RTSP_BASE_ADDRESS)
     )
     if (!routePath) return null
 
