@@ -263,9 +263,14 @@ class TestVEngineClientAddresses:
         self,
         async_client: AsyncClient,
     ):
-        from backend.main import processor_manager
+        from backend.main import app
 
-        assert processor_manager._app_settings["smoke_detection_model_name"] == "smoke-fire-detection"
+        processor_manager = app.state.processor_manager
+
+        assert (
+            processor_manager._app_settings["smoke_detection_model_name"]
+            == "smoke-fire-detection"
+        )
 
         resp = await async_client.put(
             "/api/settings",

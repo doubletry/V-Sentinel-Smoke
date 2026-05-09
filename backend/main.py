@@ -99,91 +99,83 @@ def _configure_stdlib_log_capture() -> None:
             std_logger.addHandler(_STDLIB_LOG_HANDLER)
     _STDLIB_LOG_CAPTURE_CONFIGURED = True
 
-# Module-level singletons (accessed by API routers) / 模块级单例（供 API 路由使用）
-ws_manager: ws_module.WSManager
-vengine_client: AsyncVEngineClient
-email_client: AsyncEmailClient
-processor_manager: ProcessorManager
+def _create_lifespan():
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Application lifespan: initialize and teardown resources.
+        应用生命周期：初始化与销毁资源。"""
+        logger.info("Starting {} ...", settings.app_name)
+        _configure_stdlib_log_capture()
+
+        async def _persist_message(message) -> str:
+            return await save_analysis_message(message.model_dump())
+
+        ws_manager = ws_module.WSManager(persist_message=_persist_message)
+
+        await init_db()
+
+        app_settings = await get_all_settings()
+        app.title = app_settings.get("site_title") or settings.app_name
+        vengine_client = AsyncVEngineClient(settings)
+        await vengine_client.connect(app_settings)
+        email_client = AsyncEmailClient()
+        await email_client.connect(app_settings)
+
+        processor_manager = ProcessorManager(
+            vengine_client=vengine_client,
+            ws_manager=ws_manager,
+            app_settings=app_settings,
+            email_client=email_client,
+        )
+
+        app.state.ws_manager = ws_manager
+        app.state.vengine_client = vengine_client
+        app.state.email_client = email_client
+        app.state.processor_manager = processor_manager
+
+        await processor_manager.start_agent()
+
+        logger.info("{} started successfully", settings.app_name)
+        yield
+
+        logger.info("Shutting down {} ...", settings.app_name)
+
+        await processor_manager.stop_all()
+        await processor_manager.stop_agent()
+        await email_client.close()
+        await vengine_client.close()
+        await close_db()
+
+        logger.info("{} shutdown complete", settings.app_name)
+
+    return lifespan
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan: initialize and teardown resources.
-    应用生命周期：初始化与销毁资源。"""
-    global ws_manager, vengine_client, email_client, processor_manager
-
-    logger.info("Starting {} ...", settings.app_name)
-    _configure_stdlib_log_capture()
-
-    # Initialize WebSocket manager / 初始化 WebSocket 管理器
-    async def _persist_message(message) -> str:
-        return await save_analysis_message(message.model_dump())
-
-    ws_manager = ws_module.WSManager(persist_message=_persist_message)
-
-    # Initialize database / 初始化数据库
-    await init_db()
-
-    # Initialize V-Engine async gRPC client (addresses from DB settings)
-    # 初始化 V-Engine 异步 gRPC 客户端（地址来自数据库设置）
-    app_settings = await get_all_settings()
-    app.title = app_settings.get("site_title") or settings.app_name
-    vengine_client = AsyncVEngineClient(settings)
-    await vengine_client.connect(app_settings)
-    email_client = AsyncEmailClient()
-    await email_client.connect(app_settings)
-
-    # Store on app.state for dependency-injection in API routes / 存储到 app.state 以便 API 路由依赖注入
-    app.state.vengine_client = vengine_client
-    app.state.email_client = email_client
-
-    # Initialize ProcessorManager (includes AnalysisAgent) / 初始化处理器管理器（含分析代理）
-    processor_manager = ProcessorManager(
-        vengine_client=vengine_client,
-        ws_manager=ws_manager,
-        app_settings=app_settings,
-        email_client=email_client,
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.app_name,
+        description="AI Video Surveillance Analysis Platform",
+        version="0.1.0",
+        lifespan=_create_lifespan(),
     )
-    app.state.processor_manager = processor_manager
-    await processor_manager.start_agent()
 
-    logger.info("{} started successfully", settings.app_name)
-    yield
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    # ── Shutdown / 关闭 ─────────────────────────────────────────────────
-    logger.info("Shutting down {} ...", settings.app_name)
-
-    await processor_manager.stop_all()
-    await processor_manager.stop_agent()
-    await email_client.close()
-    await vengine_client.close()
-    await close_db()
-
-    logger.info("{} shutdown complete", settings.app_name)
+    app.include_router(sources_router.router)
+    app.include_router(processor_router.router)
+    app.include_router(messages_router.router)
+    app.include_router(settings_router.router)
+    app.include_router(ws_module.router)
+    return app
 
 
-app = FastAPI(
-    title=settings.app_name,
-    description="AI Video Surveillance Analysis Platform",
-    version="0.1.0",
-    lifespan=lifespan,
-)
-
-# ── CORS ──────────────────────────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(sources_router.router)
-app.include_router(processor_router.router)
-app.include_router(messages_router.router)
-app.include_router(settings_router.router)
-app.include_router(ws_module.router)
+app = create_app()
 
 
 @app.get("/api/health")

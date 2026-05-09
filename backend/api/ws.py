@@ -104,8 +104,7 @@ class WSManager:
 async def ws_messages_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time analysis message streaming.
     用于实时分析消息推送的 WebSocket 端点。"""
-    from backend.main import ws_manager  # avoid circular imports / 避免循环导入
-
+    ws_manager = websocket.app.state.ws_manager
     await ws_manager.connect(websocket)
     try:
         while True:
