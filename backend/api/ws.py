@@ -46,19 +46,47 @@ class WSManager:
     async def broadcast(self, message: AnalysisMessage) -> None:
         """Send a message to all connected WebSocket clients.
         向所有已连接的 WebSocket 客户端发送消息。"""
-        if message.image_base64 and not message.image_url:
-            message.image_url = materialize_message_image(
-                message.image_base64,
+        if message.image_url and not message.detected_image_url:
+            message.detected_image_url = message.image_url
+        if message.detected_image_base64 and not message.detected_image_url:
+            message.detected_image_url = materialize_message_image(
+                message.detected_image_base64,
                 timestamp=message.timestamp,
             )
-            if message.image_url:
-                message.image_base64 = None
+            if message.detected_image_url:
+                message.detected_image_base64 = None
+        if message.image_base64 and not message.detected_image_base64 and not message.detected_image_url:
+            message.detected_image_base64 = message.image_base64
+            message.detected_image_url = materialize_message_image(
+                message.detected_image_base64,
+                timestamp=message.timestamp,
+            )
+            if message.detected_image_url:
+                message.detected_image_base64 = None
+        if message.original_image_base64 and not message.original_image_url:
+            message.original_image_url = materialize_message_image(
+                message.original_image_base64,
+                timestamp=message.timestamp,
+            )
+            if message.original_image_url:
+                message.original_image_base64 = None
+        message.image_url = message.detected_image_url or message.image_url
+        message.image_base64 = None if message.detected_image_url else (message.detected_image_base64 or message.image_base64)
         if self._persist_message is not None:
             message_id = await self._persist_message(message)
         else:
             message_id = None
-        if message_id and message.image_url:
-            message.image_url = build_analysis_message_image_url(message_id)
+        if message_id:
+            message.id = message_id
+        if message_id and message.detected_image_url:
+            public_url = build_analysis_message_image_url(message_id)
+            message.detected_image_url = public_url
+            message.image_url = public_url
+        if message_id and message.original_image_url:
+            message.original_image_url = build_analysis_message_image_url(
+                message_id,
+                kind="original",
+            )
         payload = message.model_dump_json()
         dead: list[WebSocket] = []
         async with self._lock:

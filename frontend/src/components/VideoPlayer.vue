@@ -80,7 +80,13 @@ async function connect() {
   }
 
   try {
-    _conn = await connectWebRTC(props.streamPath, videoEl.value, appSettingsStore.mediamtxWebrtcAddr)
+    _conn = await connectWebRTC(
+      props.streamPath,
+      videoEl.value,
+      appSettingsStore.mediamtxWebrtcAddr,
+      appSettingsStore.mediamtxWebrtcUsername,
+      appSettingsStore.mediamtxWebrtcPassword
+    )
     if (!_shouldReconnect) {
       _conn?.stop?.()
       _conn = null
@@ -127,6 +133,18 @@ watch(() => props.streamPath, (newPath) => {
   disconnect()
   if (newPath) connect()
 })
+
+watch(
+  () => [
+    appSettingsStore.mediamtxWebrtcAddr,
+    appSettingsStore.mediamtxWebrtcUsername,
+    appSettingsStore.mediamtxWebrtcPassword,
+  ],
+  () => {
+    disconnect()
+    if (props.streamPath) connect()
+  }
+)
 
 onMounted(() => {
   if (!appSettingsStore.loaded) {

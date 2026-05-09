@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from io import BytesIO
-
-from openpyxl import load_workbook
 import pytest
 
 from core.email_client import AsyncEmailClient
@@ -50,66 +47,34 @@ class TestAsyncEmailClient:
         )
         assert request.subject == "My Sentinel 每日总结 2026-01-01"
 
-    async def test_send_daily_summary_email_attaches_single_xlsx_table(self):
+    def test_event_template_renders_context_and_attachment(self):
         client = AsyncEmailClient()
-        captured = {}
-
-        async def fake_send_email(request):
-            captured["request"] = request
-            return {"status": "SUCCESS"}
-
-        client.send_email = fake_send_email
-        await client.send_daily_summary_email(
+        request = client.build_event_email_request(
             {
                 "site_title": "My Sentinel",
+                "timezone": "Asia/Shanghai",
                 "email_from_address": "sender@example.com",
                 "email_from_auth_code": "secret",
                 "email_to_addresses": "a@example.com",
+                "email_event_subject_template": "{event_label} on {source_name}",
+                "email_event_body_template": "{local_time} {event_type} {confidence_percent} {missing}",
             },
-            summary_text="hello",
-            until_iso="2026-01-01T12:00:00+00:00",
-            visits=[
-                {
-                    "source_name": "Cam1",
-                    "plate": "ABC123",
-                    "enter_time": "2026-01-01T00:00:00+00:00",
-                    "exit_time": "2026-01-01T01:00:00+00:00",
-                    "missing_actions": ["HandOverKeys"],
-                },
-                {
-                    "source_name": "Cam2",
-                    "plate": "",
-                    "enter_time": "2026-01-01T02:00:00+00:00",
-                    "exit_time": "2026-01-01T03:00:00+00:00",
-                    "missing_actions": [],
-                },
-            ],
+            {
+                "timestamp": "2026-01-01T00:00:00+00:00",
+                "source_id": "s1",
+                "source_name": "Cam1",
+                "event_type": "smoke",
+                "event_label": "烟雾",
+                "labels": ["smoke"],
+                "confidence": 0.875,
+                "detection_count": 1,
+                "frame_id": 2,
+                "active_tracks": 1,
+            },
         )
-        request = captured["request"]
-        assert request.subject == "2026年01月01日AI货台分析报告-有异常"
-        assert len(request.attachments) == 1
-        attachment = request.attachments[0]
-        assert attachment.filename == "truck-daily-summary-2026-01-01.xlsx"
-        workbook = load_workbook(BytesIO(attachment.data))
-        sheet = workbook.active
-        rows = [list(row) for row in sheet.iter_rows(values_only=True)]
-        assert rows == [
-            ["序号", "区域", "回放位置或IP", "抽查内容/类型", "AI视觉分析结果"],
-            [
-                "1",
-                None,
-                "Cam1",
-                "货台检查\n车牌号：ABC123\n到达时间：2026-01-01 00:00:00\n离开时间：2026-01-01 01:00:00",
-                "未执行 上交钥匙",
-            ],
-            [
-                "2",
-                None,
-                "Cam2",
-                "货台检查\n车牌号：未识别\n到达时间：2026-01-01 02:00:00\n离开时间：2026-01-01 03:00:00",
-                "无异常",
-            ],
-        ]
-        assert "请查收附件" not in request.plain_text_body
-        assert request.plain_text_body.startswith("序号\t区域\t回放位置或IP")
-        assert "<table" in request.html_body
+        assert request.subject == "烟雾 on Cam1"
+        assert "2026-01-01 08:00:00 smoke 87.5% {missing}" in request.plain_text_body
+
+    def test_available_template_placeholders(self):
+        placeholders = set(AsyncEmailClient.available_template_placeholders())
+        assert {"local_time", "source_name", "event_type", "event_label"} <= placeholders

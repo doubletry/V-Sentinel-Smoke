@@ -23,6 +23,13 @@
             :value="src.id"
           />
         </el-select>
+        <div class="false-positive-filter">
+          <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
+          <el-switch
+            v-model="store.falsePositiveOnly"
+            @change="handleFalsePositiveFilterChange"
+          />
+        </div>
         <el-button
           v-if="store.pendingCount > 0"
           size="small"
@@ -36,7 +43,11 @@
     </div>
 
     <el-scrollbar ref="scrollbar" class="messages-scroll">
-      <MessageList :messages="store.messages" />
+      <MessageList
+        :messages="store.messages"
+        @mark-false-positive="handleMarkFalsePositive"
+        @unmark-false-positive="handleUnmarkFalsePositive"
+      />
     </el-scrollbar>
     <div class="messages-pagination">
       <el-pagination
@@ -88,8 +99,23 @@ async function handleFilterChange(value) {
   await store.fetchMessages(1, store.pageSize)
 }
 
+async function handleFalsePositiveFilterChange(value) {
+  store.setFalsePositiveOnly(value)
+  await store.fetchMessages(1, store.pageSize)
+}
+
 async function jumpToLatest() {
   await store.fetchMessages(1, store.pageSize)
+}
+
+async function handleMarkFalsePositive(message) {
+  await store.markFalsePositive(message.id)
+  await store.fetchMessages(store.page, store.pageSize)
+}
+
+async function handleUnmarkFalsePositive(message) {
+  await store.unmarkFalsePositive(message.id)
+  await store.fetchMessages(store.page, store.pageSize)
 }
 
 onMounted(() => {
@@ -141,6 +167,23 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.false-positive-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border: 1px solid #39476b;
+  border-radius: 999px;
+  background: rgba(245, 108, 108, 0.1);
+}
+
+.false-positive-filter__label {
+  color: #ffd3d3;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 @media (max-width: 880px) {

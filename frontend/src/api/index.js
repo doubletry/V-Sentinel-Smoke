@@ -55,18 +55,17 @@ export const processorApi = {
 
 export const messagesApi = {
   list: (params = {}) => api.get('/api/messages', { params }),
+  markFalsePositive: (id) => api.post(`/api/messages/${id}/false-positive`),
+  unmarkFalsePositive: (id) => api.delete(`/api/messages/${id}/false-positive`),
 }
 
-export const vehicleEventsApi = {
-  today: () => api.get('/api/vehicle-events/today'),
-  sendSummaryNow: () => api.post('/api/vehicle-events/send-summary-now'),
-}
 
 // Settings API
 export const settingsApi = {
   get: () => api.get('/api/settings'),
   update: (data) => api.put('/api/settings', data),
   testEmail: (data) => api.post('/api/settings/email/test', data),
+  emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),
 }
 
 export default api

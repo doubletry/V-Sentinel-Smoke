@@ -7,7 +7,7 @@ from loguru import logger
 
 from backend.db.database import get_source, list_sources
 from backend.models.schemas import ProcessorStatus
-from backend.processing.truck.agent import AnalysisAgent
+from backend.processing.agent import AnalysisAgent
 from backend.processing.base import BaseVideoProcessor
 from backend.processing.registry import resolve_processor_class
 
@@ -41,6 +41,11 @@ class ProcessorManager:
         self._lock = asyncio.Lock()
         self._agent = AnalysisAgent(ws_manager=ws_manager, email_client=email_client)
 
+    def update_app_settings(self, app_settings: dict[str, str]) -> None:
+        """Replace the settings snapshot used for newly started processors.
+        更新新启动处理器使用的设置快照。"""
+        self._app_settings = dict(app_settings)
+
     async def start_agent(self) -> None:
         """Start the analysis agent (called once during app startup).
         启动分析代理（应用启动时调用一次）。"""
@@ -71,7 +76,7 @@ class ProcessorManager:
             if source is None:
                 raise ValueError(f"Source not found: {source_id}")
 
-            plugin_name = self._app_settings.get("processor_plugin", "truck")
+            plugin_name = self._app_settings.get("processor_plugin", "smoke")
             processor_cls = resolve_processor_class(plugin_name)
 
             processor = processor_cls(

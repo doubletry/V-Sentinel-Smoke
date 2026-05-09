@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock
-
 from httpx import AsyncClient
 
 from backend.db.database import (
     build_analysis_message_image_url,
-    get_vehicle_visits_between,
     list_analysis_messages,
     save_analysis_message,
-    save_vehicle_visit,
     update_settings,
 )
 
@@ -53,6 +49,32 @@ class TestMessagePersistence:
         resp = await async_client.get(rows["items"][0]["image_url"])
         assert resp.status_code == 200
         assert resp.content == b"jpeg-bytes"
+
+    async def test_save_message_persists_original_and_detected_images(self, async_client: AsyncClient):
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "hello",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
+        )
+
+        rows = await list_analysis_messages(limit=10)
+        assert rows["items"][0]["original_image_url"].startswith("/api/messages/")
+        assert rows["items"][0]["detected_image_url"].startswith("/api/messages/")
+
+        original_resp = await async_client.get(rows["items"][0]["original_image_url"])
+        detected_resp = await async_client.get(rows["items"][0]["detected_image_url"])
+        assert original_resp.status_code == 200
+        assert detected_resp.status_code == 200
+        assert original_resp.content == b"original-bytes"
+        assert detected_resp.content == b"detected-bytes"
 
     async def test_retention_prunes_old_messages(self, init_db):
         await update_settings({"message_retention_days": "1"})
@@ -119,6 +141,7 @@ class TestMessagesAPI:
         assert data["items"][0]["level"] == "warning"
         assert data["total"] == 1
         assert "image_url" in data["items"][0]
+        assert data["items"][0]["false_positive"] is False
 
     async def test_list_persisted_messages_paginates(self, async_client: AsyncClient):
         for index in range(25):
@@ -146,56 +169,55 @@ class TestMessagesAPI:
         assert resp.status_code == 200
         data = resp.json()
         values = {item["value"] for item in data}
-        assert {"truck", "example"} <= values
+        assert {"smoke", "example"} <= values
 
-    async def test_today_vehicle_events_endpoint(self, async_client: AsyncClient):
-        now = datetime.now(timezone.utc).isoformat()
-        await save_vehicle_visit(
-            source_id="s1",
-            source_name="Cam1",
-            track_id=1,
-            enter_time=now,
-            exit_time=now,
-            plate="ABC123",
-            confirmed_actions=["ExteriorInspectionOfTruck"],
-            missing_actions=["TakePhotosOfGoods"],
+    async def test_mark_false_positive_exports_images_and_can_filter(self, async_client: AsyncClient, _tmp_db: str):
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
         )
 
-        resp = await async_client.get("/api/vehicle-events/today")
+        resp = await async_client.post(f"/api/messages/{message_id}/false-positive")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["visits"][0]["plate"] == "ABC123"
-        assert data["visits"][0]["confirmed_actions"] == ["车外检查"]
-        assert data["visits"][0]["missing_actions"] == ["货物拍照"]
-        assert "ABC123" in data["summary_text"]
-        assert "到达时间" in data["summary_text"]
-        assert "离开时间" in data["summary_text"]
+        assert data["false_positive"] is True
+        assert any(path.endswith(".jpg") and not path.endswith("_detected.jpg") for path in data["exported_files"])
+        assert any(path.endswith("_detected.jpg") for path in data["exported_files"])
 
-    async def test_send_summary_now_endpoint(self, async_client: AsyncClient):
-        from backend.main import app
+        filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
+        assert filtered.status_code == 200
+        filtered_data = filtered.json()
+        assert len(filtered_data["items"]) == 1
+        assert filtered_data["items"][0]["id"] == message_id
+        assert filtered_data["items"][0]["false_positive"] is True
 
-        app.state.email_client.send_daily_summary_email = AsyncMock(
-            return_value={"status": "SUCCESS"}
-        )
-        app.state.email_client.reconnect_from_settings = AsyncMock()
-
-        now = datetime.now(timezone.utc).isoformat()
-        await save_vehicle_visit(
-            source_id="s1",
-            source_name="Cam1",
-            track_id=1,
-            enter_time=now,
-            exit_time=now,
-            plate="XYZ888",
-            confirmed_actions=["车外检查"],
-            missing_actions=[],
+    async def test_unmark_false_positive_clears_filter_match(self, async_client: AsyncClient):
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted",
+                "false_positive": True,
+            }
         )
 
-        resp = await async_client.post("/api/vehicle-events/send-summary-now")
+        resp = await async_client.delete(f"/api/messages/{message_id}/false-positive")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "SUCCESS"
-        assert "XYZ888" in data["summary_text"]
-        assert "到达时间" in data["summary_text"]
-        assert "离开时间" in data["summary_text"]
-        app.state.email_client.send_daily_summary_email.assert_awaited_once()
+        assert data["false_positive"] is False
+
+        filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
+        assert filtered.status_code == 200
+        filtered_data = filtered.json()
+        assert filtered_data["items"] == []

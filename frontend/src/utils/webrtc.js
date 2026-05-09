@@ -1,94 +1,178 @@
-import config from '../config.js'
+import {
+  buildWhepEndpointHeaders,
+  buildWhepPatchHeaders,
+  buildWhepUrl,
+  generateSdpFragment,
+  parseOfferData,
+} from './webrtcHelpers.js'
 
-function normalizeBaseUrl(value) {
-  return String(value || '').trim().replace(/\/+$/, '')
+async function sendOffer(whepUrl, offerSdp, authHeaders) {
+  const response = await fetch(whepUrl, {
+    method: 'POST',
+    headers: authHeaders,
+    body: offerSdp,
+  })
+
+  switch (response.status) {
+    case 201:
+      return {
+        answerSdp: await response.text(),
+        sessionUrl: new URL(response.headers.get('location'), whepUrl).toString(),
+      }
+    case 404: {
+      const error = new Error('stream not found')
+      error.name = 'WHEPError'
+      error.status = 404
+      throw error
+    }
+    default: {
+      const error = new Error(`WHEP error: ${response.status} ${response.statusText}`)
+      error.name = 'WHEPError'
+      error.status = response.status
+      throw error
+    }
+  }
 }
 
-function normalizeRoutePath(value) {
-  return String(value || '').trim().replace(/^\/+/, '').replace(/\/+$/, '')
+async function patchLocalCandidates(sessionUrl, offerData, candidates, authHeaders = {}) {
+  if (!sessionUrl || !candidates.length) return
+
+  await fetch(sessionUrl, {
+    method: 'PATCH',
+    headers: {
+      ...buildWhepPatchHeaders(),
+      ...authHeaders,
+    },
+    body: generateSdpFragment(offerData, candidates),
+  })
+}
+
+function deleteSession(sessionUrl, authHeaders = {}) {
+  if (!sessionUrl) return
+
+  fetch(sessionUrl, {
+    method: 'DELETE',
+    headers: authHeaders,
+  }).catch(() => {
+    // Ignore cleanup failures.
+  })
 }
 
 /**
- * Connect to a MediaMTX stream via WebRTC (WHEP protocol).
- * @param {string} streamPath - The stream path on MediaMTX (e.g. "camera1")
- * @param {HTMLVideoElement} videoEl - The video element to attach to
- * @param {string} webrtcBaseUrl - MediaMTX WebRTC base address from settings
- * @returns {object} - { pc: RTCPeerConnection, stop: Function }
+ * Connect to a MediaMTX stream via its documented WHEP browser flow.
+ * @param {string} streamPath
+ * @param {HTMLVideoElement} videoEl
+ * @param {string} webrtcBaseUrl
+ * @param {string} webrtcUsername
+ * @param {string} webrtcPassword
+ * @returns {object} - { pc, stop }
  */
-export async function connectWebRTC(streamPath, videoEl, webrtcBaseUrl) {
-  const base = normalizeBaseUrl(webrtcBaseUrl || config.mediamtxWebrtcUrl)
-  const route = normalizeRoutePath(streamPath)
-  const whepUrl = `${base}/${route}/whep`
+export async function connectWebRTC(
+  streamPath,
+  videoEl,
+  webrtcBaseUrl,
+  webrtcUsername = '',
+  webrtcPassword = ''
+) {
+  const whepUrl = buildWhepUrl(webrtcBaseUrl, streamPath)
+  if (!whepUrl) {
+    throw new Error('Missing WebRTC gateway address')
+  }
 
+  const authHeaders = buildWhepEndpointHeaders(webrtcUsername, webrtcPassword)
+  const offerHeaders = buildWhepEndpointHeaders(webrtcUsername, webrtcPassword, {
+    'Content-Type': 'application/sdp',
+  })
   const pc = new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    // MediaMTX can return server-side ICE candidates inside the WHEP answer and
+    // this flow incrementally PATCHes the browser's local candidates afterward.
+    iceServers: [],
   })
 
-  // Add transceivers to receive audio and video
-  pc.addTransceiver('video', { direction: 'recvonly' })
-  pc.addTransceiver('audio', { direction: 'recvonly' })
+  let sessionUrl = null
+  let stopped = false
+  const queuedCandidates = []
+  const pendingPatchCandidates = []
+  let patchInFlight = false
+  let offerData = null
+  const transceiverDirection = 'recvonly'
 
-  // Attach stream to video element when tracks arrive
+  pc.addTransceiver('video', { direction: transceiverDirection })
+  pc.addTransceiver('audio', { direction: transceiverDirection })
+  // MediaMTX's documented browser WHEP flow creates a local data channel so
+  // the peer connection can receive server-side data channels when available.
+  pc.createDataChannel('')
+
   pc.ontrack = (event) => {
-    if (videoEl) {
-      if (!videoEl.srcObject) {
-        videoEl.srcObject = event.streams[0]
+    if (videoEl && !videoEl.srcObject) {
+      videoEl.srcObject = event.streams[0]
+    }
+  }
+
+  async function patchPendingCandidates() {
+    if (patchInFlight || stopped || !sessionUrl || !offerData || !pendingPatchCandidates.length) return
+
+    patchInFlight = true
+    const candidatesToPatch = pendingPatchCandidates.splice(0)
+    try {
+      await patchLocalCandidates(sessionUrl, offerData, candidatesToPatch, authHeaders)
+    } catch (error) {
+      console.warn(
+        'Failed to send ICE candidates to WHEP session (connection quality may be affected):',
+        error
+      )
+    } finally {
+      patchInFlight = false
+      if (pendingPatchCandidates.length) {
+        patchPendingCandidates()
       }
     }
   }
 
-  // Create SDP offer
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
+  offerData = parseOfferData(offer.sdp)
 
-  // Wait for ICE gathering to complete (or timeout)
-  await waitForIceGathering(pc)
+  pc.onicecandidate = (event) => {
+    if (stopped || !event.candidate) return
 
-  // Send offer to MediaMTX WHEP endpoint
-  let response
-  try {
-    response = await fetch(whepUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/sdp' },
-      body: pc.localDescription.sdp,
-    })
-  } catch (err) {
-    pc.close()
-    throw new Error(`WHEP request failed: ${err.message}`)
+    if (!sessionUrl) {
+      queuedCandidates.push(event.candidate)
+      return
+    }
+
+    pendingPatchCandidates.push(event.candidate)
+    patchPendingCandidates()
   }
 
-  if (!response.ok) {
+  let answerSdp
+  try {
+    const result = await sendOffer(whepUrl, offer.sdp, offerHeaders)
+    sessionUrl = result.sessionUrl
+    answerSdp = result.answerSdp
+  } catch (error) {
     pc.close()
-    const error = new Error(`WHEP error: ${response.status} ${response.statusText}`)
-    error.name = 'WHEPError'
-    error.status = response.status
     throw error
   }
 
-  const answerSdp = await response.text()
-  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+  await pc.setRemoteDescription({
+    type: 'answer',
+    sdp: answerSdp,
+  })
+
+  if (queuedCandidates.length) {
+    pendingPatchCandidates.push(...queuedCandidates)
+    queuedCandidates.splice(0, queuedCandidates.length)
+    patchPendingCandidates()
+  }
 
   return {
     pc,
-    stop: () => pc.close(),
+    stop: () => {
+      if (stopped) return
+      stopped = true
+      deleteSession(sessionUrl, authHeaders)
+      pc.close()
+    },
   }
-}
-
-/**
- * Wait for ICE gathering to complete (or timeout after 3s).
- */
-function waitForIceGathering(pc) {
-  return new Promise((resolve) => {
-    if (pc.iceGatheringState === 'complete') {
-      resolve()
-      return
-    }
-    const timeout = setTimeout(resolve, 3000)
-    pc.addEventListener('icegatheringstatechange', () => {
-      if (pc.iceGatheringState === 'complete') {
-        clearTimeout(timeout)
-        resolve()
-      }
-    })
-  })
 }

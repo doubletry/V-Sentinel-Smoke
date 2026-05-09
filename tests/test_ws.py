@@ -86,7 +86,8 @@ class TestWSManager:
 
         persisted.assert_awaited_once()
         payload = ws.send_text.call_args[0][0]
-        assert "/api/messages/message-123/image" in payload
+        assert '"id":"message-123"' in payload
+        assert "/api/messages/message-123/images/detected" in payload
 
     async def test_broadcast_removes_dead_connections(self):
         mgr = WSManager()

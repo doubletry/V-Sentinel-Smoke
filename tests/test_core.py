@@ -626,7 +626,7 @@ class TestCoreBaseVideoProcessorPipeline:
         proc._update_publish_fps(30.0)
 
         assert proc._source_fps == 30.0
-        assert proc._current_publish_fps() == 10.0
+        assert proc._current_publish_fps() == TEST_SAMPLED_PUBLISH_FPS
 
     def test_push_frame_uses_dynamic_fps_and_tcp_transport(self, monkeypatch):
         proc = DummyCoreProcessor(

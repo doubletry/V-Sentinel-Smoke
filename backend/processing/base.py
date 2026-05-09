@@ -33,7 +33,7 @@ from backend.models.schemas import AnalysisMessage, ROI
 if TYPE_CHECKING:
     from backend.vengine.client import AsyncVEngineClient
     from backend.api.ws import WSManager
-    from backend.processing.truck.agent import AnalysisAgent
+    from backend.processing.agent import AnalysisAgent
 
 
 class BaseVideoProcessor(_CoreBaseVideoProcessor):
@@ -108,6 +108,7 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
             for msg in result.messages:
                 if not isinstance(msg, AnalysisMessage):
                     msg = AnalysisMessage(
+                        id=msg.get("id"),
                         timestamp=msg.get(
                             "timestamp", datetime.now(timezone.utc).isoformat()
                         ),
@@ -117,6 +118,11 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
                         message=msg.get("message", ""),
                         image_url=msg.get("image_url"),
                         image_base64=msg.get("image_base64"),
+                        original_image_url=msg.get("original_image_url"),
+                        original_image_base64=msg.get("original_image_base64"),
+                        detected_image_url=msg.get("detected_image_url"),
+                        detected_image_base64=msg.get("detected_image_base64"),
+                        false_positive=bool(msg.get("false_positive", False)),
                     )
                 await self.ws_manager.broadcast(msg)
         await super()._handle_result(frame, result)

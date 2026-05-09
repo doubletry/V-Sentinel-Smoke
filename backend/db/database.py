@@ -4,10 +4,12 @@ import asyncio
 import base64
 import json
 import re
+import shutil
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import aiosqlite
 from loguru import logger
@@ -45,21 +47,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 """
 
-CREATE_VEHICLE_VISITS_TABLE = """
-CREATE TABLE IF NOT EXISTS vehicle_visits (
-    id TEXT PRIMARY KEY,
-    source_id TEXT NOT NULL,
-    source_name TEXT NOT NULL DEFAULT '',
-    track_id INTEGER NOT NULL,
-    enter_time TEXT NOT NULL,
-    exit_time TEXT NOT NULL,
-    plate TEXT NOT NULL DEFAULT '',
-    confirmed_actions TEXT NOT NULL DEFAULT '[]',
-    missing_actions TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL
-);
-"""
-
 CREATE_ANALYSIS_MESSAGES_TABLE = """
 CREATE TABLE IF NOT EXISTS analysis_messages (
     id TEXT PRIMARY KEY,
@@ -69,6 +56,9 @@ CREATE TABLE IF NOT EXISTS analysis_messages (
     level TEXT NOT NULL,
     message TEXT NOT NULL,
     image_url TEXT,
+    original_image_url TEXT,
+    detected_image_url TEXT,
+    false_positive INTEGER NOT NULL DEFAULT 0,
     image_base64 TEXT,
     created_at TEXT NOT NULL
 );
@@ -181,9 +171,16 @@ async def init_db() -> None:
         await db.execute(CREATE_SOURCES_TABLE)
         await db.execute(CREATE_ROIS_TABLE)
         await db.execute(CREATE_SETTINGS_TABLE)
-        await db.execute(CREATE_VEHICLE_VISITS_TABLE)
         await db.execute(CREATE_ANALYSIS_MESSAGES_TABLE)
         await _ensure_column_exists(db, "analysis_messages", "image_url", "TEXT")
+        await _ensure_column_exists(db, "analysis_messages", "original_image_url", "TEXT")
+        await _ensure_column_exists(db, "analysis_messages", "detected_image_url", "TEXT")
+        await _ensure_column_exists(
+            db,
+            "analysis_messages",
+            "false_positive",
+            "INTEGER NOT NULL DEFAULT 0",
+        )
         for key, value in DEFAULT_APP_SETTINGS.items():
             await db.execute(
                 "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
@@ -220,8 +217,15 @@ def get_message_image_dir() -> Path:
     return Path(_DB_PATH).resolve().parent / "message_thumbnails"
 
 
-def build_analysis_message_image_url(message_id: str) -> str:
-    return f"{MESSAGE_IMAGE_URL_PREFIX}/{message_id}/image"
+def get_false_positive_dir() -> Path:
+    """Return the filesystem directory used for exported false-positive images.
+    返回导出的误报图片目录。"""
+    return Path(_DB_PATH).resolve().parent / "false_positives"
+
+
+def build_analysis_message_image_url(message_id: str, *, kind: str = "detected") -> str:
+    safe_kind = "original" if str(kind).strip().lower() == "original" else "detected"
+    return f"{MESSAGE_IMAGE_URL_PREFIX}/{message_id}/images/{safe_kind}"
 
 
 def _message_image_path_from_stored_value(image_value: str) -> Path | None:
@@ -244,6 +248,10 @@ def _normalize_stored_message_image_value(image_value: str | None) -> str | None
     if path is None:
         return None
     return f"{path.parent.name}/{path.name}"
+
+
+def _normalize_bool_db_value(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _message_image_path_from_url(image_url: str) -> Path | None:
@@ -288,6 +296,38 @@ def materialize_message_image(image_base64: str | None, *, timestamp: str = "") 
     file_path = directory / filename
     file_path.write_bytes(raw)
     return f"{day}/{filename}"
+
+
+def export_false_positive_images(
+    message_id: str,
+    *,
+    timestamp: str,
+    original_image_url: str | None = None,
+    detected_image_url: str | None = None,
+) -> list[str]:
+    """Copy original/detected images into the false-positive export directory.
+    将原图/检测图复制到误报导出目录。"""
+    exported: list[str] = []
+    day = str(timestamp or "")[:10].strip()
+    if not MESSAGE_IMAGE_DAY_RE.fullmatch(day):
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    target_dir = get_false_positive_dir() / day
+    target_dir.mkdir(parents=True, exist_ok=True)
+    export_basename = uuid.uuid4().hex
+
+    original_path = _message_image_path_from_url(str(original_image_url or ""))
+    if original_path is not None and original_path.is_file():
+        destination = target_dir / f"{export_basename}.jpg"
+        shutil.copy2(original_path, destination)
+        exported.append(str(destination))
+
+    detected_path = _message_image_path_from_url(str(detected_image_url or ""))
+    if detected_path is not None and detected_path.is_file():
+        destination = target_dir / f"{export_basename}_detected.jpg"
+        shutil.copy2(detected_path, destination)
+        exported.append(str(destination))
+
+    return exported
 
 
 def _delete_message_image(image_url: str | None) -> None:
@@ -341,21 +381,168 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     )
 
 
+async def _get_setting_from_db(
+    db: aiosqlite.Connection,
+    key: str,
+    default: str = "",
+) -> str:
+    async with db.execute(
+        "SELECT value FROM app_settings WHERE key = ?",
+        (key,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return default
+    return str(row[0] or default)
+
+
+async def _resolve_source_rtsp_url(
+    db: aiosqlite.Connection,
+    *,
+    rtsp_url: str | None = None,
+    route_path: str | None = None,
+) -> str:
+    route = _normalize_route_path(route_path)
+    if route:
+        rtsp_base_address = await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_addr",
+            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", ""),
+        )
+        rtsp_username = await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_username",
+            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_username", ""),
+        )
+        rtsp_password = await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_password",
+            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_password", ""),
+        )
+        resolved_rtsp_url = build_source_rtsp_url(
+            rtsp_base_address,
+            route,
+            username=rtsp_username,
+            password=rtsp_password,
+        )
+        if not resolved_rtsp_url:
+            raise ValueError("MediaMTX RTSP base address is not configured")
+        return resolved_rtsp_url
+    return str(rtsp_url or "").strip()
+
+
+def _normalize_base_address(value: str | None) -> str:
+    return str(value or "").strip().rstrip("/")
+
+
+def _normalize_route_path(value: str | None) -> str:
+    return str(value or "").strip().strip("/")
+
+
+def _compose_netloc_with_auth(
+    parsed_base,
+    username: str | None = None,
+    password: str | None = None,
+) -> str:
+    host = parsed_base.hostname or ""
+    if not host:
+        return parsed_base.netloc
+    port = f":{parsed_base.port}" if parsed_base.port is not None else ""
+    auth_username = str(username or "").strip()
+    auth_password = str(password or "")
+    if not auth_username:
+        return f"{host}{port}"
+    auth = quote(auth_username, safe="")
+    if auth_password:
+        auth += f":{quote(auth_password, safe='')}"
+    return f"{auth}@{host}{port}"
+
+
+def build_source_rtsp_url(
+    rtsp_base_address: str,
+    route_path: str,
+    *,
+    username: str | None = None,
+    password: str | None = None,
+) -> str:
+    base = _normalize_base_address(rtsp_base_address)
+    route = _normalize_route_path(route_path)
+    if not base or not route:
+        return ""
+
+    parsed_base = urlsplit(base)
+    if parsed_base.scheme and parsed_base.netloc:
+        base_path = parsed_base.path.rstrip("/")
+        full_path = f"{base_path}/{route}" if base_path else f"/{route}"
+        return urlunsplit(
+            (
+                parsed_base.scheme,
+                _compose_netloc_with_auth(parsed_base, username, password),
+                full_path,
+                parsed_base.query,
+                parsed_base.fragment,
+            )
+        )
+
+    auth_username = str(username or "").strip()
+    auth_password = str(password or "")
+    auth = ""
+    if auth_username:
+        auth = auth_username if not auth_password else f"{auth_username}:{auth_password}"
+        auth = f"{auth}@"
+    return f"{auth}{base}/{route}"
+
+
+def extract_source_route_path(
+    rtsp_url: str,
+    rtsp_base_address: str | None = None,
+) -> str:
+    full = str(rtsp_url or "").strip()
+    if not full:
+        return ""
+
+    parsed_full = urlsplit(full)
+    full_path = _normalize_route_path(parsed_full.path if parsed_full.scheme else full)
+    base = _normalize_base_address(rtsp_base_address)
+    if not base:
+        return full_path
+
+    parsed_base = urlsplit(base)
+    if (
+        parsed_full.scheme
+        and parsed_base.scheme
+        and parsed_full.scheme == parsed_base.scheme
+        and parsed_full.hostname == parsed_base.hostname
+        and parsed_full.port == parsed_base.port
+    ):
+        base_path = _normalize_route_path(parsed_base.path)
+        if base_path and full_path.startswith(f"{base_path}/"):
+            return _normalize_route_path(full_path[len(base_path) + 1 :])
+        if not base_path:
+            return full_path
+    return full_path
+
+
 async def create_source(source: VideoSourceCreate) -> VideoSource:
     """Insert a new video source into the database.
     向数据库插入新的视频源。"""
     source_id = str(uuid.uuid4())
     created_at = _now_iso()
     async with _db_session() as db:
+        resolved_rtsp_url = await _resolve_source_rtsp_url(
+            db,
+            rtsp_url=source.rtsp_url,
+            route_path=source.route_path,
+        )
         await db.execute(
             "INSERT INTO video_sources (id, name, rtsp_url, created_at) VALUES (?, ?, ?, ?)",
-            (source_id, source.name, source.rtsp_url, created_at),
+            (source_id, source.name, resolved_rtsp_url, created_at),
         )
         await db.commit()
     return VideoSource(
         id=source_id,
         name=source.name,
-        rtsp_url=source.rtsp_url,
+        rtsp_url=resolved_rtsp_url,
         rois=[],
         created_at=created_at,
     )
@@ -415,7 +602,16 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
         if data.name is not None:
             fields.append("name = ?")
             values.append(data.name)
-        if data.rtsp_url is not None:
+        if data.route_path is not None:
+            fields.append("rtsp_url = ?")
+            values.append(
+                await _resolve_source_rtsp_url(
+                    db,
+                    rtsp_url=None,
+                    route_path=data.route_path,
+                )
+            )
+        elif data.rtsp_url is not None:
             fields.append("rtsp_url = ?")
             values.append(data.rtsp_url)
         if fields:
@@ -515,98 +711,47 @@ async def update_settings(data: dict[str, str]) -> dict[str, str]:
     return await get_all_settings()
 
 
-async def save_vehicle_visit(
-    source_id: str,
-    source_name: str,
-    track_id: int,
-    enter_time: str,
-    exit_time: str,
-    plate: str,
-    confirmed_actions: list[str],
-    missing_actions: list[str],
-) -> str:
-    """Insert a vehicle visit record and return its ID.
-    插入一条车辆到访记录并返回其 ID。"""
-    visit_id = str(uuid.uuid4())
-    created_at = _now_iso()
+async def rewrite_source_rtsp_urls(
+    *,
+    old_rtsp_base_address: str,
+    new_rtsp_base_address: str,
+    new_rtsp_username: str = "",
+    new_rtsp_password: str = "",
+) -> int:
+    """Rewrite persisted source RTSP URLs when the MediaMTX base changes.
+    当 MediaMTX 基地址变更时，重写已保存的视频源 RTSP URL。
+
+    ``old_rtsp_base_address`` is only used to extract each source's existing
+    route path before rebuilding the URL with the new base address and
+    credentials.
+    ``old_rtsp_base_address`` 仅用于从现有 URL 中提取原路由路径，然后再用新的
+    基地址和认证信息重新拼装 URL。"""
     async with _db_session() as db:
-        await db.execute(
-            "INSERT INTO vehicle_visits "
-            "(id, source_id, source_name, track_id, enter_time, exit_time, "
-            "plate, confirmed_actions, missing_actions, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                visit_id,
-                source_id,
-                source_name,
-                track_id,
-                enter_time,
-                exit_time,
-                plate,
-                json.dumps(confirmed_actions),
-                json.dumps(missing_actions),
-                created_at,
-            ),
-        )
+        async with db.execute("SELECT id, rtsp_url FROM video_sources ORDER BY created_at") as cursor:
+            rows = await cursor.fetchall()
+
+        updated_count = 0
+        for source_id, current_rtsp_url in rows:
+            route_path = extract_source_route_path(
+                str(current_rtsp_url or ""),
+                old_rtsp_base_address,
+            )
+            next_rtsp_url = build_source_rtsp_url(
+                new_rtsp_base_address,
+                route_path,
+                username=new_rtsp_username,
+                password=new_rtsp_password,
+            )
+            if not next_rtsp_url or next_rtsp_url == current_rtsp_url:
+                continue
+            await db.execute(
+                "UPDATE video_sources SET rtsp_url = ? WHERE id = ?",
+                (next_rtsp_url, source_id),
+            )
+            updated_count += 1
+
         await db.commit()
-    return visit_id
-
-
-async def get_vehicle_visits_since(since_iso: str) -> list[dict]:
-    """Return all vehicle visits created after *since_iso* (ISO 8601 string).
-    返回 *since_iso*（ISO 8601 字符串）之后创建的所有车辆到访记录。"""
-    async with _db_session() as db:
-        async with db.execute(
-            "SELECT id, source_id, source_name, track_id, enter_time, exit_time, "
-            "plate, confirmed_actions, missing_actions, created_at "
-            "FROM vehicle_visits WHERE created_at >= ? ORDER BY created_at",
-            (since_iso,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-    result: list[dict] = []
-    for row in rows:
-        result.append({
-            "id": row[0],
-            "source_id": row[1],
-            "source_name": row[2],
-            "track_id": row[3],
-            "enter_time": row[4],
-            "exit_time": row[5],
-            "plate": row[6],
-            "confirmed_actions": json.loads(row[7]),
-            "missing_actions": json.loads(row[8]),
-            "created_at": row[9],
-        })
-    return result
-
-
-async def get_vehicle_visits_between(start_iso: str, end_iso: str) -> list[dict]:
-    """Return vehicle visits created within an inclusive time range.
-    返回在给定闭区间时间范围内创建的车辆到访记录。"""
-    async with _db_session() as db:
-        async with db.execute(
-            "SELECT id, source_id, source_name, track_id, enter_time, exit_time, "
-            "plate, confirmed_actions, missing_actions, created_at "
-            "FROM vehicle_visits WHERE created_at >= ? AND created_at <= ? "
-            "ORDER BY created_at",
-            (start_iso, end_iso),
-        ) as cursor:
-            rows = await cursor.fetchall()
-    result: list[dict] = []
-    for row in rows:
-        result.append({
-            "id": row[0],
-            "source_id": row[1],
-            "source_name": row[2],
-            "track_id": row[3],
-            "enter_time": row[4],
-            "exit_time": row[5],
-            "plate": row[6],
-            "confirmed_actions": json.loads(row[7]),
-            "missing_actions": json.loads(row[8]),
-            "created_at": row[9],
-        })
-    return result
+    return updated_count
 
 
 async def prune_analysis_messages(retention_days: int) -> None:
@@ -615,7 +760,8 @@ async def prune_analysis_messages(retention_days: int) -> None:
     cutoff = _message_retention_cutoff_iso(retention_days)
     async with _db_session() as db:
         async with db.execute(
-            "SELECT image_url FROM analysis_messages WHERE created_at < ?",
+            "SELECT image_url, original_image_url, detected_image_url "
+            "FROM analysis_messages WHERE created_at < ?",
             (cutoff,),
         ) as cursor:
             rows = await cursor.fetchall()
@@ -625,7 +771,11 @@ async def prune_analysis_messages(retention_days: int) -> None:
         )
         await db.commit()
     for row in rows:
-        _delete_message_image(row[0] if row else None)
+        if not row:
+            continue
+        _delete_message_image(row[0])
+        _delete_message_image(row[1])
+        _delete_message_image(row[2])
 
 
 async def save_analysis_message(message: dict[str, str | None]) -> str:
@@ -633,17 +783,31 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
     持久化一条分析消息并清理过期记录。"""
     message_id = str(uuid.uuid4())
     created_at = str(message.get("timestamp") or _now_iso())
-    image_url = _normalize_stored_message_image_value(message.get("image_url"))
-    if image_url is None:
-        image_url = materialize_message_image(
-            message.get("image_base64"),
+    detected_image_url = _normalize_stored_message_image_value(
+        message.get("detected_image_url") or message.get("image_url")
+    )
+    if detected_image_url is None:
+        detected_image_url = materialize_message_image(
+            message.get("detected_image_base64") or message.get("image_base64"),
             timestamp=created_at,
         )
+    original_image_url = _normalize_stored_message_image_value(
+        message.get("original_image_url")
+    )
+    if original_image_url is None:
+        original_image_url = materialize_message_image(
+            message.get("original_image_base64"),
+            timestamp=created_at,
+        )
+    false_positive = 1 if _normalize_bool_db_value(message.get("false_positive")) else 0
     async with _db_session() as db:
         await db.execute(
             "INSERT INTO analysis_messages "
-            "(id, timestamp, source_name, source_id, level, message, image_url, image_base64, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "("
+            "id, timestamp, source_name, source_id, level, message, "
+            "image_url, original_image_url, detected_image_url, false_positive, image_base64, created_at"
+            ") "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 message_id,
                 str(message.get("timestamp") or created_at),
@@ -651,7 +815,10 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
                 str(message.get("source_id") or ""),
                 str(message.get("level") or "info"),
                 str(message.get("message") or ""),
-                image_url,
+                None,
+                original_image_url,
+                detected_image_url,
+                false_positive,
                 None,
                 created_at,
             ),
@@ -666,7 +833,8 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
             retention_days = row[0]
         cutoff = _message_retention_cutoff_iso(retention_days)
         async with db.execute(
-            "SELECT image_url FROM analysis_messages WHERE created_at < ?",
+            "SELECT image_url, original_image_url, detected_image_url "
+            "FROM analysis_messages WHERE created_at < ?",
             (cutoff,),
         ) as cursor:
             expired_rows = await cursor.fetchall()
@@ -676,7 +844,11 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
         )
         await db.commit()
     for row in expired_rows:
-        _delete_message_image(row[0] if row else None)
+        if not row:
+            continue
+        _delete_message_image(row[0])
+        _delete_message_image(row[1])
+        _delete_message_image(row[2])
     return message_id
 
 
@@ -686,6 +858,7 @@ async def list_analysis_messages(
     page: int = 1,
     page_size: int = 20,
     source_id: str | None = None,
+    false_positive_only: bool = False,
 ) -> dict[str, object]:
     """List persisted analysis messages ordered newest-first.
     按时间倒序列出持久化分析消息。"""
@@ -695,46 +868,46 @@ async def list_analysis_messages(
         safe_page = 1
         safe_size = min(100, max(1, int(limit)))
     offset = (safe_page - 1) * safe_size
+    where_clauses: list[str] = []
+    query_values: list[object] = []
+    if source_id:
+        where_clauses.append("source_id = ?")
+        query_values.append(source_id)
+    if false_positive_only:
+        where_clauses.append("false_positive = 1")
+    where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     async with _db_session() as db:
-        if source_id:
-            async with db.execute(
-                "SELECT id, timestamp, source_name, source_id, level, message, image_url, image_base64, "
-                "COUNT(*) OVER() AS total_count "
-                "FROM analysis_messages WHERE source_id = ? "
-                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (source_id, safe_size, offset),
-            ) as cursor:
-                rows = await cursor.fetchall()
-            if rows:
-                total = int(rows[0][8])
-            else:
-                async with db.execute(
-                    "SELECT COUNT(*) FROM analysis_messages WHERE source_id = ?",
-                    (source_id,),
-                ) as cursor:
-                    total = int((await cursor.fetchone())[0])
+        listing_query = (
+            "SELECT id, timestamp, source_name, source_id, level, message, image_url, "
+            "original_image_url, detected_image_url, image_base64, false_positive, "
+            "COUNT(*) OVER() AS total_count "
+            f"FROM analysis_messages{where_sql} "
+            "ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        )
+        async with db.execute(
+            listing_query,
+            (*query_values, safe_size, offset),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        if rows:
+            total = int(rows[0][11])
         else:
-            async with db.execute(
-                "SELECT id, timestamp, source_name, source_id, level, message, image_url, image_base64, "
-                "COUNT(*) OVER() AS total_count "
-                "FROM analysis_messages ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (safe_size, offset),
-            ) as cursor:
-                rows = await cursor.fetchall()
-            if rows:
-                total = int(rows[0][8])
-            else:
-                async with db.execute("SELECT COUNT(*) FROM analysis_messages") as cursor:
-                    total = int((await cursor.fetchone())[0])
+            count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
+            async with db.execute(count_query, tuple(query_values)) as cursor:
+                total = int((await cursor.fetchone())[0])
     items = [
         {
+            "id": row[0],
             "timestamp": row[1],
             "source_name": row[2],
             "source_id": row[3],
             "level": row[4],
             "message": row[5],
-            "image_url": build_analysis_message_image_url(row[0]) if row[6] else None,
-            "image_base64": row[7],
+            "image_url": build_analysis_message_image_url(row[0]) if row[8] or row[6] else None,
+            "image_base64": row[9],
+            "original_image_url": build_analysis_message_image_url(row[0], kind="original") if row[7] else None,
+            "detected_image_url": build_analysis_message_image_url(row[0]) if row[8] or row[6] else None,
+            "false_positive": bool(row[10]),
         }
         for row in rows
     ]
@@ -748,15 +921,66 @@ async def list_analysis_messages(
     }
 
 
-async def get_analysis_message_image_path(message_id: str) -> Path | None:
-    """Resolve the persisted image path for one analysis message ID.
-    解析单条分析消息 ID 对应的持久化图片路径。"""
+async def mark_analysis_message_false_positive(message_id: str) -> dict[str, object] | None:
+    """Flag one persisted message as false positive and export its images.
+    将单条已持久化消息标记为误报并导出图片。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT image_url FROM analysis_messages WHERE id = ?",
+            "SELECT timestamp, original_image_url, detected_image_url, image_url, false_positive "
+            "FROM analysis_messages WHERE id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        timestamp, original_image_url, detected_image_url, legacy_image_url, false_positive = row
+        if not _normalize_bool_db_value(false_positive):
+            await db.execute(
+                "UPDATE analysis_messages SET false_positive = 1 WHERE id = ?",
+                (message_id,),
+            )
+            await db.commit()
+        exported = export_false_positive_images(
+            message_id,
+            timestamp=str(timestamp or ""),
+            original_image_url=original_image_url,
+            detected_image_url=detected_image_url or legacy_image_url,
+        )
+    return {
+        "id": message_id,
+        "false_positive": True,
+        "exported_files": exported,
+    }
+
+
+async def unmark_analysis_message_false_positive(message_id: str) -> dict[str, object] | None:
+    """Clear the false-positive flag for one persisted message.
+    清除单条已持久化消息的误报标记。"""
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE analysis_messages SET false_positive = 0 WHERE id = ?",
+            (message_id,),
+        )
+        await db.commit()
+    if cursor.rowcount <= 0:
+        return None
+    return {
+        "id": message_id,
+        "false_positive": False,
+        "exported_files": [],
+    }
+
+
+async def get_analysis_message_image_path(message_id: str, *, kind: str = "detected") -> Path | None:
+    """Resolve one persisted original/detected image path for a message ID.
+    解析单条消息 ID 对应的原图或检测图路径。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT image_url, original_image_url, detected_image_url FROM analysis_messages WHERE id = ?",
             (message_id,),
         ) as cursor:
             row = await cursor.fetchone()
     if row is None:
         return None
-    return _message_image_path_from_stored_value(row[0])
+    selected = row[1] if str(kind).strip().lower() == "original" else (row[2] or row[0])
+    return _message_image_path_from_stored_value(selected)

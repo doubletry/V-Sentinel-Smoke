@@ -15,10 +15,24 @@ export const useSourceStore = defineStore('source', () => {
   const isRunning = computed(() => (sourceId) => runningSourceIds.value.has(sourceId))
   const runningCount = computed(() => runningSourceIds.value.size)
 
+  function syncAssignedSourceReferences() {
+    const latestById = new Map(sources.value.map((source) => [source.id, source]))
+    gridAssignments.value = Object.fromEntries(
+      Object.entries(gridAssignments.value)
+        .map(([cell, source]) => {
+          if (source?.isResult) return [cell, source]
+          const latest = latestById.get(source?.id)
+          return latest ? [cell, latest] : null
+        })
+        .filter(Boolean)
+    )
+  }
+
   async function fetchSources() {
     loading.value = true
     try {
       sources.value = await sourcesApi.list()
+      syncAssignedSourceReferences()
     } catch (err) {
       ElMessage.error(i18n.global.t('sourceList.failedToLoadSources', { message: err.message }))
     } finally {
@@ -29,6 +43,7 @@ export const useSourceStore = defineStore('source', () => {
   async function createSource(data) {
     const source = await sourcesApi.create(data)
     sources.value.push(source)
+    syncAssignedSourceReferences()
     return source
   }
 
@@ -36,6 +51,7 @@ export const useSourceStore = defineStore('source', () => {
     const updated = await sourcesApi.update(id, data)
     const idx = sources.value.findIndex((s) => s.id === id)
     if (idx !== -1) sources.value[idx] = updated
+    syncAssignedSourceReferences()
     return updated
   }
 
@@ -208,6 +224,7 @@ export const useSourceStore = defineStore('source', () => {
     createSource,
     updateSource,
     deleteSource,
+    syncAssignedSourceReferences,
     startProcessing,
     stopProcessing,
     startAllProcessing,

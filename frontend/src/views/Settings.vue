@@ -186,18 +186,117 @@
           <p class="service-tip">{{ t('settings.serviceToggleTip') }}</p>
         </section>
 
+
+        <section class="settings-section">
+          <h2>{{ t('settings.smokeScene') }}</h2>
+          <el-form-item :label="t('settings.smokeDetectionModelName')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+              <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionModelVersion')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+              <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionConfidence')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+              <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionNms')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+              <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+              <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+              <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeMaxMissFrames')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+              <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAlarmHoldTime')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+              <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAppearanceFilter')">
+            <div class="field-stack">
+              <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+              <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAdvancedThresholds')">
+            <div class="field-stack">
+              <div class="settings-inline-actions">
+                <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+                <el-button size="small" @click="resetSmokeAdvancedThresholds">
+                  {{ t('settings.resetAdvancedThresholds') }}
+                </el-button>
+              </div>
+              <div class="smoke-threshold-grid">
+                <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
+                  <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
+                  <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
+                  <p class="form-hint">{{ t(item.hintKey) }}</p>
+                </div>
+              </div>
+            </div>
+          </el-form-item>
+        </section>
+
         <section class="settings-section">
           <h2>{{ t('settings.mediamtx') }}</h2>
           <el-form-item :label="t('settings.rtspAddress')">
             <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
           </el-form-item>
+          <el-form-item :label="t('settings.rtspUsername')">
+            <el-input v-model="form.mediamtx_rtsp_username" placeholder="stream-user" />
+          </el-form-item>
+          <el-form-item :label="t('settings.rtspPassword')">
+            <el-input
+              v-model="form.mediamtx_rtsp_password"
+              type="password"
+              show-password
+              placeholder="stream-pass"
+            />
+          </el-form-item>
           <el-form-item :label="t('settings.webrtcAddress')">
             <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
           </el-form-item>
+          <el-form-item :label="t('settings.webrtcUsername')">
+            <el-input v-model="form.mediamtx_webrtc_username" placeholder="viewer" />
+          </el-form-item>
+          <el-form-item :label="t('settings.webrtcPassword')">
+            <el-input
+              v-model="form.mediamtx_webrtc_password"
+              type="password"
+              show-password
+              placeholder="viewer-pass"
+            />
+          </el-form-item>
+          <p class="service-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
         </section>
 
         <section class="settings-section">
-          <h2>{{ t('settings.emailSummary') }}</h2>
+          <h2>{{ t('settings.emailNotifications') }}</h2>
           <el-form-item :label="t('settings.emailFromAddress')">
             <el-input
               v-model="form.email_from_address"
@@ -237,11 +336,29 @@
               placeholder="cc1@example.com,cc2@example.com"
             />
           </el-form-item>
-          <el-form-item :label="t('settings.dailySummaryHour')">
-            <el-input v-model="form.daily_summary_hour" placeholder="23" />
+          <el-form-item :label="t('settings.emailEventEnabled')">
+            <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
           </el-form-item>
-          <el-form-item :label="t('settings.dailySummaryMinute')">
-            <el-input v-model="form.daily_summary_minute" placeholder="59" />
+          <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
+            <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
+          </el-form-item>
+          <el-form-item :label="t('settings.emailEventSubjectTemplate')">
+            <el-input v-model="form.email_event_subject_template" />
+          </el-form-item>
+          <el-form-item :label="t('settings.emailEventBodyTemplate')">
+            <div class="field-stack">
+              <el-input
+                v-model="form.email_event_body_template"
+                type="textarea"
+                :rows="8"
+              />
+              <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
+              <div class="placeholder-tags">
+                <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
+                  {{ '{' + item + '}' }}
+                </el-tag>
+              </div>
+            </div>
           </el-form-item>
           <el-form-item :label="t('settings.messageRetentionDays')">
             <el-select v-model="form.message_retention_days" style="width: 100%">
@@ -288,7 +405,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { localeOptions } from '../i18n/index.js'
-import { processorApi } from '../api/index.js'
+import { processorApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useSourceStore } from '../stores/source.js'
 
@@ -298,7 +415,66 @@ const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const processorPluginOptions = ref([])
 const retentionDayOptions = [7, 15, 21, 30]
+const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
+const SMOKE_ADVANCED_DEFAULTS = {
+  smoke_enable_appearance_filter: 'true',
+  smoke_min_confidence_smoke: '0.35',
+  smoke_min_confidence_fire: '0.40',
+  smoke_min_bbox_area_ratio: '0.0005',
+  smoke_max_bbox_area_ratio: '0.60',
+  smoke_min_aspect_ratio: '0.2',
+  smoke_max_aspect_ratio: '8.0',
+  smoke_motion_blur_max_speed: '100.0',
+  smoke_motion_blur_min_confidence: '0.65',
+  smoke_appearance_min_score: '0.42',
+  smoke_appearance_min_history: '2',
+  smoke_appearance_high_confidence_bypass: '0.82',
+  smoke_overexposed_ratio_threshold: '0.18',
+  smoke_white_object_ratio_threshold: '0.62',
+  smoke_hard_boundary_density_threshold: '0.14',
+  smoke_hard_laplacian_threshold: '520.0',
+  smoke_fast_motion_energy_threshold: '0.16',
+  smoke_static_confirm_frames: '5',
+  smoke_static_max_center_shift: '10.0',
+  smoke_static_max_area_change_ratio: '0.08',
+  smoke_iou_threshold: '0.3',
+}
+const PROCESSOR_RESTART_SETTING_KEYS = [
+  'processor_plugin',
+  'smoke_detection_model_name',
+  'smoke_detection_model_version',
+  'smoke_detection_confidence',
+  'smoke_detection_nms',
+  'smoke_temporal_confirm_frames',
+  'smoke_temporal_confirm_window',
+  'smoke_max_miss_frames',
+  'smoke_alarm_hold_time',
+  'smoke_email_cooldown_seconds',
+  ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
+]
+const smokeAdvancedFields = [
+  { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
+  { key: 'smoke_min_confidence_fire', labelKey: 'settings.smokeMinConfidenceFire', hintKey: 'settings.smokeMinConfidenceFireHint', placeholder: '0.40' },
+  { key: 'smoke_min_bbox_area_ratio', labelKey: 'settings.smokeMinBboxAreaRatio', hintKey: 'settings.smokeMinBboxAreaRatioHint', placeholder: '0.0005' },
+  { key: 'smoke_max_bbox_area_ratio', labelKey: 'settings.smokeMaxBboxAreaRatio', hintKey: 'settings.smokeMaxBboxAreaRatioHint', placeholder: '0.60' },
+  { key: 'smoke_min_aspect_ratio', labelKey: 'settings.smokeMinAspectRatio', hintKey: 'settings.smokeMinAspectRatioHint', placeholder: '0.2' },
+  { key: 'smoke_max_aspect_ratio', labelKey: 'settings.smokeMaxAspectRatio', hintKey: 'settings.smokeMaxAspectRatioHint', placeholder: '8.0' },
+  { key: 'smoke_motion_blur_max_speed', labelKey: 'settings.smokeMotionBlurMaxSpeed', hintKey: 'settings.smokeMotionBlurMaxSpeedHint', placeholder: '100.0' },
+  { key: 'smoke_motion_blur_min_confidence', labelKey: 'settings.smokeMotionBlurMinConfidence', hintKey: 'settings.smokeMotionBlurMinConfidenceHint', placeholder: '0.65' },
+  { key: 'smoke_appearance_min_score', labelKey: 'settings.smokeAppearanceMinScore', hintKey: 'settings.smokeAppearanceMinScoreHint', placeholder: '0.42' },
+  { key: 'smoke_appearance_min_history', labelKey: 'settings.smokeAppearanceMinHistory', hintKey: 'settings.smokeAppearanceMinHistoryHint', placeholder: '2' },
+  { key: 'smoke_appearance_high_confidence_bypass', labelKey: 'settings.smokeAppearanceHighConfidenceBypass', hintKey: 'settings.smokeAppearanceHighConfidenceBypassHint', placeholder: '0.82' },
+  { key: 'smoke_overexposed_ratio_threshold', labelKey: 'settings.smokeOverexposedRatioThreshold', hintKey: 'settings.smokeOverexposedRatioThresholdHint', placeholder: '0.18' },
+  { key: 'smoke_white_object_ratio_threshold', labelKey: 'settings.smokeWhiteObjectRatioThreshold', hintKey: 'settings.smokeWhiteObjectRatioThresholdHint', placeholder: '0.62' },
+  { key: 'smoke_hard_boundary_density_threshold', labelKey: 'settings.smokeHardBoundaryDensityThreshold', hintKey: 'settings.smokeHardBoundaryDensityThresholdHint', placeholder: '0.14' },
+  { key: 'smoke_hard_laplacian_threshold', labelKey: 'settings.smokeHardLaplacianThreshold', hintKey: 'settings.smokeHardLaplacianThresholdHint', placeholder: '520.0' },
+  { key: 'smoke_fast_motion_energy_threshold', labelKey: 'settings.smokeFastMotionEnergyThreshold', hintKey: 'settings.smokeFastMotionEnergyThresholdHint', placeholder: '0.16' },
+  { key: 'smoke_static_confirm_frames', labelKey: 'settings.smokeStaticConfirmFrames', hintKey: 'settings.smokeStaticConfirmFramesHint', placeholder: '5' },
+  { key: 'smoke_static_max_center_shift', labelKey: 'settings.smokeStaticMaxCenterShift', hintKey: 'settings.smokeStaticMaxCenterShiftHint', placeholder: '10.0' },
+  { key: 'smoke_static_max_area_change_ratio', labelKey: 'settings.smokeStaticMaxAreaChangeRatio', hintKey: 'settings.smokeStaticMaxAreaChangeRatioHint', placeholder: '0.08' },
+  { key: 'smoke_iou_threshold', labelKey: 'settings.smokeIouThreshold', hintKey: 'settings.smokeIouThresholdHint', placeholder: '0.3' },
+]
 
 const loading = ref(false)
 const saving = ref(false)
@@ -309,7 +485,7 @@ const roiTagList = ref([])
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'truck',
+  processor_plugin: 'smoke',
   site_title: '',
   site_description: '',
   favicon_url: '/favicon.ico',
@@ -321,19 +497,55 @@ const form = ref({
   ocr_port: '',
   upload_port: '',
   detection_enabled: 'true',
-  classification_enabled: 'true',
-  action_enabled: 'true',
-  ocr_enabled: 'true',
-  upload_enabled: 'true',
+  classification_enabled: 'false',
+  action_enabled: 'false',
+  ocr_enabled: 'false',
+  upload_enabled: 'false',
   mediamtx_rtsp_addr: '',
+  mediamtx_rtsp_username: '',
+  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: '',
+  mediamtx_webrtc_username: '',
+  mediamtx_webrtc_password: '',
   email_from_address: '',
   email_from_auth_code: '',
   email_to_addresses: '',
   email_cc_addresses: '',
   email_port: '50055',
-  daily_summary_hour: '23',
-  daily_summary_minute: '59',
+  email_event_enabled: 'true',
+  email_timed_enabled: 'false',
+  email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
+  email_event_body_template: 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nLabels: {labels}\nHighest confidence: {confidence_percent}\nDetection count: {detection_count}\nFrame ID: {frame_id}\nActive tracks: {active_tracks}',
+  smoke_detection_model_name: 'smoke-fire-detection',
+  smoke_detection_model_version: '',
+  smoke_detection_confidence: '0.35',
+  smoke_detection_nms: '0.7',
+  smoke_min_confidence_smoke: '0.35',
+  smoke_min_confidence_fire: '0.40',
+  smoke_temporal_confirm_frames: '3',
+  smoke_temporal_confirm_window: '2.0',
+  smoke_max_miss_frames: '5',
+  smoke_min_bbox_area_ratio: '0.0005',
+  smoke_max_bbox_area_ratio: '0.60',
+  smoke_min_aspect_ratio: '0.2',
+  smoke_max_aspect_ratio: '8.0',
+  smoke_motion_blur_max_speed: '100.0',
+  smoke_motion_blur_min_confidence: '0.65',
+  smoke_enable_appearance_filter: 'true',
+  smoke_appearance_min_score: '0.42',
+  smoke_appearance_min_history: '2',
+  smoke_appearance_high_confidence_bypass: '0.82',
+  smoke_overexposed_ratio_threshold: '0.18',
+  smoke_white_object_ratio_threshold: '0.62',
+  smoke_hard_boundary_density_threshold: '0.14',
+  smoke_hard_laplacian_threshold: '520.0',
+  smoke_fast_motion_energy_threshold: '0.16',
+  smoke_static_confirm_frames: '5',
+  smoke_static_max_center_shift: '10.0',
+  smoke_static_max_area_change_ratio: '0.08',
+  smoke_iou_threshold: '0.3',
+  smoke_alarm_hold_time: '3.0',
+  smoke_email_cooldown_seconds: '300',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
@@ -401,6 +613,14 @@ async function reload() {
     ])
     Object.assign(form.value, data)
     processorPluginOptions.value = Array.isArray(plugins) ? plugins : []
+    try {
+      const placeholderData = await settingsApi.emailTemplatePlaceholders()
+      if (Array.isArray(placeholderData?.placeholders)) {
+        emailTemplatePlaceholders.value = placeholderData.placeholders
+      }
+    } catch (_) {
+      // Keep built-in placeholder list when the backend endpoint is unavailable.
+    }
     roiTagList.value = parseRoiTagOptions(form.value.roi_tag_options)
     syncRoiTagOptionsToForm()
   } catch (err) {
@@ -412,12 +632,29 @@ async function reload() {
 
 async function save() {
   saving.value = true
-  const previousPlugin = appSettingsStore.settings?.processor_plugin || 'truck'
+  const previousPlugin = appSettingsStore.settings?.processor_plugin || 'smoke'
+  const previousSettings = appSettingsStore.settings || {}
   try {
     syncRoiTagOptionsToForm()
     const pluginChanged = previousPlugin !== form.value.processor_plugin
+    const processorConfigChanged = (
+      pluginChanged
+      || PROCESSOR_RESTART_SETTING_KEYS.some(
+        (key) => String(previousSettings[key] || '') !== String(form.value[key] || '')
+      )
+    )
+    const mediamtxRtspChanged = (
+      String(previousSettings.mediamtx_rtsp_addr || '') !== String(form.value.mediamtx_rtsp_addr || '')
+      || String(previousSettings.mediamtx_rtsp_username || '') !== String(form.value.mediamtx_rtsp_username || '')
+      || String(previousSettings.mediamtx_rtsp_password || '') !== String(form.value.mediamtx_rtsp_password || '')
+    )
+    const mediamtxWebrtcChanged = (
+      String(previousSettings.mediamtx_webrtc_addr || '') !== String(form.value.mediamtx_webrtc_addr || '')
+      || String(previousSettings.mediamtx_webrtc_username || '') !== String(form.value.mediamtx_webrtc_username || '')
+      || String(previousSettings.mediamtx_webrtc_password || '') !== String(form.value.mediamtx_webrtc_password || '')
+    )
     let runningSourceIds = []
-    if (pluginChanged) {
+    if (processorConfigChanged || mediamtxRtspChanged) {
       await sourceStore.syncProcessorStatus()
       runningSourceIds = sourceStore.getRunningSourceIdsSnapshot()
     }
@@ -426,14 +663,22 @@ async function save() {
     Object.assign(form.value, data)
     roiTagList.value = parseRoiTagOptions(form.value.roi_tag_options)
     appSettingsStore.applyLanguage(form.value.ui_language)
+    if (mediamtxRtspChanged || mediamtxWebrtcChanged) {
+      await sourceStore.fetchSources()
+      sourceStore.syncAssignedSourceReferences()
+    }
 
-    if (!pluginChanged) {
+    if (!processorConfigChanged && !mediamtxRtspChanged) {
       ElMessage.success(t('settings.settingsSaved'))
       return
     }
 
     if (!runningSourceIds.length) {
-      ElMessage.success(t('settings.settingsSavedRestartRequired'))
+      ElMessage.success(
+        processorConfigChanged
+          ? t('settings.settingsSavedRestartRequired')
+          : t('settings.settingsSavedSourceUrlsSynced')
+      )
       return
     }
 
@@ -503,6 +748,10 @@ function onSiteIconChange(uploadFile) {
 
 function resetSiteIcon() {
   form.value.favicon_url = '/favicon.ico'
+}
+
+function resetSmokeAdvancedThresholds() {
+  Object.assign(form.value, SMOKE_ADVANCED_DEFAULTS)
 }
 
 async function startAllServices() {
@@ -620,6 +869,40 @@ onMounted(async () => {
 .roi-tag-input-row {
   display: flex;
   gap: 8px;
+}
+
+.placeholder-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-inline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.smoke-threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.smoke-threshold-item {
+  padding: 10px;
+  border: 1px solid #2d3650;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.smoke-threshold-label {
+  color: #c8d5f0;
+  font-size: 12px;
+  margin-bottom: 6px;
 }
 
 .roi-tag-hint {

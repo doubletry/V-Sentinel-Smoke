@@ -30,6 +30,8 @@ The application is packaged as a **single container**. It serves the built front
 ```bash
 docker run -d \
   --name v-sentinel \
+  --add-host=host.docker.internal:host-gateway \
+  --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
   -e BACKEND_PORT=8000 \
   -e DB_PATH=/app/data/v_sentinel.db \
@@ -47,6 +49,7 @@ Mount `/app/data` so the following are retained:
 
 - `v_sentinel.db`
 - `message_thumbnails/`
+- `false_positives/`
 
 Message thumbnails are written to the filesystem and are no longer stored inside SQLite.
 
@@ -55,8 +58,22 @@ Message thumbnails are written to the filesystem and are no longer stored inside
 This container does **not** start MediaMTX or any other sidecar service.
 
 - If you need the 视频墙 page to play live video, configure an external RTSP/WebRTC gateway in the Settings page.
-- If you need AI inference, configure the V-Engine service addresses in the Settings page.
+- Configure **MediaMTX RTSP / WebRTC usernames and passwords** as well when the gateway is protected by authentication.
+- When the MediaMTX RTSP address or RTSP credentials change, V-Sentinel rewrites saved source RTSP URLs automatically so existing online sources keep the same route path under the new gateway.
+- When the MediaMTX WebRTC address or WebRTC credentials change, frontend playback reconnects by using the new WHEP settings.
+- If you need AI inference, configure the V-Engine service addresses in the Settings page. For host-side V-Engine services, prefer `docker.internal`, `host.docker.internal`, or a LAN IP instead of `localhost`.
+- The container startup script now exports merged `NO_PROXY` / `no_proxy` defaults for `localhost`, `127.0.0.1`, `::1`, `host.docker.internal`, `docker.internal`, and private LAN ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`) so local gRPC / RTSP / WebRTC traffic bypasses HTTP proxies by default.
 - If you need daily-summary email delivery, configure the email service in the Settings page.
+
+## Smoke / fire scene operations
+
+The smoke/fire plugin includes advanced post-processing thresholds in the Settings page.
+
+- Start by tuning the basic detector parameters (`Detection Confidence`, `NMS`).
+- Use temporal settings (`Confirm Frames`, `Confirm Window`, `Max Miss Frames`) to balance stability vs. responsiveness.
+- Keep advanced appearance thresholds at their defaults unless you are targeting a specific false-positive pattern such as glare, white hard-edged objects, or motion blur.
+
+The settings page now includes inline descriptions for each smoke/fire advanced parameter so operators can tune them without reading the processor source code.
 
 ## Upgrade
 
@@ -66,6 +83,8 @@ docker stop v-sentinel
 docker rm v-sentinel
 docker run -d \
   --name v-sentinel \
+  --add-host=host.docker.internal:host-gateway \
+  --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
   -e BACKEND_PORT=8000 \
   -e DB_PATH=/app/data/v_sentinel.db \

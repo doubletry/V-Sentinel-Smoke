@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+
+def _has_text(value: str | None) -> bool:
+    return bool(str(value or "").strip())
 
 
 class ROIPoint(BaseModel):
@@ -34,7 +38,18 @@ class VideoSourceCreate(BaseModel):
     创建新视频源的模式。"""
 
     name: str
-    rtsp_url: str
+    rtsp_url: str | None = None
+    route_path: str | None = None
+
+    @model_validator(mode="after")
+    def validate_source_address(self) -> "VideoSourceCreate":
+        has_rtsp = _has_text(self.rtsp_url)
+        has_route = _has_text(self.route_path)
+        if has_rtsp and has_route:
+            raise ValueError("Use either rtsp_url or route_path, not both")
+        if not has_rtsp and not has_route:
+            raise ValueError("Either rtsp_url or route_path is required")
+        return self
 
 
 class VideoSourceUpdate(BaseModel):
@@ -43,7 +58,16 @@ class VideoSourceUpdate(BaseModel):
 
     name: str | None = None
     rtsp_url: str | None = None
+    route_path: str | None = None
     rois: list[ROICreate] | None = None
+
+    @model_validator(mode="after")
+    def validate_source_address(self) -> "VideoSourceUpdate":
+        has_rtsp = _has_text(self.rtsp_url)
+        has_route = _has_text(self.route_path)
+        if has_rtsp and has_route:
+            raise ValueError("Use either rtsp_url or route_path, not both")
+        return self
 
 
 class VideoSource(BaseModel):
@@ -86,6 +110,7 @@ class AnalysisMessage(BaseModel):
     """Real-time analysis message broadcast via WebSocket.
     通过 WebSocket 广播的实时分析消息。"""
 
+    id: str | None = None
     timestamp: str
     source_name: str
     source_id: str
@@ -93,6 +118,11 @@ class AnalysisMessage(BaseModel):
     message: str
     image_url: str | None = None
     image_base64: str | None = None
+    original_image_url: str | None = None
+    original_image_base64: str | None = None
+    detected_image_url: str | None = None
+    detected_image_base64: str | None = None
+    false_positive: bool = False
 
 
 class ProcessorPluginInfo(BaseModel):
@@ -142,15 +172,52 @@ class AppSettingsUpdate(BaseModel):
     processor_plugin: str | None = None
 
     mediamtx_rtsp_addr: str | None = None
+    mediamtx_rtsp_username: str | None = None
+    mediamtx_rtsp_password: str | None = None
     mediamtx_webrtc_addr: str | None = None
+    mediamtx_webrtc_username: str | None = None
+    mediamtx_webrtc_password: str | None = None
     email_from_address: str | None = None
     email_from_auth_code: str | None = None
     email_to_addresses: str | None = None
     email_cc_addresses: str | None = None
     email_port: str | None = None
-    daily_summary_hour: str | None = None
-    daily_summary_minute: str | None = None
+    email_event_enabled: str | None = None
+    email_timed_enabled: str | None = None
+    email_event_subject_template: str | None = None
+    email_event_body_template: str | None = None
     message_retention_days: str | None = None
+
+    smoke_detection_model_name: str | None = None
+    smoke_detection_model_version: str | None = None
+    smoke_detection_confidence: str | None = None
+    smoke_detection_nms: str | None = None
+    smoke_min_confidence_smoke: str | None = None
+    smoke_min_confidence_fire: str | None = None
+    smoke_temporal_confirm_frames: str | None = None
+    smoke_temporal_confirm_window: str | None = None
+    smoke_max_miss_frames: str | None = None
+    smoke_min_bbox_area_ratio: str | None = None
+    smoke_max_bbox_area_ratio: str | None = None
+    smoke_min_aspect_ratio: str | None = None
+    smoke_max_aspect_ratio: str | None = None
+    smoke_motion_blur_max_speed: str | None = None
+    smoke_motion_blur_min_confidence: str | None = None
+    smoke_enable_appearance_filter: str | None = None
+    smoke_appearance_min_score: str | None = None
+    smoke_appearance_min_history: str | None = None
+    smoke_appearance_high_confidence_bypass: str | None = None
+    smoke_overexposed_ratio_threshold: str | None = None
+    smoke_white_object_ratio_threshold: str | None = None
+    smoke_hard_boundary_density_threshold: str | None = None
+    smoke_hard_laplacian_threshold: str | None = None
+    smoke_fast_motion_energy_threshold: str | None = None
+    smoke_static_confirm_frames: str | None = None
+    smoke_static_max_center_shift: str | None = None
+    smoke_static_max_area_change_ratio: str | None = None
+    smoke_iou_threshold: str | None = None
+    smoke_alarm_hold_time: str | None = None
+    smoke_email_cooldown_seconds: str | None = None
     max_pull_workers: str | None = None
     max_push_workers: str | None = None
     max_cpu_workers: str | None = None

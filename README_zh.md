@@ -138,25 +138,57 @@ npm run build
 
 ## 配置
 
-在项目根目录创建 `.env` 文件以覆盖默认配置：
+只有少量运行参数通过环境变量配置；如需覆盖，可在项目根目录创建 `.env`：
 
 ```dotenv
-# V-Engine 服务地址
-DETECTION_ADDR=localhost:50051
-CLASSIFICATION_ADDR=localhost:50052
-ACTION_ADDR=localhost:50053
-OCR_ADDR=localhost:50054
-UPLOAD_ADDR=localhost:50050
-
-# 可选外部视频网关（仅视频墙播放需要）
-MEDIAMTX_RTSP_ADDR=rtsp://localhost:8554
-MEDIAMTX_WEBRTC_ADDR=http://localhost:8889
+# HTTP 服务端口
+BACKEND_PORT=8000
 
 # 数据库
 DB_PATH=./v_sentinel.db
 ```
 
-运行时消息缩略图会保存在数据库同级目录下的 `message_thumbnails/` 中。
+大部分业务配置会保存在数据库中，并在系统启动后通过**设置**页面维护，包括：
+
+- V-Engine 主机、端口和服务开关
+- MediaMTX 的 RTSP / WebRTC 基地址
+- MediaMTX 的 RTSP / WebRTC 用户名和密码
+- 烟火检测阈值
+- 邮件通知模板和收件人
+
+运行时消息缩略图会保存在数据库同级目录下的 `message_thumbnails/` 中，标记为误报后导出的原图与检测图会保存在 `false_positives/` 中。
+
+### MediaMTX 网关配置
+
+视频墙依赖外部兼容 MediaMTX 的视频网关。
+
+- **RTSP 地址**：创建在线源时使用的 RTSP 基地址
+- **RTSP 用户名 / 密码**：会自动写入保存后的 RTSP URL，避免受保护流认证失败
+- **WebRTC 地址**：前端播放使用的 WHEP 基地址
+- **WebRTC 用户名 / 密码**：浏览器拉流协商时附带的认证信息
+
+当 MediaMTX 的 RTSP 地址或 RTSP 认证信息修改后，V-Sentinel 会自动把已保存
+在线源的 RTSP 地址重写到新的基地址下，同时保留原有路由路径。修改 WebRTC 地址
+或 WebRTC 认证信息后，前端播放器会自动按新配置重连。
+
+### 烟火检测高级配置
+
+烟火场景使用“检测 + 后处理”组合策略：
+
+- **检测置信度 / NMS**：控制模型原始输出
+- **连续确认帧数 / 确认窗口 / 最大丢失帧数**：控制报警前需要多稳定的连续证据
+- **告警保持时间**：在短时漏检时保持告警，避免闪断
+- **高级阈值**：主要用来过滤反光、白色物体、运动模糊、硬边和静态杂物造成的误报
+
+如果现场效果稳定，建议优先保持高级阈值默认值，仅在出现明确误报模式时再微调。
+
+### 邮件模板占位符
+
+事件邮件模板支持 `/api/settings/email/template-placeholders` 返回的占位符，常用包括：
+
+`{site_title}`、`{local_time}`、`{timezone}`、`{source_name}`、`{source_id}`、
+`{event_type}`、`{event_label}`、`{labels}`、`{confidence_percent}`、
+`{detection_count}`、`{frame_id}`、`{active_tracks}`。
 
 ### 前端代理端口
 
@@ -312,6 +344,8 @@ class MyProcessor(BaseVideoProcessor):
 ./scripts/build_docker.sh
 docker run -d \
   --name v-sentinel \
+  --add-host=host.docker.internal:host-gateway \
+  --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
   -e DB_PATH=/app/data/v_sentinel.db \
   -v "$(pwd)/data:/app/data" \
@@ -321,6 +355,7 @@ docker run -d \
 - 前端、REST API、WebSocket 和消息缩略图统一由 `8000` 端口提供
 - 不再需要 `docker-compose`
 - 镜像内不再打包 MediaMTX；如需视频墙播放，请在设置页配置外部 RTSP/WebRTC 网关
+- 容器启动时会自动合并 `NO_PROXY` / `no_proxy` 默认值，覆盖 localhost、Docker 宿主机别名和常见局域网网段，避免本地服务流量被错误走代理
 
 详见 [`docs/docker-deployment.md`](docs/docker-deployment.md)。
 

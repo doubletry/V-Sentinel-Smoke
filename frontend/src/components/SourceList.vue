@@ -156,7 +156,7 @@ import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useSourceStore } from '../stores/source.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
-import { buildRtspUrl, extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
+import { extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 
 const store = useSourceStore()
 const appSettingsStore = useAppSettingsStore()
@@ -204,20 +204,19 @@ function onResultDragStart(event, resultStream) {
 
 async function addSource() {
   const routePath = normalizeRoutePath(form.route_path)
-  const rtspUrl = buildRtspUrl(appSettingsStore.mediamtxRtspAddr, routePath)
 
   if (!form.name || !routePath) {
     ElMessage.warning(t('sourceList.fillAllFields'))
     return
   }
-  if (!rtspUrl) {
+  if (!appSettingsStore.mediamtxRtspAddr) {
     ElMessage.warning(t('sourceList.missingRtspBase'))
     return
   }
 
   addLoading.value = true
   try {
-    await store.createSource({ name: form.name, rtsp_url: rtspUrl })
+    await store.createSource({ name: form.name, route_path: routePath })
     showAddDialog.value = false
     form.name = ''
     form.route_path = ''
@@ -253,13 +252,12 @@ async function saveEdit() {
   if (!editingSourceId.value) return
 
   const routePath = normalizeRoutePath(editForm.route_path)
-  const rtspUrl = buildRtspUrl(appSettingsStore.mediamtxRtspAddr, routePath)
 
   if (!editForm.name || !routePath) {
     ElMessage.warning(t('sourceList.fillAllFields'))
     return
   }
-  if (!rtspUrl) {
+  if (!appSettingsStore.mediamtxRtspAddr) {
     ElMessage.warning(t('sourceList.missingRtspBase'))
     return
   }
@@ -268,7 +266,7 @@ async function saveEdit() {
   try {
     await store.updateSource(editingSourceId.value, {
       name: editForm.name,
-      rtsp_url: rtspUrl,
+      route_path: routePath,
     })
     showEditDialog.value = false
     ElMessage.success(t('sourceList.sourceUpdated'))

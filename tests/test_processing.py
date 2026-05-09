@@ -81,7 +81,7 @@ class TestBaseVideoProcessor:
         proc = self._make_processor()
         proc.vengine.detect = AsyncMock(
             return_value=[
-                {"label": "truck", "confidence": 0.92},
+                {"label": "smoke", "confidence": 0.92},
                 {"label": "person", "confidence": 0.33},
             ]
         )
@@ -96,7 +96,7 @@ class TestBaseVideoProcessor:
         proc.vengine.detect.assert_awaited_once()
         assert result == {
             "detections": [
-                {"label": "truck", "confidence": 0.92},
+                {"label": "smoke", "confidence": 0.92},
             ]
         }
 
@@ -224,10 +224,10 @@ class TestProcessorManager:
         mgr = self._make_manager()
         await mgr.stop_all()  # Should not raise
 
-    def test_truck_adapter_initializes_core_state(self):
-        from backend.processing.truck import TruckMonitorProcessor
+    def test_smoke_adapter_initializes_core_state(self):
+        from backend.processing.smoke import SmokeFireProcessor
 
-        processor = TruckMonitorProcessor(
+        processor = SmokeFireProcessor(
             source_id="s1",
             source_name="cam",
             rtsp_url="rtsp://localhost:8554/cam1",
@@ -237,7 +237,7 @@ class TestProcessorManager:
             app_settings=dict(DEFAULT_APP_SETTINGS),
         )
 
-        assert processor.tracker is not None
+        assert processor._post_processor is not None
         assert processor.agent is None
 
 

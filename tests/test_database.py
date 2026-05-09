@@ -5,6 +5,7 @@ import pytest
 
 from backend.db.database import (
     _get_shared_db,
+    build_source_rtsp_url,
     close_db,
     create_source,
     delete_source,
@@ -14,6 +15,7 @@ from backend.db.database import (
     init_db,
     list_sources,
     save_rois,
+    update_settings,
     update_source,
 )
 from backend.models.schemas import ROICreate, ROIPoint, VideoSourceCreate, VideoSourceUpdate
@@ -61,6 +63,22 @@ class TestCreateSource:
         found = await get_source(created.id)
         assert found is not None
         assert found.rtsp_url == "rtsp://reopen"
+
+    async def test_creates_from_route_path_using_current_settings(self):
+        await update_settings({
+            "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
+            "mediamtx_rtsp_username": "stream-user",
+            "mediamtx_rtsp_password": "stream-pass",
+        })
+        src = await create_source(
+            VideoSourceCreate(name="Cam3", route_path="cam3")
+        )
+        assert src.rtsp_url == build_source_rtsp_url(
+            "rtsp://gateway.example.com:9554/live",
+            "cam3",
+            username="stream-user",
+            password="stream-pass",
+        )
 
 
 class TestGetSource:
@@ -121,6 +139,27 @@ class TestUpdateSource:
         )
         assert updated is not None
         assert updated.rtsp_url == "rtsp://new"
+
+    async def test_update_route_path_uses_current_settings(self):
+        src = await create_source(
+            VideoSourceCreate(name="C", rtsp_url="rtsp://old")
+        )
+        await update_settings({
+            "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/base",
+            "mediamtx_rtsp_username": "stream-user",
+            "mediamtx_rtsp_password": "stream-pass",
+        })
+        updated = await update_source(
+            src.id,
+            VideoSourceUpdate(route_path="cam-new"),
+        )
+        assert updated is not None
+        assert updated.rtsp_url == build_source_rtsp_url(
+            "rtsp://gateway.example.com:9554/base",
+            "cam-new",
+            username="stream-user",
+            password="stream-pass",
+        )
 
     async def test_update_rois(self):
         src = await create_source(

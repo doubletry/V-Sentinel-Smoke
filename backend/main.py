@@ -4,17 +4,17 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from pathlib import PurePosixPath
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from loguru import logger
 
 from backend.api import processor as processor_router
 from backend.api import messages as messages_router
 from backend.api import settings as settings_router
 from backend.api import sources as sources_router
-from backend.api import vehicle_events as vehicle_events_router
 from backend.api import ws as ws_module
 from backend.config import settings
 from backend.db.database import (
@@ -144,6 +144,7 @@ async def lifespan(app: FastAPI):
         app_settings=app_settings,
         email_client=email_client,
     )
+    app.state.processor_manager = processor_manager
     await processor_manager.start_agent()
 
     logger.info("{} started successfully", settings.app_name)
@@ -182,7 +183,6 @@ app.include_router(sources_router.router)
 app.include_router(processor_router.router)
 app.include_router(messages_router.router)
 app.include_router(settings_router.router)
-app.include_router(vehicle_events_router.router)
 app.include_router(ws_module.router)
 
 
@@ -195,6 +195,49 @@ async def health() -> dict:
 
 # ── Static files (production: serve built frontend) / 静态文件（生产环境：托管构建后的前端） ──
 _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
-if _frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
+_frontend_index = _frontend_dist / "index.html"
+
+
+def _resolve_frontend_asset(full_path: str) -> Path | None:
+    requested = str(full_path or "").strip()
+    if not requested or "\\" in requested:
+        return None
+    pure_path = PurePosixPath("/" + requested.lstrip("/"))
+    safe_parts = [part for part in pure_path.parts if part not in {"", "/"}]
+    if not safe_parts or any(part in {".", ".."} for part in safe_parts):
+        return None
+    candidate = _frontend_dist.resolve().joinpath(*safe_parts).resolve()
+    try:
+        candidate.relative_to(_frontend_dist.resolve())
+    except ValueError:
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+if _frontend_index.is_file():
     logger.info("Serving frontend from {}", _frontend_dist)
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index() -> FileResponse:
+    if not _frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(_frontend_index)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def frontend_spa(full_path: str) -> FileResponse:
+    if full_path in {"docs", "redoc", "openapi.json"} or full_path.startswith(("api/", "ws/")):
+        raise HTTPException(status_code=404, detail="Not Found")
+    if not _frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    asset_path = _resolve_frontend_asset(full_path)
+    if asset_path is not None:
+        return FileResponse(asset_path)
+    if "." in Path(full_path).name:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    return FileResponse(_frontend_index)

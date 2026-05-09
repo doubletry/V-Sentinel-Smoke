@@ -8,6 +8,7 @@ export const useMessageStore = defineStore('message', () => {
   const messages = ref([])
   const wsConnected = ref(false)
   const filterSource = ref('')
+  const falsePositiveOnly = ref(false)
   const loading = ref(false)
   const page = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
@@ -25,6 +26,7 @@ export const useMessageStore = defineStore('message', () => {
         page: nextPage,
         page_size: nextPageSize,
         source_id: filterSource.value || undefined,
+        false_positive_only: falsePositiveOnly.value || undefined,
       })
       page.value = Number(data.page || nextPage)
       pageSize.value = Number(data.page_size || nextPageSize)
@@ -62,7 +64,8 @@ export const useMessageStore = defineStore('message', () => {
         const msg = JSON.parse(event.data)
         if (msg === 'pong') return
         const matchesFilter = !filterSource.value || msg.source_id === filterSource.value
-        if (!matchesFilter) return
+        const matchesFalsePositive = !falsePositiveOnly.value || Boolean(msg.false_positive)
+        if (!matchesFilter || !matchesFalsePositive) return
         if (page.value === 1) {
           messages.value.unshift(msg)
           if (messages.value.length > pageSize.value) {
@@ -108,6 +111,35 @@ export const useMessageStore = defineStore('message', () => {
     filterSource.value = sourceId
   }
 
+  function setFalsePositiveOnly(value) {
+    falsePositiveOnly.value = Boolean(value)
+  }
+
+  function applyFalsePositiveFilterToLocalMessages() {
+    if (!falsePositiveOnly.value) return
+    messages.value = messages.value.filter((item) => item.false_positive)
+  }
+
+  async function markFalsePositive(messageId) {
+    const result = await messagesApi.markFalsePositive(messageId)
+    const target = messages.value.find((item) => item.id === messageId)
+    if (target) {
+      target.false_positive = true
+    }
+    applyFalsePositiveFilterToLocalMessages()
+    return result
+  }
+
+  async function unmarkFalsePositive(messageId) {
+    const result = await messagesApi.unmarkFalsePositive(messageId)
+    const target = messages.value.find((item) => item.id === messageId)
+    if (target) {
+      target.false_positive = false
+    }
+    applyFalsePositiveFilterToLocalMessages()
+    return result
+  }
+
   return {
     messages,
     loading,
@@ -118,10 +150,14 @@ export const useMessageStore = defineStore('message', () => {
     pageSizeOptions,
     wsConnected,
     filterSource,
+    falsePositiveOnly,
     fetchMessages,
     connectWS,
     disconnectWS,
     clearMessages,
     setFilterSource,
+    setFalsePositiveOnly,
+    markFalsePositive,
+    unmarkFalsePositive,
   }
 })

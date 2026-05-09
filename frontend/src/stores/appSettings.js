@@ -4,23 +4,44 @@ import config from '../config.js'
 import { settingsApi } from '../api/index.js'
 import { setI18nLocale } from '../i18n/index.js'
 
+const DEFAULT_EVENT_EMAIL_BODY_TEMPLATE = [
+  'Event: {event_label}',
+  'Time: {local_time} ({timezone})',
+  'Video source: {source_name} ({source_id})',
+  'Labels: {labels}',
+  'Highest confidence: {confidence_percent}',
+  'Detection count: {detection_count}',
+  'Frame ID: {frame_id}',
+  'Active tracks: {active_tracks}',
+].join('\n')
+
 const DEFAULT_UI_SETTINGS = {
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'truck',
+  processor_plugin: 'smoke',
   site_title: config.siteName,
   site_description: config.siteDescription,
   favicon_url: '/favicon.ico',
   roi_tag_options: '["person","vehicle","intrusion"]',
   mediamtx_rtsp_addr: 'rtsp://localhost:8554',
+  mediamtx_rtsp_username: '',
+  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: config.mediamtxWebrtcUrl || 'http://localhost:8889',
+  mediamtx_webrtc_username: '',
+  mediamtx_webrtc_password: '',
   email_from_address: '',
   email_from_auth_code: '',
   email_to_addresses: '',
   email_cc_addresses: '',
   email_port: '50055',
-  daily_summary_hour: '23',
-  daily_summary_minute: '59',
+  email_event_enabled: 'true',
+  email_timed_enabled: 'false',
+  email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
+  email_event_body_template: DEFAULT_EVENT_EMAIL_BODY_TEMPLATE,
+  smoke_detection_model_name: 'smoke-fire-detection',
+  smoke_detection_model_version: '',
+  smoke_temporal_confirm_frames: '3',
+  smoke_email_cooldown_seconds: '300',
   message_retention_days: '7',
 }
 
@@ -77,6 +98,18 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const mediamtxWebrtcAddr = computed(
     () => settings.value.mediamtx_webrtc_addr || DEFAULT_UI_SETTINGS.mediamtx_webrtc_addr
   )
+  const mediamtxRtspUsername = computed(
+    () => settings.value.mediamtx_rtsp_username || DEFAULT_UI_SETTINGS.mediamtx_rtsp_username
+  )
+  const mediamtxRtspPassword = computed(
+    () => settings.value.mediamtx_rtsp_password || DEFAULT_UI_SETTINGS.mediamtx_rtsp_password
+  )
+  const mediamtxWebrtcUsername = computed(
+    () => settings.value.mediamtx_webrtc_username || DEFAULT_UI_SETTINGS.mediamtx_webrtc_username
+  )
+  const mediamtxWebrtcPassword = computed(
+    () => settings.value.mediamtx_webrtc_password || DEFAULT_UI_SETTINGS.mediamtx_webrtc_password
+  )
 
   async function fetchSettings(force = false) {
     if (loaded.value && !force) {
@@ -130,6 +163,10 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     roiTagOptions,
     mediamtxRtspAddr,
     mediamtxWebrtcAddr,
+    mediamtxRtspUsername,
+    mediamtxRtspPassword,
+    mediamtxWebrtcUsername,
+    mediamtxWebrtcPassword,
     fetchSettings,
     updateSettings,
     testEmail,
