@@ -27,10 +27,10 @@ from backend.db.database import (
     init_db,
     save_analysis_message,
 )
+from backend.notifications.dispatcher import NotificationDispatcher
 from backend.processing.log_buffer import processing_log_buffer
 from backend.processing.manager import ProcessorManager
 from backend.vengine.client import AsyncVEngineClient
-from core.email_client import AsyncEmailClient
 
 # Configure loguru / 配置 loguru 日志
 logger.remove()
@@ -106,7 +106,7 @@ def _configure_stdlib_log_capture() -> None:
 # Module-level singletons (accessed by API routers) / 模块级单例（供 API 路由使用）
 ws_manager: ws_module.WSManager
 vengine_client: AsyncVEngineClient
-email_client: AsyncEmailClient
+notification_dispatcher: NotificationDispatcher
 processor_manager: ProcessorManager
 
 
@@ -114,7 +114,7 @@ processor_manager: ProcessorManager
 async def lifespan(app: FastAPI):
     """Application lifespan: initialize and teardown resources.
     应用生命周期：初始化与销毁资源。"""
-    global ws_manager, vengine_client, email_client, processor_manager
+    global ws_manager, vengine_client, notification_dispatcher, processor_manager
 
     logger.info("Starting {} ...", settings.app_name)
     _configure_stdlib_log_capture()
@@ -134,19 +134,18 @@ async def lifespan(app: FastAPI):
     app.title = app_settings.get("site_title") or settings.app_name
     vengine_client = AsyncVEngineClient(settings)
     await vengine_client.connect(app_settings)
-    email_client = AsyncEmailClient()
-    await email_client.connect(app_settings)
+    notification_dispatcher = NotificationDispatcher()
 
     # Store on app.state for dependency-injection in API routes / 存储到 app.state 以便 API 路由依赖注入
     app.state.vengine_client = vengine_client
-    app.state.email_client = email_client
+    app.state.notification_dispatcher = notification_dispatcher
 
     # Initialize ProcessorManager (includes AnalysisAgent) / 初始化处理器管理器（含分析代理）
     processor_manager = ProcessorManager(
         vengine_client=vengine_client,
         ws_manager=ws_manager,
         app_settings=app_settings,
-        email_client=email_client,
+        notification_dispatcher=notification_dispatcher,
     )
     app.state.processor_manager = processor_manager
     await processor_manager.start_agent()
@@ -159,7 +158,6 @@ async def lifespan(app: FastAPI):
 
     await processor_manager.stop_all()
     await processor_manager.stop_agent()
-    await email_client.close()
     await vengine_client.close()
     await close_db()
 

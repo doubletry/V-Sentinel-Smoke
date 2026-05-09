@@ -340,6 +340,9 @@ class AppSettingsUpdate(BaseModel):
     email_from_auth_code: str | None = None
     email_to_addresses: str | None = None
     email_cc_addresses: str | None = None
+    email_smtp_host: str | None = None
+    email_smtp_port: str | None = None
+    email_smtp_use_tls: str | None = None
     email_port: str | None = None
     email_event_enabled: str | None = None
     email_timed_enabled: str | None = None
@@ -392,3 +395,6 @@ class EmailTestRequest(BaseModel):
     email_from_auth_code: str | None = None
     email_to_addresses: str | None = None
     email_cc_addresses: str | None = None
+    email_smtp_host: str | None = None
+    email_smtp_port: str | None = None
+    email_smtp_use_tls: str | None = None

@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 from httpx import AsyncClient
 
+from backend.db.database import create_notification_policy, create_notification_provider, create_source
+from backend.models.schemas import (
+    NotificationPolicyCreate,
+    NotificationProviderCreate,
+    VideoSourceCreate,
+)
+from backend.notifications.dispatcher import NotificationDispatcher
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 
 
@@ -147,3 +156,51 @@ class TestSmtpNotificationProvider:
         assert message["To"] == "a@example.com, b@example.com"
         assert message["Cc"] == "cc@example.com"
         assert message["Subject"] == "Alert"
+
+
+class TestNotificationDispatcher:
+    async def test_dispatcher_uses_source_bound_policy(self, init_db):
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="SMTP",
+                type="email",
+                enabled=True,
+                config={
+                    "smtp_host": "smtp.example.com",
+                    "from_address": "sender@example.com",
+                    "to_addresses": ["ops@example.com"],
+                },
+            )
+        )
+        policy = await create_notification_policy(
+            NotificationPolicyCreate(
+                name="Policy",
+                cooldown_seconds=0,
+                provider_ids=[provider.id],
+            )
+        )
+        source = await create_source(
+            VideoSourceCreate(
+                name="Cam",
+                rtsp_url="rtsp://localhost:8554/cam",
+                notification_policy_ids=[policy.id],
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send:
+            results = await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": source.id,
+                    "source_name": source.name,
+                    "event_type": "smoke",
+                    "event_label": "Smoke",
+                }
+            )
+
+        assert results == [{"status": "SUCCESS", "message": "sent"}]
+        send.assert_awaited_once()

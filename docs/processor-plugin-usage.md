@@ -68,7 +68,21 @@ Set the DB-backed setting below to enable the smoke/fire scene:
 
 The smoke plugin only requires the detection service. It forwards `model_name`, optional `model_version`, confidence, NMS, and ROI to V-Engine detection, then applies the temporal smoke/fire post-processor.
 
-## Event email templates
+## Notifications and SMTP email
+
+Runtime event notifications are now routed through
+`backend.notifications.dispatcher.NotificationDispatcher`.
+
+- Email uses direct SMTP through `core.notification_client.SmtpNotificationProvider`.
+- Webhook is reserved through `core.notification_client.WebhookNotificationProvider`.
+- Sources can bind notification policies through `notification_policy_ids`.
+- If a source has no policy binding, the dispatcher falls back to `default-alert-policy`.
+- Cooldown is enforced per policy/source/event type.
+
+The legacy email gRPC client remains in `core/email_client.py` for template helper
+compatibility and tests, but event delivery should use notification providers.
+
+## Event template placeholders
 
 Event email subject/body templates support `{element}` placeholders. The backend exposes the supported placeholder list through:
 

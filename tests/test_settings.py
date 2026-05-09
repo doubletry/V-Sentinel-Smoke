@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
@@ -33,6 +34,7 @@ class TestSettingsDB:
         assert all_settings["ocr_port"] == "50054"
         assert all_settings["email_from_address"] == ""
         assert all_settings["email_to_addresses"] == ""
+        assert all_settings["email_smtp_port"] == "587"
         assert all_settings["email_port"] == "50055"
         assert all_settings["email_event_enabled"] == "true"
         assert all_settings["smoke_temporal_confirm_frames"] == "3"
@@ -113,6 +115,9 @@ class TestSettingsAPI:
                 "email_from_auth_code": "secret",
                 "email_to_addresses": "to1@example.com,to2@example.com",
                 "email_cc_addresses": "cc@example.com",
+                "email_smtp_host": "smtp.example.com",
+                "email_smtp_port": "587",
+                "email_smtp_use_tls": "true",
                 "email_port": "50060",
                 "email_event_enabled": "true",
                 "email_event_subject_template": "Alert {event_label}",
@@ -139,6 +144,9 @@ class TestSettingsAPI:
         assert data["email_from_auth_code"] == "secret"
         assert data["email_to_addresses"] == "to1@example.com,to2@example.com"
         assert data["email_cc_addresses"] == "cc@example.com"
+        assert data["email_smtp_host"] == "smtp.example.com"
+        assert data["email_smtp_port"] == "587"
+        assert data["email_smtp_use_tls"] == "true"
         assert data["email_port"] == "50060"
         assert data["email_event_enabled"] == "true"
         assert data["email_event_subject_template"] == "Alert {event_label}"
@@ -160,30 +168,26 @@ class TestSettingsAPI:
         assert "vengine_host" in data
 
     async def test_email_test_endpoint(self, async_client: AsyncClient):
-        from backend.main import app
-
-        app.state.email_client.send_test_email = AsyncMock(
-            return_value={"status": "SUCCESS", "message": "ok", "email_id": "1"}
-        )
-        app.state.email_client.reconnect_from_settings = AsyncMock()
-
-        resp = await async_client.post(
-            "/api/settings/email/test",
-            json={
-                "vengine_host": "127.0.0.1",
-                "email_port": "50055",
-                "email_from_address": "sender@example.com",
-                "email_from_auth_code": "secret",
-                "email_to_addresses": "to@example.com",
-                "email_cc_addresses": "cc@example.com",
-            },
-        )
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "ok"}),
+        ) as send:
+            resp = await async_client.post(
+                "/api/settings/email/test",
+                json={
+                    "email_smtp_host": "smtp.example.com",
+                    "email_smtp_port": "587",
+                    "email_from_address": "sender@example.com",
+                    "email_from_auth_code": "secret",
+                    "email_to_addresses": "to@example.com",
+                    "email_cc_addresses": "cc@example.com",
+                },
+            )
 
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "SUCCESS"
-        app.state.email_client.reconnect_from_settings.assert_awaited_once()
-        app.state.email_client.send_test_email.assert_awaited_once()
+        send.assert_awaited_once()
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,

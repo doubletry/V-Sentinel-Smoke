@@ -26,25 +26,18 @@ class TestAnalysisAgent:
         ws.broadcast.assert_awaited_once_with(msg)
         assert not agent._queue.empty()
 
-    async def test_event_email_respects_cooldown(self, monkeypatch):
+    async def test_event_notification_is_delegated(self):
         ws = WSManager()
         ws.broadcast = AsyncMock()
-        email_client = AsyncMock()
+        dispatcher = AsyncMock()
 
-        async def fake_settings():
-            return {
-                "email_event_enabled": "true",
-                "smoke_email_cooldown_seconds": "300",
-                "email_from_address": "sender@example.com",
-                "email_from_auth_code": "secret",
-                "email_to_addresses": "to@example.com",
-            }
-
-        monkeypatch.setattr("backend.db.database.get_all_settings", fake_settings)
-        agent = AnalysisAgent(ws_manager=ws, email_client=email_client, summary_interval=60.0)
+        agent = AnalysisAgent(
+            ws_manager=ws,
+            notification_dispatcher=dispatcher,
+            summary_interval=60.0,
+        )
         result = AnalysisResult(extra={"email_event": {"source_id": "s1", "source_name": "Cam1", "event_type": "smoke"}})
 
         await agent.submit("s1", "Cam1", result)
-        await agent.submit("s1", "Cam1", result)
 
-        email_client.send_event_email.assert_awaited_once()
+        dispatcher.send_event.assert_awaited_once()

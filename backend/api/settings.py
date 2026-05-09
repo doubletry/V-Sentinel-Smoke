@@ -5,6 +5,7 @@ from loguru import logger
 
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, EmailTestRequest
+from core.notification_client import NotificationPayload, SmtpNotificationProvider
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -56,8 +57,6 @@ async def update_settings(data: AppSettingsUpdate, request: Request) -> dict[str
     # Reconnect V-Engine client with new addresses / 使用新地址重连 V-Engine 客户端
     vengine_client = request.app.state.vengine_client
     await vengine_client.reconnect_from_settings(result)
-    email_client = request.app.state.email_client
-    await email_client.reconnect_from_settings(result)
     request.app.state.processor_manager.update_app_settings(result)
 
     return result
@@ -74,9 +73,24 @@ async def test_email_settings(
     overrides = {k: v for k, v in data.model_dump().items() if v is not None}
 
     merged_settings = {**app_settings, **overrides}
-    email_client = request.app.state.email_client
-    await email_client.reconnect_from_settings(merged_settings)
-    return await email_client.send_test_email(app_settings, overrides=overrides)
+    config = {
+        "smtp_host": merged_settings.get("email_smtp_host") or merged_settings.get("vengine_host", ""),
+        "smtp_port": merged_settings.get("email_smtp_port") or merged_settings.get("email_port", "587"),
+        "smtp_username": merged_settings.get("email_from_address", ""),
+        "smtp_password": merged_settings.get("email_from_auth_code", ""),
+        "from_address": merged_settings.get("email_from_address", ""),
+        "to_addresses": merged_settings.get("email_to_addresses", ""),
+        "cc_addresses": merged_settings.get("email_cc_addresses", ""),
+        "use_tls": merged_settings.get("email_smtp_use_tls", "true"),
+    }
+    provider = SmtpNotificationProvider(config)
+    site_title = merged_settings.get("site_title") or "V-Sentinel"
+    return await provider.send(
+        NotificationPayload(
+            subject=f"{site_title} 邮件配置测试",
+            body=f"这是一封来自 {site_title} 的 SMTP 测试邮件，用于验证邮件配置是否正确。",
+        )
+    )
 
 
 @router.get("/email/template-placeholders")

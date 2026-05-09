@@ -14,7 +14,7 @@ from backend.processing.registry import resolve_processor_class
 if TYPE_CHECKING:
     from backend.vengine.client import AsyncVEngineClient
     from backend.api.ws import WSManager
-    from core.email_client import AsyncEmailClient
+    from backend.notifications.dispatcher import NotificationDispatcher
 
 
 class ProcessorManager:
@@ -32,14 +32,17 @@ class ProcessorManager:
         vengine_client: "AsyncVEngineClient",
         ws_manager: "WSManager",
         app_settings: dict[str, str],
-        email_client: "AsyncEmailClient | None" = None,
+        notification_dispatcher: "NotificationDispatcher | None" = None,
     ) -> None:
         self._vengine = vengine_client
         self._ws_manager = ws_manager
         self._app_settings = app_settings
         self._processors: dict[str, BaseVideoProcessor] = {}
         self._lock = asyncio.Lock()
-        self._agent = AnalysisAgent(ws_manager=ws_manager, email_client=email_client)
+        self._agent = AnalysisAgent(
+            ws_manager=ws_manager,
+            notification_dispatcher=notification_dispatcher,
+        )
 
     def update_app_settings(self, app_settings: dict[str, str]) -> None:
         """Replace the settings snapshot used for newly started processors.

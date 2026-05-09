@@ -197,7 +197,7 @@ DB_PATH=./v_sentinel.db
 - 一个视频源只绑定一个场景，当前内置场景为 `smoke`。
 - 新增 `/api/scenes` 暴露场景元数据，后续前端可按场景动态渲染普通配置与专家模式配置。
 - 新增 `/api/video-gateways` 管理视频网关。默认网关为 MediaMTX，RTSP 后端拉流和 WebRTC 前端播放共享同一套账号密码。
-- 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；邮件通知目标是直接使用 SMTP，不再依赖邮件微服务。
+- 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；运行时事件通知已通过通知调度器投递，邮件通知直接使用 SMTP，不再依赖邮件微服务。
 - 新增 `/api/access/roles` 暴露三级权限模型：用户、操作员、管理员。
 
 当前阶段优先面向空白数据库，不处理旧数据库迁移。
