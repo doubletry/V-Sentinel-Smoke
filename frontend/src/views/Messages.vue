@@ -38,8 +38,39 @@
         >
           {{ t('messages.newMessages', { count: store.pendingCount }) }}
         </el-button>
+        <el-button size="small" @click="refreshMessages">
+          {{ t('messages.refresh') }}
+        </el-button>
+        <el-button
+          v-if="!store.wsConnected"
+          size="small"
+          type="primary"
+          @click="reconnectMessages"
+        >
+          {{ t('messages.reconnect') }}
+        </el-button>
         <el-button size="small" @click="store.clearMessages">{{ t('messages.clear') }}</el-button>
       </div>
+    </div>
+
+    <div class="messages-summary">
+      <el-tag size="small" effect="dark" type="info">
+        {{ t('messages.totalCount', { count: store.total }) }}
+      </el-tag>
+      <el-tag size="small" effect="dark" :type="filterSource ? 'warning' : 'info'">
+        {{
+          filterSource
+            ? t('messages.activeSource', { source: activeSourceName })
+            : t('messages.allSources')
+        }}
+      </el-tag>
+      <el-tag size="small" effect="dark" :type="store.falsePositiveOnly ? 'danger' : 'info'">
+        {{
+          store.falsePositiveOnly
+            ? t('messages.falsePositiveOnly')
+            : t('messages.showingAll')
+        }}
+      </el-tag>
     </div>
 
     <el-scrollbar ref="scrollbar" class="messages-scroll">
@@ -65,7 +96,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessageStore } from '../stores/message.js'
 import { useSourceStore } from '../stores/source.js'
@@ -76,6 +107,9 @@ const sourceStore = useSourceStore()
 const { t } = useI18n()
 const filterSource = ref('')
 const scrollbar = ref(null)
+const activeSourceName = computed(() => {
+  return sourceStore.sources.find((source) => source.id === filterSource.value)?.name || filterSource.value
+})
 
 // Auto-scroll to top (newest first)
 watch(
@@ -106,6 +140,14 @@ async function handleFalsePositiveFilterChange(value) {
 
 async function jumpToLatest() {
   await store.fetchMessages(1, store.pageSize)
+}
+
+async function refreshMessages() {
+  await store.fetchMessages(store.page, store.pageSize)
+}
+
+function reconnectMessages() {
+  store.reconnectWS()
 }
 
 async function handleMarkFalsePositive(message) {
@@ -200,6 +242,13 @@ onBeforeUnmount(() => {
 .messages-scroll {
   flex: 1;
   min-height: 0;
+}
+
+.messages-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 16px 0;
 }
 
 .messages-pagination {

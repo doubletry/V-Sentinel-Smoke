@@ -7,6 +7,22 @@
       </div>
       <div class="header-right">
         <el-select
+          v-model="levelFilter"
+          size="small"
+          style="width: 130px"
+        >
+          <el-option :label="t('processingLogs.allLevels')" value="" />
+          <el-option label="ERROR" value="ERROR" />
+          <el-option label="WARNING" value="WARNING" />
+          <el-option label="INFO" value="INFO" />
+        </el-select>
+        <el-input
+          v-model="moduleFilter"
+          size="small"
+          style="width: 180px"
+          :placeholder="t('processingLogs.filterModule')"
+        />
+        <el-select
           v-model="logPageSize"
           size="small"
           style="width: 132px"
@@ -22,12 +38,17 @@
         <el-button size="small" @click="loadLogs(logPage)">
           {{ t('processingLogs.refresh') }}
         </el-button>
+        <el-switch
+          v-model="autoRefresh"
+          :active-text="t('processingLogs.autoRefresh')"
+          :inactive-text="t('processingLogs.manualRefresh')"
+        />
       </div>
     </div>
 
     <div class="table-wrap">
       <el-table
-        :data="logItems"
+        :data="filteredLogItems"
         size="small"
         height="100%"
         v-loading="logsLoading"
@@ -71,7 +92,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { processorApi } from '../api/index.js'
@@ -88,7 +109,19 @@ const logPage = ref(1)
 const logPageSize = ref(DEFAULT_PAGE_SIZE)
 const logPageSizeOptions = PAGE_SIZE_OPTIONS
 const logErrorNotified = ref(false)
+const levelFilter = ref('')
+const moduleFilter = ref('')
+const autoRefresh = ref(true)
 let logTimer = null
+
+const filteredLogItems = computed(() => {
+  const keyword = moduleFilter.value.trim().toLowerCase()
+  return logItems.value.filter((item) => {
+    const matchesLevel = !levelFilter.value || item.level === levelFilter.value
+    const matchesModule = !keyword || String(item.module || '').toLowerCase().includes(keyword)
+    return matchesLevel && matchesModule
+  })
+})
 
 async function loadLogs(page = 1) {
   logPage.value = page
@@ -113,18 +146,35 @@ async function handlePageSizeChange(size) {
   await loadLogs(1)
 }
 
-onMounted(() => {
-  loadLogs(1)
+function startLogTimer() {
+  if (logTimer || !autoRefresh.value) return
   logTimer = setInterval(() => {
     loadLogs(logPage.value)
   }, 5000)
-})
+}
 
-onBeforeUnmount(() => {
+function stopLogTimer() {
   if (logTimer) {
     clearInterval(logTimer)
     logTimer = null
   }
+}
+
+watch(autoRefresh, (value) => {
+  if (value) {
+    startLogTimer()
+  } else {
+    stopLogTimer()
+  }
+})
+
+onMounted(() => {
+  loadLogs(1)
+  startLogTimer()
+})
+
+onBeforeUnmount(() => {
+  stopLogTimer()
 })
 </script>
 

@@ -101,6 +101,11 @@ export const useMessageStore = defineStore('message', () => {
     wsConnected.value = false
   }
 
+  function reconnectWS() {
+    disconnectWS()
+    connectWS()
+  }
+
   function clearMessages() {
     messages.value = []
     total.value = 0
@@ -154,6 +159,7 @@ export const useMessageStore = defineStore('message', () => {
     fetchMessages,
     connectWS,
     disconnectWS,
+    reconnectWS,
     clearMessages,
     setFilterSource,
     setFalsePositiveOnly,

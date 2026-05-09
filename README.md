@@ -125,6 +125,12 @@ The frontend will be available at http://localhost:5173
 
 > **Note:** The frontend uses relative URLs for all API and WebSocket calls, so it
 > works with any backend port — no hardcoded addresses.
+>
+> The Video Wall remembers the selected grid layout and assigned sources in the
+> browser, so a refresh does not wipe the current operator layout.
+>
+> The Video Wall remembers the selected grid layout and assigned sources in the
+> browser, so a page refresh does not wipe the current operator layout.
 
 ### 4. Build frontend for production
 
@@ -158,6 +164,14 @@ page after the app starts, including:
 - MediaMTX RTSP / WebRTC usernames and passwords
 - smoke/fire detection thresholds
 - email notification templates and recipients
+
+The Settings page is grouped by section and includes a quick section navigator,
+so operators can jump directly to interface, backend, MediaMTX, notification,
+and smoke-scene settings instead of scrolling through one long unstructured form.
+
+The Settings page is grouped by section and includes a quick section navigator,
+so operators can jump directly to interface, backend, MediaMTX, notification,
+and smoke-scene settings instead of scrolling through one long unstructured form.
 
 Runtime message thumbnails are persisted beside the database in `message_thumbnails/`. Exported false-positive original/detected images are persisted in `false_positives/`.
 
