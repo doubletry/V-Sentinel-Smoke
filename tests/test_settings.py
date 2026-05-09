@@ -35,7 +35,6 @@ class TestSettingsDB:
         assert all_settings["email_from_address"] == ""
         assert all_settings["email_to_addresses"] == ""
         assert all_settings["email_smtp_port"] == "587"
-        assert all_settings["email_port"] == "50055"
         assert all_settings["email_event_enabled"] == "true"
         assert all_settings["smoke_temporal_confirm_frames"] == "3"
         assert all_settings["smoke_email_cooldown_seconds"] == "300"
@@ -112,13 +111,12 @@ class TestSettingsAPI:
                 "processor_plugin": "example",
                 "roi_tag_options": "[\"person\",\"vehicle\"]",
                 "email_from_address": "sender@example.com",
-                "email_from_auth_code": "secret",
+                "email_smtp_password": "secret",
                 "email_to_addresses": "to1@example.com,to2@example.com",
                 "email_cc_addresses": "cc@example.com",
                 "email_smtp_host": "smtp.example.com",
                 "email_smtp_port": "587",
                 "email_smtp_use_tls": "true",
-                "email_port": "50060",
                 "email_event_enabled": "true",
                 "email_event_subject_template": "Alert {event_label}",
                 "smoke_temporal_confirm_frames": "5",
@@ -141,13 +139,12 @@ class TestSettingsAPI:
         assert data["processor_plugin"] == "example"
         assert data["roi_tag_options"] == "[\"person\",\"vehicle\"]"
         assert data["email_from_address"] == "sender@example.com"
-        assert data["email_from_auth_code"] == "secret"
+        assert data["email_smtp_password"] == "secret"
         assert data["email_to_addresses"] == "to1@example.com,to2@example.com"
         assert data["email_cc_addresses"] == "cc@example.com"
         assert data["email_smtp_host"] == "smtp.example.com"
         assert data["email_smtp_port"] == "587"
         assert data["email_smtp_use_tls"] == "true"
-        assert data["email_port"] == "50060"
         assert data["email_event_enabled"] == "true"
         assert data["email_event_subject_template"] == "Alert {event_label}"
         assert data["smoke_temporal_confirm_frames"] == "5"
@@ -178,7 +175,7 @@ class TestSettingsAPI:
                     "email_smtp_host": "smtp.example.com",
                     "email_smtp_port": "587",
                     "email_from_address": "sender@example.com",
-                    "email_from_auth_code": "secret",
+                    "email_smtp_password": "secret",
                     "email_to_addresses": "to@example.com",
                     "email_cc_addresses": "cc@example.com",
                 },

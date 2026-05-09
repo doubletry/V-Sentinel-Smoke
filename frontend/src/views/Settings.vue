@@ -330,7 +330,7 @@
           </el-form-item>
           <el-form-item :label="t('settings.emailFromAuthCode')">
             <el-input
-              v-model="form.email_from_auth_code"
+              v-model="form.email_smtp_password"
               type="password"
               show-password
               placeholder="授权码 / 密码"
@@ -528,13 +528,12 @@ const form = ref({
   mediamtx_webrtc_username: '',
   mediamtx_webrtc_password: '',
   email_from_address: '',
-  email_from_auth_code: '',
+  email_smtp_password: '',
   email_to_addresses: '',
   email_cc_addresses: '',
   email_smtp_host: '',
   email_smtp_port: '587',
   email_smtp_use_tls: 'true',
-  email_port: '50055',
   email_event_enabled: 'true',
   email_timed_enabled: 'false',
   email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
@@ -734,7 +733,7 @@ async function testEmailConfig() {
       email_smtp_port: form.value.email_smtp_port,
       email_smtp_use_tls: form.value.email_smtp_use_tls,
       email_from_address: form.value.email_from_address,
-      email_from_auth_code: form.value.email_from_auth_code,
+      email_smtp_password: form.value.email_smtp_password,
       email_to_addresses: form.value.email_to_addresses,
       email_cc_addresses: form.value.email_cc_addresses,
     }

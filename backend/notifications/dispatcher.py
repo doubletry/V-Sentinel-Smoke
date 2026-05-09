@@ -7,12 +7,12 @@ from typing import Any
 from loguru import logger
 
 from backend.db import database as db
-from core.email_client import AsyncEmailClient
 from core.notification_client import (
     NotificationPayload,
     SmtpNotificationProvider,
     WebhookNotificationProvider,
 )
+from core.notification_template import build_template_context, render_template
 
 
 class NotificationDispatcher:
@@ -50,14 +50,14 @@ class NotificationDispatcher:
             if not self._should_send(policy_id, policy.cooldown_seconds, event):
                 continue
             template = templates.get(str(policy.template_id or ""))
-            context = AsyncEmailClient._template_context(app_settings, event)
+            context = build_template_context(app_settings, event)
             subject_template = template.subject_template if template else "{event_label} alert from {source_name}"
             body_template = template.body_template if template else "{local_time} {event_label} {source_name}"
             payload = NotificationPayload(
-                subject=AsyncEmailClient.render_template(subject_template, context),
-                body=AsyncEmailClient.render_template(body_template, context),
+                subject=render_template(subject_template, context),
+                body=render_template(body_template, context),
                 html_body="<br>".join(
-                    AsyncEmailClient.render_template(body_template, context).splitlines()
+                    render_template(body_template, context).splitlines()
                 ),
                 context=context,
                 attachments=self._build_attachments(event),

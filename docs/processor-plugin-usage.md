@@ -92,8 +92,8 @@ Runtime event notifications are now routed through
 - If a source has no policy binding, the dispatcher falls back to `default-alert-policy`.
 - Cooldown is enforced per policy/source/event type.
 
-The legacy email gRPC client remains in `core/email_client.py` for template helper
-compatibility and tests, but event delivery should use notification providers.
+The previous email gRPC client and proto files have been removed. Event and
+test email delivery both use SMTP notification providers directly.
 
 ## Event template placeholders
 

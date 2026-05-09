@@ -7,6 +7,7 @@ from backend.auth.dependencies import require_permission
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, EmailTestRequest
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
+from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -81,9 +82,9 @@ async def test_email_settings(
     merged_settings = {**app_settings, **overrides}
     config = {
         "smtp_host": merged_settings.get("email_smtp_host") or merged_settings.get("vengine_host", ""),
-        "smtp_port": merged_settings.get("email_smtp_port") or merged_settings.get("email_port", "587"),
+        "smtp_port": merged_settings.get("email_smtp_port") or "587",
         "smtp_username": merged_settings.get("email_from_address", ""),
-        "smtp_password": merged_settings.get("email_from_auth_code", ""),
+        "smtp_password": merged_settings.get("email_smtp_password", ""),
         "from_address": merged_settings.get("email_from_address", ""),
         "to_addresses": merged_settings.get("email_to_addresses", ""),
         "cc_addresses": merged_settings.get("email_cc_addresses", ""),
@@ -101,8 +102,6 @@ async def test_email_settings(
 
 @router.get("/email/template-placeholders")
 async def get_email_template_placeholders() -> dict[str, list[str]]:
-    """Return supported event-email template placeholders.
-    返回事件邮件模板支持的占位符。"""
-    from core.email_client import AsyncEmailClient
-
-    return {"placeholders": AsyncEmailClient.available_template_placeholders()}
+    """Return supported notification template placeholders.
+    返回通知模板支持的占位符。"""
+    return {"placeholders": list(NOTIFICATION_TEMPLATE_PLACEHOLDERS)}
