@@ -5,9 +5,10 @@ import re
 from urllib.parse import quote
 
 import yaml
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 
+from backend.auth.dependencies import require_permission
 from backend.db import database as db
 from backend.models.schemas import (
     VideoSource,
@@ -19,7 +20,10 @@ router = APIRouter(prefix="/api/sources", tags=["sources"])
 
 
 @router.post("", response_model=VideoSource, status_code=201)
-async def create_source(source: VideoSourceCreate) -> VideoSource:
+async def create_source(
+    source: VideoSourceCreate,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> VideoSource:
     """Create a new video source.
     创建新的视频源。"""
     try:
@@ -62,7 +66,11 @@ async def get_source(source_id: str) -> VideoSource:
 
 
 @router.put("/{source_id}", response_model=VideoSource)
-async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource:
+async def update_source(
+    source_id: str,
+    data: VideoSourceUpdate,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> VideoSource:
     """Update a video source (name, rtsp_url, and/or ROIs).
     更新视频源（名称、RTSP URL 和/或 ROI）。"""
     try:
@@ -75,7 +83,10 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource:
 
 
 @router.delete("/{source_id}", status_code=204)
-async def delete_source(source_id: str) -> None:
+async def delete_source(
+    source_id: str,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> None:
     """Delete a video source.
     删除视频源。"""
     deleted = await db.delete_source(source_id)
@@ -126,7 +137,11 @@ async def export_rois_yaml(source_id: str) -> Response:
 
 
 @router.post("/{source_id}/rois/import")
-async def import_rois_yaml(source_id: str, file: UploadFile = File(...)) -> VideoSource:
+async def import_rois_yaml(
+    source_id: str,
+    file: UploadFile = File(...),
+    _role: str = Depends(require_permission("sources:operate")),
+) -> VideoSource:
     """Import ROIs from a YAML file into a video source.
     从 YAML 文件导入 ROI 到视频源。
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.auth.dependencies import require_permission
 from backend.models.schemas import (
     ProcessorPluginInfo,
     ProcessorStartRequest,
@@ -15,7 +16,10 @@ router = APIRouter(prefix="/api/processor", tags=["processor"])
 
 
 @router.post("/start", status_code=200)
-async def start_processor(request: ProcessorStartRequest) -> dict:
+async def start_processor(
+    request: ProcessorStartRequest,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> dict:
     """Start AI analysis processing for a video source.
     为视频源启动 AI 分析处理。"""
     from backend.main import processor_manager  # avoid circular imports at module level
@@ -30,7 +34,10 @@ async def start_processor(request: ProcessorStartRequest) -> dict:
 
 
 @router.post("/stop", status_code=200)
-async def stop_processor(request: ProcessorStopRequest) -> dict:
+async def stop_processor(
+    request: ProcessorStopRequest,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> dict:
     """Stop AI analysis processing for a video source.
     停止视频源的 AI 分析处理。"""
     from backend.main import processor_manager
@@ -40,7 +47,9 @@ async def stop_processor(request: ProcessorStopRequest) -> dict:
 
 
 @router.post("/start-all", status_code=200)
-async def start_all_processors() -> dict:
+async def start_all_processors(
+    _role: str = Depends(require_permission("sources:operate")),
+) -> dict:
     """Start AI analysis for all configured sources.
     为所有已配置的视频源启动 AI 分析。"""
     from backend.main import processor_manager
@@ -50,7 +59,9 @@ async def start_all_processors() -> dict:
 
 
 @router.post("/stop-all", status_code=200)
-async def stop_all_processors() -> dict:
+async def stop_all_processors(
+    _role: str = Depends(require_permission("sources:operate")),
+) -> dict:
     """Stop AI analysis for all running sources.
     停止所有正在运行的视频源 AI 分析。"""
     from backend.main import processor_manager

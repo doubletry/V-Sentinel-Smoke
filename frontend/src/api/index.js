@@ -8,7 +8,12 @@ const api = axios.create({
 
 // Request interceptor
 api.interceptors.request.use(
-  (cfg) => cfg,
+  (cfg) => {
+    const role = window.localStorage?.getItem('v_sentinel_role') || 'admin'
+    cfg.headers = cfg.headers || {}
+    cfg.headers['X-User-Role'] = role
+    return cfg
+  },
   (error) => Promise.reject(error)
 )
 

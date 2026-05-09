@@ -56,6 +56,12 @@ RBAC roles are intentionally simple at this stage:
 The next implementation phases should wire these definitions into request-time
 authorization and frontend route/action guards.
 
+Role enforcement is now activated for mutating management/operation APIs. The
+frontend sends the active role through the `X-User-Role` header, currently read
+from `localStorage.v_sentinel_role` with `admin` as the development fallback.
+Production deployments should replace this header-only development mechanism
+with authenticated sessions or tokens.
+
 ## Frontend expert mode
 
 The Settings page exposes a user-friendly mode switch. Advanced smoke/fire

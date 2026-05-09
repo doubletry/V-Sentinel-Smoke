@@ -134,6 +134,29 @@ class TestRbacFoundation:
         assert "sources:operate" in roles["operator"]["permissions"]
         assert "users:*" in roles["admin"]["permissions"]
 
+    async def test_user_cannot_update_admin_settings(self, async_client: AsyncClient):
+        resp = await async_client.put(
+            "/api/settings",
+            headers={"X-User-Role": "user"},
+            json={"site_title": "Denied"},
+        )
+        assert resp.status_code == 403
+
+    async def test_operator_can_create_source_but_user_cannot(self, async_client: AsyncClient):
+        denied = await async_client.post(
+            "/api/sources",
+            headers={"X-User-Role": "user"},
+            json={"name": "Denied", "rtsp_url": "rtsp://localhost:8554/denied"},
+        )
+        assert denied.status_code == 403
+
+        allowed = await async_client.post(
+            "/api/sources",
+            headers={"X-User-Role": "operator"},
+            json={"name": "Allowed", "rtsp_url": "rtsp://localhost:8554/allowed"},
+        )
+        assert allowed.status_code == 201
+
 
 class TestSmtpNotificationProvider:
     def test_smtp_message_requires_sender(self):

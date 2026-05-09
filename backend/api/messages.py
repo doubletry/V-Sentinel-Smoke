@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
+from backend.auth.dependencies import require_permission
 from backend.db.database import (
     get_analysis_message_image_path,
     list_analysis_messages,
@@ -39,7 +40,10 @@ async def get_messages(
 
 
 @router.post("/{message_id}/false-positive")
-async def mark_message_false_positive(message_id: str) -> dict[str, object]:
+async def mark_message_false_positive(
+    message_id: str,
+    _role: str = Depends(require_permission("messages:annotate")),
+) -> dict[str, object]:
     """Mark a message as false positive and export its original/detected images.
     将消息标记为误报并导出原图/检测图。"""
     result = await mark_analysis_message_false_positive(message_id)
@@ -49,7 +53,10 @@ async def mark_message_false_positive(message_id: str) -> dict[str, object]:
 
 
 @router.delete("/{message_id}/false-positive")
-async def unmark_message_false_positive(message_id: str) -> dict[str, object]:
+async def unmark_message_false_positive(
+    message_id: str,
+    _role: str = Depends(require_permission("messages:annotate")),
+) -> dict[str, object]:
     """Clear the false-positive flag for a message.
     清除消息的误报标记。"""
     result = await unmark_analysis_message_false_positive(message_id)

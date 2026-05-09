@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from loguru import logger
 
+from backend.auth.dependencies import require_permission
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, EmailTestRequest
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
@@ -18,7 +19,11 @@ async def get_settings() -> dict[str, str]:
 
 
 @router.put("")
-async def update_settings(data: AppSettingsUpdate, request: Request) -> dict[str, str]:
+async def update_settings(
+    data: AppSettingsUpdate,
+    request: Request,
+    _role: str = Depends(require_permission("settings:*")),
+) -> dict[str, str]:
     """Update application settings.
     更新应用设置。
 
@@ -66,6 +71,7 @@ async def update_settings(data: AppSettingsUpdate, request: Request) -> dict[str
 async def test_email_settings(
     data: EmailTestRequest,
     request: Request,
+    _role: str = Depends(require_permission("settings:*")),
 ) -> dict[str, str]:
     """Send a test email using current or provided settings.
     使用当前或传入的设置发送测试邮件。"""

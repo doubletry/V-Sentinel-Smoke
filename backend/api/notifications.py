@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.auth.dependencies import require_permission
 from backend.db import database as db
 from backend.models.schemas import (
     NotificationPolicy,
@@ -26,7 +27,10 @@ async def list_providers() -> list[NotificationProvider]:
 
 
 @router.post("/providers", response_model=NotificationProvider, status_code=201)
-async def create_provider(data: NotificationProviderCreate) -> NotificationProvider:
+async def create_provider(
+    data: NotificationProviderCreate,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> NotificationProvider:
     """Create an email or webhook notification provider.
     创建邮件或 Webhook 通知服务。"""
     return await db.create_notification_provider(data)
@@ -36,6 +40,7 @@ async def create_provider(data: NotificationProviderCreate) -> NotificationProvi
 async def update_provider(
     provider_id: str,
     data: NotificationProviderUpdate,
+    _role: str = Depends(require_permission("notifications:*")),
 ) -> NotificationProvider:
     """Update a notification provider.
     更新通知服务。"""
@@ -53,7 +58,10 @@ async def list_templates() -> list[NotificationTemplate]:
 
 
 @router.post("/templates", response_model=NotificationTemplate, status_code=201)
-async def create_template(data: NotificationTemplateCreate) -> NotificationTemplate:
+async def create_template(
+    data: NotificationTemplateCreate,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> NotificationTemplate:
     """Create a notification template.
     创建通知模板。"""
     return await db.create_notification_template(data)
@@ -63,6 +71,7 @@ async def create_template(data: NotificationTemplateCreate) -> NotificationTempl
 async def update_template(
     template_id: str,
     data: NotificationTemplateUpdate,
+    _role: str = Depends(require_permission("notifications:*")),
 ) -> NotificationTemplate:
     """Update a notification template.
     更新通知模板。"""
@@ -80,14 +89,21 @@ async def list_policies() -> list[NotificationPolicy]:
 
 
 @router.post("/policies", response_model=NotificationPolicy, status_code=201)
-async def create_policy(data: NotificationPolicyCreate) -> NotificationPolicy:
+async def create_policy(
+    data: NotificationPolicyCreate,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> NotificationPolicy:
     """Create a notification policy.
     创建通知策略。"""
     return await db.create_notification_policy(data)
 
 
 @router.put("/policies/{policy_id}", response_model=NotificationPolicy)
-async def update_policy(policy_id: str, data: NotificationPolicyUpdate) -> NotificationPolicy:
+async def update_policy(
+    policy_id: str,
+    data: NotificationPolicyUpdate,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> NotificationPolicy:
     """Update a notification policy.
     更新通知策略。"""
     policy = await db.update_notification_policy(policy_id, data)
