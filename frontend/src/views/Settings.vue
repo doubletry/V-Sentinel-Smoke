@@ -630,7 +630,10 @@ function extractSceneIdFromTabName(tabName) {
  */
 function resetInvalidSettingsTab() {
   if (activeSettingsTab.value === 'platform') return
-  if (!sceneDefinitions.value.length) return
+  if (!sceneDefinitions.value.length) {
+    activeSettingsTab.value = 'platform'
+    return
+  }
   const activeSceneId = extractSceneIdFromTabName(activeSettingsTab.value)
   if (!activeSceneId || !sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
     activeSettingsTab.value = 'platform'
@@ -655,7 +658,7 @@ async function reload() {
       scenesApi.list(),
     ])
     Object.assign(form.value, data)
-    sceneDefinitions.value = Array.isArray(scenes) && scenes.length
+    sceneDefinitions.value = Array.isArray(scenes)
       ? scenes
       : DEFAULT_SCENE_DEFINITIONS
     resetInvalidSettingsTab()

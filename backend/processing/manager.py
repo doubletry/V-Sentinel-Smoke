@@ -83,7 +83,9 @@ class ProcessorManager:
             # from that source-scoped scene instead of a global plugin setting.
             # 每个视频源只绑定一个场景；处理器由该视频源绑定的场景选择，
             # 不再使用全局插件设置。
-            plugin_name = source.scene_id
+            plugin_name = str(source.scene_id or "").strip()
+            if not plugin_name:
+                raise ValueError(f"Source must have a scene configured: {source_id}")
             processor_cls = resolve_processor_class(plugin_name)
 
             processor = processor_cls(
