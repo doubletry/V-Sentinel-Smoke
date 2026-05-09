@@ -10,12 +10,12 @@ const LEGACY_RTSP_BASE_ADDRESS = ''
 
 let gridAssignmentStorageWarningShown = false
 
-function stripProcessedSuffix(value) {
+function stripResultStreamSuffix(value) {
   return String(value || '').replace(/_processed$/, '')
 }
 
 function extractRoutePathFromLegacyStreamPath(value) {
-  return normalizeRoutePath(value.routePath || stripProcessedSuffix(value.streamPath))
+  return normalizeRoutePath(value.routePath || stripResultStreamSuffix(value.streamPath))
 }
 
 function normalizePersistedAssignment(value) {
@@ -83,7 +83,7 @@ function buildPersistedAssignment(source) {
       ? {
           type: 'result',
           originalSourceId: String(source.originalSourceId),
-          routePath: normalizeRoutePath(stripProcessedSuffix(source.streamPath)),
+          routePath: normalizeRoutePath(stripResultStreamSuffix(source.streamPath)),
         }
       : null
   }
@@ -215,14 +215,12 @@ export const useSourceStore = defineStore('source', () => {
   async function deleteSource(id) {
     await sourcesApi.delete(id)
     sources.value = sources.value.filter((s) => s.id !== id)
-    for (const [cell, assignment] of Object.entries(persistedGridAssignments.value)) {
-      if (
-        assignment.sourceId === id
-        || assignment.originalSourceId === id
-      ) {
-        delete persistedGridAssignments.value[cell]
-      }
-    }
+    const cellsToDelete = Object.entries(persistedGridAssignments.value)
+      .filter(([, assignment]) => assignment.sourceId === id || assignment.originalSourceId === id)
+      .map(([cell]) => cell)
+    cellsToDelete.forEach((cell) => {
+      delete persistedGridAssignments.value[cell]
+    })
     runningSourceIds.value.delete(id)
     syncAssignedSourceReferences()
   }
