@@ -164,7 +164,7 @@ export default {
     roiTagInputPlaceholder: 'Input a tag and press Enter',
     addRoiTag: 'Add Tag',
     noRoiTags: 'No candidates yet',
-    roiTagHint: 'ROI drawing must select tags from this candidate list.',
+    roiTagHint: 'Legacy compatibility setting; maintain new ROI tags in each scene plugin.',
     roiTagExists: 'This tag already exists',
     tabbarIcons: 'Tabbar Icons',
     videoWallIcon: 'Video Wall Icon',

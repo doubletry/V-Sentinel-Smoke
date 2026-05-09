@@ -164,7 +164,7 @@ export default {
     roiTagInputPlaceholder: '输入标签后按回车或点添加',
     addRoiTag: '添加标签',
     noRoiTags: '暂无候选词',
-    roiTagHint: 'ROI 绘制时必须从这里的候选词中选择标签。',
+    roiTagHint: '兼容旧配置；新 ROI 标签请在对应场景插件中维护。',
     roiTagExists: '该标签已存在',
     tabbarIcons: 'Tab 栏图标',
     videoWallIcon: '视频墙图标',
