@@ -56,6 +56,13 @@ RBAC roles are intentionally simple at this stage:
 The next implementation phases should wire these definitions into request-time
 authorization and frontend route/action guards.
 
+## Frontend expert mode
+
+The Settings page exposes a user-friendly mode switch. Advanced smoke/fire
+thresholds and thread-pool controls are hidden until expert mode is enabled, so
+regular operators can configure common fields without navigating low-frequency
+tuning options.
+
 ## Smoke plugin
 
 Set the DB-backed setting below to enable the smoke/fire scene:

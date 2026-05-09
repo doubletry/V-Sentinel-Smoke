@@ -68,4 +68,27 @@ export const settingsApi = {
   emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),
 }
 
+export const scenesApi = {
+  list: () => api.get('/api/scenes'),
+  get: (id) => api.get(`/api/scenes/${id}`),
+}
+
+export const videoGatewaysApi = {
+  list: () => api.get('/api/video-gateways'),
+  create: (data) => api.post('/api/video-gateways', data),
+  update: (id, data) => api.put(`/api/video-gateways/${id}`, data),
+}
+
+export const notificationsApi = {
+  providers: () => api.get('/api/notifications/providers'),
+  createProvider: (data) => api.post('/api/notifications/providers', data),
+  updateProvider: (id, data) => api.put(`/api/notifications/providers/${id}`, data),
+  templates: () => api.get('/api/notifications/templates'),
+  createTemplate: (data) => api.post('/api/notifications/templates', data),
+  updateTemplate: (id, data) => api.put(`/api/notifications/templates/${id}`, data),
+  policies: () => api.get('/api/notifications/policies'),
+  createPolicy: (data) => api.post('/api/notifications/policies', data),
+  updatePolicy: (id, data) => api.put(`/api/notifications/policies/${id}`, data),
+}
+
 export default api

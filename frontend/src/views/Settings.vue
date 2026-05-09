@@ -17,6 +17,16 @@
         label-position="right"
         v-loading="loading"
       >
+        <section class="settings-section friendly-mode-section">
+          <h2>{{ t('settings.configurationMode') }}</h2>
+          <el-form-item :label="t('settings.expertMode')">
+            <div class="field-stack">
+              <el-switch v-model="expertMode" />
+              <p class="form-hint">{{ t('settings.expertModeHint') }}</p>
+            </div>
+          </el-form-item>
+        </section>
+
         <section class="settings-section">
           <h2>{{ t('settings.interface') }}</h2>
           <el-form-item :label="t('settings.systemLanguage')">
@@ -243,7 +253,7 @@
               <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
             </div>
           </el-form-item>
-          <el-form-item :label="t('settings.smokeAdvancedThresholds')">
+          <el-form-item v-if="expertMode" :label="t('settings.smokeAdvancedThresholds')">
             <div class="field-stack">
               <div class="settings-inline-actions">
                 <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
@@ -303,11 +313,20 @@
               placeholder="sender@example.com"
             />
           </el-form-item>
-          <el-form-item :label="t('settings.emailGrpcPort')">
+          <el-form-item :label="t('settings.emailSmtpHost')">
             <el-input
-              v-model="form.email_port"
-              placeholder="50055"
+              v-model="form.email_smtp_host"
+              placeholder="smtp.example.com"
             />
+          </el-form-item>
+          <el-form-item :label="t('settings.emailSmtpPort')">
+            <el-input
+              v-model="form.email_smtp_port"
+              placeholder="587"
+            />
+          </el-form-item>
+          <el-form-item :label="t('settings.emailSmtpUseTls')">
+            <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
           </el-form-item>
           <el-form-item :label="t('settings.emailFromAuthCode')">
             <el-input
@@ -372,7 +391,7 @@
           </el-form-item>
         </section>
 
-        <section class="settings-section">
+        <section v-if="expertMode" class="settings-section">
           <h2>{{ t('settings.threadPools') }}</h2>
           <el-form-item :label="t('settings.maxPullWorkers')">
             <el-input v-model="form.max_pull_workers" placeholder="20" />
@@ -480,6 +499,7 @@ const loading = ref(false)
 const saving = ref(false)
 const testingEmail = ref(false)
 const serviceAction = ref('')
+const expertMode = ref(false)
 const roiTagInput = ref('')
 const roiTagList = ref([])
 const form = ref({
@@ -511,6 +531,9 @@ const form = ref({
   email_from_auth_code: '',
   email_to_addresses: '',
   email_cc_addresses: '',
+  email_smtp_host: '',
+  email_smtp_port: '587',
+  email_smtp_use_tls: 'true',
   email_port: '50055',
   email_event_enabled: 'true',
   email_timed_enabled: 'false',
@@ -707,8 +730,9 @@ async function testEmailConfig() {
   testingEmail.value = true
   try {
     const payload = {
-      vengine_host: form.value.vengine_host,
-      email_port: form.value.email_port,
+      email_smtp_host: form.value.email_smtp_host,
+      email_smtp_port: form.value.email_smtp_port,
+      email_smtp_use_tls: form.value.email_smtp_use_tls,
       email_from_address: form.value.email_from_address,
       email_from_auth_code: form.value.email_from_auth_code,
       email_to_addresses: form.value.email_to_addresses,
