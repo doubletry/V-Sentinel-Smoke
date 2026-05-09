@@ -608,6 +608,10 @@ function readInitialSettingsTab() {
 function resetInvalidSettingsTab() {
   if (activeSettingsTab.value === 'platform') return
   if (!sceneDefinitions.value.length) return
+  if (!PLUGIN_TAB_NAME_PATTERN.test(activeSettingsTab.value)) {
+    activeSettingsTab.value = 'platform'
+    return
+  }
   const activeSceneId = activeSettingsTab.value.replace(/^plugin-/, '')
   if (!sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
     activeSettingsTab.value = 'platform'
@@ -618,7 +622,11 @@ function onSettingsTabChange(tabName) {
   if (typeof window === 'undefined') return
   const nextHash = `#${tabName}`
   if (window.location.hash !== nextHash) {
-    window.history.replaceState(null, '', `${window.location.pathname}${nextHash}`)
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${window.location.search}${nextHash}`
+    )
   }
 }
 
