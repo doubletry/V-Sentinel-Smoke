@@ -85,7 +85,7 @@ class ProcessorManager:
             # 不再使用全局插件设置。
             plugin_name = str(source.scene_id or "").strip()
             if not plugin_name:
-                raise ValueError(f"Source must have a scene configured: {source_id}")
+                raise ValueError(f"Source {source_id} must have a scene configured")
             processor_cls = resolve_processor_class(plugin_name)
 
             processor = processor_cls(

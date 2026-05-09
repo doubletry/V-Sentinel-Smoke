@@ -25,7 +25,7 @@
           <el-tab-pane :label="t('settings.platformSettings')" name="platform">
         <section class="settings-section friendly-mode-section">
           <h2>{{ t('settings.configurationMode') }}</h2>
-          <p class="service-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
+          <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
           <el-form-item :label="t('settings.expertMode')">
             <div class="field-stack">
               <el-switch v-model="expertMode" />
@@ -122,7 +122,7 @@
               <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
             </div>
           </el-form-item>
-          <p class="service-tip">{{ t('settings.serviceToggleTip') }}</p>
+          <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
         </section>
 
 
@@ -156,7 +156,7 @@
               placeholder="viewer-pass"
             />
           </el-form-item>
-          <p class="service-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
+          <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
         </section>
 
         <section class="settings-section">
@@ -345,14 +345,14 @@
 
             <section class="settings-section">
               <h2>{{ t('settings.pluginRoiTags') }}</h2>
-              <p v-if="scene.id !== SMOKE_SCENE_ID" class="service-tip">
+              <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
                 {{ scene.description || t('settings.templateSceneHint') }}
               </p>
               <div class="plugin-tag-list">
                 <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark">{{ tag }}</el-tag>
                 <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
               </div>
-              <p class="service-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
+              <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
             </section>
 
             <section v-if="scene.id !== SMOKE_SCENE_ID" class="settings-section">
@@ -424,7 +424,7 @@ const DEFAULT_SCENE_DEFINITIONS = [
     id: 'template',
     label_zh: '场景模板',
     label_en: 'Scene Template',
-    description: '',
+    description: 'Template scene for custom frame processing, result return, notification dispatch, and message persistence.',
     default_roi_tags: [],
     default_config: {},
   },
@@ -953,7 +953,7 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.service-tip {
+.info-tip {
   margin-top: 8px;
   color: #8f9fbe;
   font-size: 12px;
