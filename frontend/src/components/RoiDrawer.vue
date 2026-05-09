@@ -158,8 +158,9 @@ const pointerPos = ref(null)
     形状被选中时的屏幕相对坐标（用于浮动菜单）。 */
 const selectionPos = ref({ x: 0, y: 0 })
 
+const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const boundScene = computed(() =>
-  scenes.value.find((scene) => scene.id === (props.source?.scene_id || DEFAULT_SCENE_ID))
+  sceneById.value.get(props.source?.scene_id ?? DEFAULT_SCENE_ID)
 )
 const tagOptions = computed(() => boundScene.value?.default_roi_tags || [])
 

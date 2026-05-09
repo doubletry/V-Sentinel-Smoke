@@ -641,14 +641,14 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     else:
         source_id, name, rtsp_url, created_at = row
         route_path = ""
-        scene_id = "smoke"
+        scene_id = DEFAULT_SCENE_ID
         notification_policy_ids = "[]"
     return VideoSource(
         id=source_id,
         name=name,
         rtsp_url=rtsp_url,
         route_path=str(route_path or ""),
-        scene_id=str(scene_id or "smoke"),
+        scene_id=str(scene_id or DEFAULT_SCENE_ID),
         notification_policy_ids=[str(item) for item in _json_list(notification_policy_ids)],
         rois=rois,
         created_at=created_at,
@@ -821,7 +821,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
                 source.name,
                 resolved_rtsp_url,
                 route_path,
-                source.scene_id or "smoke",
+                source.scene_id or DEFAULT_SCENE_ID,
                 _json_dumps(source.notification_policy_ids),
                 created_at,
             ),
@@ -832,7 +832,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         name=source.name,
         rtsp_url=resolved_rtsp_url,
         route_path=route_path,
-        scene_id=source.scene_id or "smoke",
+        scene_id=source.scene_id or DEFAULT_SCENE_ID,
         notification_policy_ids=source.notification_policy_ids,
         rois=[],
         created_at=created_at,
@@ -891,14 +891,6 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
     """Update a video source's fields and/or ROIs.
     更新视频源的字段和/或 ROI。"""
     async with _db_session() as db:
-        async with db.execute(
-            "SELECT scene_id FROM video_sources WHERE id = ?",
-            (source_id,),
-        ) as cursor:
-            current_row = await cursor.fetchone()
-        if current_row is None:
-            return None
-        current_scene_id = str(current_row[0] or DEFAULT_SCENE_ID)
         fields: list[str] = []
         values: list[str] = []
         if data.name is not None:
@@ -928,6 +920,14 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             )
         scene_changed = False
         if data.scene_id is not None:
+            async with db.execute(
+                "SELECT scene_id FROM video_sources WHERE id = ?",
+                (source_id,),
+            ) as cursor:
+                current_row = await cursor.fetchone()
+            if current_row is None:
+                return None
+            current_scene_id = str(current_row[0] or DEFAULT_SCENE_ID)
             next_scene_id = data.scene_id or DEFAULT_SCENE_ID
             scene_changed = next_scene_id != current_scene_id
             fields.append("scene_id = ?")

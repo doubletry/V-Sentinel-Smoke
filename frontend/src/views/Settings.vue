@@ -383,7 +383,9 @@
             <section v-if="scene.id !== SMOKE_SCENE_ID" class="settings-section">
               <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
               <div class="plugin-config-list">
-                <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item" type="info">{{ item }}</el-tag>
+                <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item.key" type="info">
+                  {{ item.key }}: {{ item.value }}
+                </el-tag>
                 <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
               </div>
             </section>
@@ -571,7 +573,10 @@ function sceneTabLabel(sceneId) {
 
 function sceneDefaultConfigRows(sceneId) {
   const config = sceneById(sceneId)?.default_config || {}
-  return Object.entries(config).map(([key, value]) => `${key}: ${value}`)
+  return Object.entries(config).map(([key, value]) => ({
+    key,
+    value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+  }))
 }
 
 async function reload() {

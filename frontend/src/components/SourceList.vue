@@ -203,10 +203,12 @@ const localizedScenes = computed(() =>
     label: sceneLabel(scene.id),
   }))
 )
+const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 
 function sceneLabel(sceneId) {
-  const scene = scenes.value.find((item) => item.id === sceneId)
-  if (!scene) return sceneId || DEFAULT_SCENE_ID
+  const resolvedSceneId = sceneId ?? DEFAULT_SCENE_ID
+  const scene = sceneById.value.get(resolvedSceneId)
+  if (!scene) return resolvedSceneId
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
