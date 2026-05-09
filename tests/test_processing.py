@@ -245,6 +245,32 @@ class TestProcessorManager:
         assert processor._post_processor is not None
         assert processor.agent is None
 
+    async def test_template_processor_returns_message_event_and_annotation(self):
+        from backend.processing.template import TemplateSceneProcessor
+
+        processor = TemplateSceneProcessor(
+            source_id="s-template",
+            source_name="template-cam",
+            rtsp_url="rtsp://localhost:8554/template",
+            rois=[],
+            vengine_client=MagicMock(),
+            ws_manager=WSManager(),
+            app_settings=dict(DEFAULT_APP_SETTINGS),
+        )
+        frame = np.full((80, 120, 3), 230, dtype=np.uint8)
+
+        result = await processor.process_frame(
+            frame,
+            encoded=b"fake-jpeg",
+            shape=frame.shape,
+            roi_pixel_points=[],
+        )
+
+        assert result.annotated_frame is not None
+        assert result.messages[0]["source_id"] == "s-template"
+        assert result.extra["event"]["event_type"] == "bright_area"
+        assert result.detections[0]["label"] == "bright_area"
+
 
 class TestExampleProcessorBatchClassification:
     async def test_process_frame_batches_person_roi_classification(self):

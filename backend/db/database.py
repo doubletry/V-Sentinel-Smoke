@@ -340,6 +340,24 @@ async def _seed_default_scene(db: aiosqlite.Connection) -> None:
             now,
         ),
     )
+    await db.execute(
+        "INSERT OR IGNORE INTO scenes "
+        "(id, label_zh, label_en, description, required_services, default_roi_tags, "
+        "event_types, default_config, expert_config_schema, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "template",
+            "场景开发模板",
+            "Scene Development Template",
+            "Runnable backend template showing frame access, custom processing, results, notifications, and persistence.",
+            _json_dumps([]),
+            _json_dumps(["template_zone"]),
+            _json_dumps(["normal_area", "bright_area"]),
+            _json_dumps({"brightness_threshold": 200}),
+            _json_dumps({"expert_mode": True, "groups": ["custom_processing", "notifications"]}),
+            now,
+        ),
+    )
 
 
 async def _seed_default_video_gateway(db: aiosqlite.Connection) -> None:

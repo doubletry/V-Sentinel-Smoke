@@ -25,6 +25,9 @@ class TestSceneFoundation:
         assert smoke["label_zh"] == "烟火检测"
         assert smoke["required_services"] == ["detection"]
         assert "smoke" in smoke["event_types"]
+        template = next(item for item in scenes if item["id"] == "template")
+        assert template["label_zh"] == "场景开发模板"
+        assert "bright_area" in template["event_types"]
 
     async def test_get_missing_scene_returns_404(self, async_client: AsyncClient):
         resp = await async_client.get("/api/scenes/missing")

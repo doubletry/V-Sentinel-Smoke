@@ -14,6 +14,7 @@ The default scene plugin is `smoke`, which detects `smoke` and `fire` labels.
 - `backend/api/video_gateways.py`: video gateway API. MediaMTX RTSP and WebRTC use the same stored username/password while applying protocol-specific authentication at the client side.
 - `backend/api/notifications.py`: notification provider/template/policy APIs. Email and Webhook are the first two reserved channel types.
 - `backend/api/access.py`: built-in user/operator/admin role catalog for the three-level RBAC model.
+- `backend/processing/template/`: runnable backend scene template; see `docs/scene-template-development.md`.
 - `frontend/src/views/Settings.vue`: configurable model, post-processing, email cooldown, and email template settings.
 
 ## Template foundation APIs
