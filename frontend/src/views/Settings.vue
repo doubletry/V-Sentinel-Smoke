@@ -598,7 +598,7 @@ function readInitialSettingsTab() {
     return 'platform'
   }
   const hashTab = window.location.hash.slice(1)
-  if (hashTab === 'platform' || /^plugin-[A-Za-z0-9_-]+$/.test(hashTab)) {
+  if (hashTab === 'platform' || /^plugin-[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*$/.test(hashTab)) {
     return hashTab
   }
   return 'platform'
@@ -606,6 +606,7 @@ function readInitialSettingsTab() {
 
 function ensureActiveSettingsTab() {
   if (activeSettingsTab.value === 'platform') return
+  if (!sceneDefinitions.value.length) return
   const activeSceneId = activeSettingsTab.value.replace(/^plugin-/, '')
   if (!sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
     activeSettingsTab.value = 'platform'
