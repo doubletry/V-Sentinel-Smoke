@@ -426,30 +426,8 @@ const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
 const SMOKE_SCENE_ID = 'smoke'
-const FALLBACK_SCENE_DEFINITIONS = [
-  {
-    id: SMOKE_SCENE_ID,
-    label_zh: '烟火检测',
-    label_en: 'Smoke/Fire Detection',
-    description: 'Built-in smoke and fire detection scene.',
-    default_roi_tags: ['smoke_zone', 'fire_zone'],
-    default_config: {},
-  },
-  {
-    id: 'template',
-    label_zh: '场景模板',
-    label_en: 'Scene Template',
-    description: 'Runnable backend scene development template.',
-    default_roi_tags: ['template_zone'],
-    default_config: { emit_demo_event: false },
-  },
-]
-const activeSettingsTab = ref(
-  typeof window !== 'undefined' && window.location.hash
-    ? window.location.hash.slice(1)
-    : 'platform'
-)
-const sceneDefinitions = ref(FALLBACK_SCENE_DEFINITIONS)
+const activeSettingsTab = ref(readInitialSettingsTab())
+const sceneDefinitions = ref([])
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
@@ -615,6 +593,25 @@ function formatConfigValue(value) {
   return String(value)
 }
 
+function readInitialSettingsTab() {
+  if (typeof window === 'undefined' || !window.location.hash) {
+    return 'platform'
+  }
+  const hashTab = window.location.hash.slice(1)
+  if (hashTab === 'platform' || /^plugin-[A-Za-z0-9_-]+$/.test(hashTab)) {
+    return hashTab
+  }
+  return 'platform'
+}
+
+function ensureActiveSettingsTab() {
+  if (activeSettingsTab.value === 'platform') return
+  const activeSceneId = activeSettingsTab.value.replace(/^plugin-/, '')
+  if (!sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
+    activeSettingsTab.value = 'platform'
+  }
+}
+
 function onSettingsTabChange(tabName) {
   if (typeof window === 'undefined') return
   const nextHash = `#${tabName}`
@@ -631,9 +628,8 @@ async function reload() {
       scenesApi.list(),
     ])
     Object.assign(form.value, data)
-    sceneDefinitions.value = Array.isArray(scenes) && scenes.length
-      ? scenes
-      : FALLBACK_SCENE_DEFINITIONS
+    sceneDefinitions.value = Array.isArray(scenes) ? scenes : []
+    ensureActiveSettingsTab()
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
       if (Array.isArray(placeholderData?.placeholders)) {
