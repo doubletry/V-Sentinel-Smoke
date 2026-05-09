@@ -7,9 +7,54 @@ The default scene plugin is `smoke`, which detects `smoke` and `fire` labels.
 
 - `core/base_processor.py`: shared RTSP, ROI, drawing, inference helper, and result-push lifecycle.
 - `core/analysis_agent.py`: generic aggregation/agent template.
+- `core/notification_client.py`: direct SMTP and reserved Webhook notification providers.
 - `core/smoke/`: smoke/fire constants, post-processing, processor, and event-email helpers.
 - `backend/processing/`: backend adapters and plugin registry.
+- `backend/api/scenes.py`: scene catalog API. A video source is designed to bind to exactly one scene.
+- `backend/api/video_gateways.py`: video gateway API. MediaMTX RTSP and WebRTC use the same stored username/password while applying protocol-specific authentication at the client side.
+- `backend/api/notifications.py`: notification provider/template/policy APIs. Email and Webhook are the first two reserved channel types.
+- `backend/api/access.py`: built-in user/operator/admin role catalog for the three-level RBAC model.
 - `frontend/src/views/Settings.vue`: configurable model, post-processing, email cooldown, and email template settings.
+
+## Template foundation APIs
+
+Blank databases are seeded with:
+
+- `smoke` scene metadata.
+- `default-mediamtx` video gateway.
+- disabled `default-email` SMTP provider.
+- disabled `default-webhook` provider.
+- `default-event-email` template.
+- `default-alert-policy` policy.
+
+The foundation endpoints are:
+
+```text
+GET  /api/scenes
+GET  /api/scenes/{scene_id}
+GET  /api/video-gateways
+POST /api/video-gateways
+PUT  /api/video-gateways/{gateway_id}
+GET  /api/notifications/providers
+POST /api/notifications/providers
+PUT  /api/notifications/providers/{provider_id}
+GET  /api/notifications/templates
+POST /api/notifications/templates
+PUT  /api/notifications/templates/{template_id}
+GET  /api/notifications/policies
+POST /api/notifications/policies
+PUT  /api/notifications/policies/{policy_id}
+GET  /api/access/roles
+```
+
+RBAC roles are intentionally simple at this stage:
+
+- `user`: view video, sources, and messages.
+- `operator`: user permissions plus source operation and message annotation.
+- `admin`: full platform configuration and user-management permissions.
+
+The next implementation phases should wire these definitions into request-time
+authorization and frontend route/action guards.
 
 ## Smoke plugin
 

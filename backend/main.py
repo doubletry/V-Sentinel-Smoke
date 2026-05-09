@@ -11,10 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from loguru import logger
 
+from backend.api import access as access_router
+from backend.api import notifications as notifications_router
 from backend.api import processor as processor_router
 from backend.api import messages as messages_router
+from backend.api import scenes as scenes_router
 from backend.api import settings as settings_router
 from backend.api import sources as sources_router
+from backend.api import video_gateways as video_gateways_router
 from backend.api import ws as ws_module
 from backend.config import settings
 from backend.db.database import (
@@ -180,6 +184,10 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(sources_router.router)
+app.include_router(scenes_router.router)
+app.include_router(video_gateways_router.router)
+app.include_router(notifications_router.router)
+app.include_router(access_router.router)
 app.include_router(processor_router.router)
 app.include_router(messages_router.router)
 app.include_router(settings_router.router)

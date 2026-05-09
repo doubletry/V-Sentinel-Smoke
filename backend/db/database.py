@@ -16,6 +16,21 @@ from loguru import logger
 
 from backend.config import DEFAULT_APP_SETTINGS, settings
 from backend.models.schemas import ROI, ROICreate, VideoSource, VideoSourceCreate, VideoSourceUpdate
+from backend.models.schemas import (
+    NotificationPolicy,
+    NotificationPolicyCreate,
+    NotificationPolicyUpdate,
+    NotificationProvider,
+    NotificationProviderCreate,
+    NotificationProviderUpdate,
+    NotificationTemplate,
+    NotificationTemplateCreate,
+    NotificationTemplateUpdate,
+    SceneDefinition,
+    VideoGateway,
+    VideoGatewayCreate,
+    VideoGatewayUpdate,
+)
 
 
 _DB_PATH = settings.db_path
@@ -25,6 +40,9 @@ CREATE TABLE IF NOT EXISTS video_sources (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     rtsp_url TEXT NOT NULL UNIQUE,
+    route_path TEXT NOT NULL DEFAULT '',
+    scene_id TEXT NOT NULL DEFAULT 'smoke',
+    notification_policy_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL
 );
 """
@@ -60,6 +78,68 @@ CREATE TABLE IF NOT EXISTS analysis_messages (
     detected_image_url TEXT,
     false_positive INTEGER NOT NULL DEFAULT 0,
     image_base64 TEXT,
+    created_at TEXT NOT NULL
+);
+"""
+
+CREATE_SCENES_TABLE = """
+CREATE TABLE IF NOT EXISTS scenes (
+    id TEXT PRIMARY KEY,
+    label_zh TEXT NOT NULL,
+    label_en TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    required_services TEXT NOT NULL DEFAULT '[]',
+    default_roi_tags TEXT NOT NULL DEFAULT '[]',
+    event_types TEXT NOT NULL DEFAULT '[]',
+    default_config TEXT NOT NULL DEFAULT '{}',
+    expert_config_schema TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+"""
+
+CREATE_VIDEO_GATEWAYS_TABLE = """
+CREATE TABLE IF NOT EXISTS video_gateways (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    rtsp_base_url TEXT NOT NULL,
+    webrtc_base_url TEXT NOT NULL,
+    username TEXT NOT NULL DEFAULT '',
+    password TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+"""
+
+CREATE_NOTIFICATION_PROVIDERS_TABLE = """
+CREATE TABLE IF NOT EXISTS notification_providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('email', 'webhook')),
+    enabled INTEGER NOT NULL DEFAULT 1,
+    config TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+"""
+
+CREATE_NOTIFICATION_TEMPLATES_TABLE = """
+CREATE TABLE IF NOT EXISTS notification_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    channel TEXT NOT NULL CHECK(channel IN ('email', 'webhook')),
+    subject_template TEXT NOT NULL DEFAULT '',
+    body_template TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+"""
+
+CREATE_NOTIFICATION_POLICIES_TABLE = """
+CREATE TABLE IF NOT EXISTS notification_policies (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    cooldown_seconds INTEGER NOT NULL DEFAULT 300,
+    provider_ids TEXT NOT NULL DEFAULT '[]',
+    template_id TEXT,
     created_at TEXT NOT NULL
 );
 """
@@ -172,6 +252,19 @@ async def init_db() -> None:
         await db.execute(CREATE_ROIS_TABLE)
         await db.execute(CREATE_SETTINGS_TABLE)
         await db.execute(CREATE_ANALYSIS_MESSAGES_TABLE)
+        await db.execute(CREATE_SCENES_TABLE)
+        await db.execute(CREATE_VIDEO_GATEWAYS_TABLE)
+        await db.execute(CREATE_NOTIFICATION_PROVIDERS_TABLE)
+        await db.execute(CREATE_NOTIFICATION_TEMPLATES_TABLE)
+        await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
+        await _ensure_column_exists(db, "video_sources", "route_path", "TEXT NOT NULL DEFAULT ''")
+        await _ensure_column_exists(db, "video_sources", "scene_id", "TEXT NOT NULL DEFAULT 'smoke'")
+        await _ensure_column_exists(
+            db,
+            "video_sources",
+            "notification_policy_ids",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )
         await _ensure_column_exists(db, "analysis_messages", "image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "original_image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "detected_image_url", "TEXT")
@@ -186,6 +279,9 @@ async def init_db() -> None:
                 "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
                 (key, value),
             )
+        await _seed_default_scene(db)
+        await _seed_default_video_gateway(db)
+        await _seed_default_notification_records(db)
         await db.commit()
     logger.info("Database initialized at {}", _DB_PATH)
 
@@ -209,6 +305,132 @@ async def _ensure_column_exists(
     if any(str(row[1]) == column_name for row in rows):
         return
     await db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
+
+
+async def _seed_default_scene(db: aiosqlite.Connection) -> None:
+    """Seed the built-in smoke/fire scene for blank databases.
+    为全新数据库写入内置烟火场景。"""
+    now = _now_iso()
+    await db.execute(
+        "INSERT OR IGNORE INTO scenes "
+        "(id, label_zh, label_en, description, required_services, default_roi_tags, "
+        "event_types, default_config, expert_config_schema, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "smoke",
+            "烟火检测",
+            "Smoke/Fire Detection",
+            "Detects smoke and fire with temporal post-processing.",
+            _json_dumps(["detection"]),
+            _json_dumps(["smoke_zone", "fire_zone"]),
+            _json_dumps(["smoke", "fire"]),
+            _json_dumps(
+                {
+                    "smoke_detection_model_name": DEFAULT_APP_SETTINGS["smoke_detection_model_name"],
+                    "smoke_detection_confidence": DEFAULT_APP_SETTINGS["smoke_detection_confidence"],
+                    "smoke_detection_nms": DEFAULT_APP_SETTINGS["smoke_detection_nms"],
+                }
+            ),
+            _json_dumps(
+                {
+                    "expert_mode": True,
+                    "groups": ["model", "temporal", "false_positive_filters"],
+                }
+            ),
+            now,
+        ),
+    )
+
+
+async def _seed_default_video_gateway(db: aiosqlite.Connection) -> None:
+    """Seed the default MediaMTX gateway with shared credentials.
+    使用共享凭据写入默认 MediaMTX 网关。"""
+    now = _now_iso()
+    username = DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_username", "")
+    password = DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_password", "")
+    await db.execute(
+        "INSERT OR IGNORE INTO video_gateways "
+        "(id, name, rtsp_base_url, webrtc_base_url, username, password, enabled, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "default-mediamtx",
+            "Default MediaMTX",
+            DEFAULT_APP_SETTINGS["mediamtx_rtsp_addr"],
+            DEFAULT_APP_SETTINGS["mediamtx_webrtc_addr"],
+            username,
+            password,
+            1,
+            now,
+        ),
+    )
+
+
+async def _seed_default_notification_records(db: aiosqlite.Connection) -> None:
+    """Seed disabled email/webhook notification placeholders for blank databases.
+    为全新数据库写入默认禁用的邮件与 Webhook 通知占位记录。"""
+    now = _now_iso()
+    await db.execute(
+        "INSERT OR IGNORE INTO notification_providers "
+        "(id, name, type, enabled, config, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "default-email",
+            "Default SMTP Email",
+            "email",
+            0,
+            _json_dumps(
+                {
+                    "smtp_host": "",
+                    "smtp_port": "587",
+                    "smtp_username": "",
+                    "smtp_password": "",
+                    "from_address": "",
+                    "to_addresses": [],
+                    "cc_addresses": [],
+                    "use_tls": True,
+                }
+            ),
+            now,
+        ),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO notification_providers "
+        "(id, name, type, enabled, config, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "default-webhook",
+            "Default Webhook",
+            "webhook",
+            0,
+            _json_dumps({"url": "", "method": "POST", "headers": {}}),
+            now,
+        ),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO notification_templates "
+        "(id, name, channel, subject_template, body_template, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "default-event-email",
+            "Default Event Email",
+            "email",
+            DEFAULT_APP_SETTINGS["email_event_subject_template"],
+            DEFAULT_APP_SETTINGS["email_event_body_template"],
+            now,
+        ),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO notification_policies "
+        "(id, name, enabled, cooldown_seconds, provider_ids, template_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "default-alert-policy",
+            "Default Alert Policy",
+            1,
+            int(DEFAULT_APP_SETTINGS["smoke_email_cooldown_seconds"]),
+            _json_dumps(["default-email"]),
+            "default-event-email",
+            now,
+        ),
+    )
 
 
 def get_message_image_dir() -> Path:
@@ -252,6 +474,30 @@ def _normalize_stored_message_image_value(image_value: str | None) -> str | None
 
 def _normalize_bool_db_value(value: object) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _json_list(value: object) -> list:
+    """Parse a JSON list stored in SQLite; return [] on invalid input.
+    解析 SQLite 中保存的 JSON 列表，非法输入返回空列表。"""
+    try:
+        parsed = json.loads(str(value or "[]"))
+    except (TypeError, json.JSONDecodeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _json_dict(value: object) -> dict:
+    """Parse a JSON object stored in SQLite; return {} on invalid input.
+    解析 SQLite 中保存的 JSON 对象，非法输入返回空对象。"""
+    try:
+        parsed = json.loads(str(value or "{}"))
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _json_dumps(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
 def _message_image_path_from_url(image_url: str) -> Path | None:
@@ -371,11 +617,20 @@ async def _get_rois_for_source(db: aiosqlite.Connection, source_id: str) -> list
 def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     """Convert a database row and ROI list to a VideoSource model.
     将数据库行与 ROI 列表转换为 VideoSource 模型。"""
-    source_id, name, rtsp_url, created_at = row
+    if len(row) >= 7:
+        source_id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at = row[:7]
+    else:
+        source_id, name, rtsp_url, created_at = row
+        route_path = ""
+        scene_id = "smoke"
+        notification_policy_ids = "[]"
     return VideoSource(
         id=source_id,
         name=name,
         rtsp_url=rtsp_url,
+        route_path=str(route_path or ""),
+        scene_id=str(scene_id or "smoke"),
+        notification_policy_ids=[str(item) for item in _json_list(notification_policy_ids)],
         rois=rois,
         created_at=created_at,
     )
@@ -529,20 +784,37 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
     source_id = str(uuid.uuid4())
     created_at = _now_iso()
     async with _db_session() as db:
+        route_path = _normalize_route_path(source.route_path) or extract_source_route_path(
+            str(source.rtsp_url or ""),
+            await _get_setting_from_db(db, "mediamtx_rtsp_addr", DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", "")),
+        )
         resolved_rtsp_url = await _resolve_source_rtsp_url(
             db,
             rtsp_url=source.rtsp_url,
             route_path=source.route_path,
         )
         await db.execute(
-            "INSERT INTO video_sources (id, name, rtsp_url, created_at) VALUES (?, ?, ?, ?)",
-            (source_id, source.name, resolved_rtsp_url, created_at),
+            "INSERT INTO video_sources "
+            "(id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                source_id,
+                source.name,
+                resolved_rtsp_url,
+                route_path,
+                source.scene_id or "smoke",
+                _json_dumps(source.notification_policy_ids),
+                created_at,
+            ),
         )
         await db.commit()
     return VideoSource(
         id=source_id,
         name=source.name,
         rtsp_url=resolved_rtsp_url,
+        route_path=route_path,
+        scene_id=source.scene_id or "smoke",
+        notification_policy_ids=source.notification_policy_ids,
         rois=[],
         created_at=created_at,
     )
@@ -553,7 +825,8 @@ async def get_source(source_id: str) -> VideoSource | None:
     按 ID 获取单个视频源，未找到则返回 None。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, created_at FROM video_sources WHERE id = ?",
+            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -568,7 +841,8 @@ async def get_source_by_rtsp(rtsp_url: str) -> VideoSource | None:
     按 RTSP URL 获取视频源，未找到则返回 None。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, created_at FROM video_sources WHERE rtsp_url = ?",
+            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "FROM video_sources WHERE rtsp_url = ?",
             (rtsp_url,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -583,7 +857,8 @@ async def list_sources() -> list[VideoSource]:
     按创建时间列出所有视频源。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, created_at FROM video_sources ORDER BY created_at"
+            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "FROM video_sources ORDER BY created_at"
         ) as cursor:
             rows = await cursor.fetchall()
         sources: list[VideoSource] = []
@@ -604,16 +879,32 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             values.append(data.name)
         if data.route_path is not None:
             fields.append("rtsp_url = ?")
+            route_path = _normalize_route_path(data.route_path)
             values.append(
-                await _resolve_source_rtsp_url(
-                    db,
-                    rtsp_url=None,
-                    route_path=data.route_path,
-                )
+                await _resolve_source_rtsp_url(db, rtsp_url=None, route_path=route_path)
             )
+            fields.append("route_path = ?")
+            values.append(route_path)
         elif data.rtsp_url is not None:
             fields.append("rtsp_url = ?")
             values.append(data.rtsp_url)
+            fields.append("route_path = ?")
+            values.append(
+                extract_source_route_path(
+                    data.rtsp_url,
+                    await _get_setting_from_db(
+                        db,
+                        "mediamtx_rtsp_addr",
+                        DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", ""),
+                    ),
+                )
+            )
+        if data.scene_id is not None:
+            fields.append("scene_id = ?")
+            values.append(data.scene_id or "smoke")
+        if data.notification_policy_ids is not None:
+            fields.append("notification_policy_ids = ?")
+            values.append(_json_dumps(data.notification_policy_ids))
         if fields:
             values.append(source_id)
             await db.execute(
@@ -624,7 +915,8 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             await _save_rois_in_db(db, source_id, data.rois)
         await db.commit()
         async with db.execute(
-            "SELECT id, name, rtsp_url, created_at FROM video_sources WHERE id = ?",
+            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -675,6 +967,339 @@ async def get_rois(source_id: str) -> list[ROI]:
     获取指定视频源的所有 ROI。"""
     async with _db_session() as db:
         return await _get_rois_for_source(db, source_id)
+
+
+def _row_to_scene(row: tuple) -> SceneDefinition:
+    return SceneDefinition(
+        id=row[0],
+        label_zh=row[1],
+        label_en=row[2],
+        description=row[3],
+        required_services=[str(item) for item in _json_list(row[4])],
+        default_roi_tags=[str(item) for item in _json_list(row[5])],
+        event_types=[str(item) for item in _json_list(row[6])],
+        default_config=_json_dict(row[7]),
+        expert_config_schema=_json_dict(row[8]),
+    )
+
+
+async def list_scenes() -> list[SceneDefinition]:
+    """List registered scene definitions.
+    列出已注册场景定义。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, label_zh, label_en, description, required_services, "
+            "default_roi_tags, event_types, default_config, expert_config_schema "
+            "FROM scenes ORDER BY id"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_scene(row) for row in rows]
+
+
+async def get_scene(scene_id: str) -> SceneDefinition | None:
+    """Get one scene definition.
+    获取单个场景定义。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, label_zh, label_en, description, required_services, "
+            "default_roi_tags, event_types, default_config, expert_config_schema "
+            "FROM scenes WHERE id = ?",
+            (scene_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return _row_to_scene(row) if row else None
+
+
+def _row_to_video_gateway(row: tuple) -> VideoGateway:
+    return VideoGateway(
+        id=row[0],
+        name=row[1],
+        rtsp_base_url=row[2],
+        webrtc_base_url=row[3],
+        username=row[4],
+        password=row[5],
+        enabled=_normalize_bool_db_value(row[6]),
+        created_at=row[7],
+    )
+
+
+async def list_video_gateways() -> list[VideoGateway]:
+    """List video gateways.
+    列出视频网关。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, name, rtsp_base_url, webrtc_base_url, username, password, enabled, created_at "
+            "FROM video_gateways ORDER BY created_at"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_video_gateway(row) for row in rows]
+
+
+async def create_video_gateway(data: VideoGatewayCreate) -> VideoGateway:
+    """Create a video gateway with shared RTSP/WebRTC credentials.
+    创建使用 RTSP/WebRTC 共享凭据的视频网关。"""
+    gateway_id = str(uuid.uuid4())
+    created_at = _now_iso()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO video_gateways "
+            "(id, name, rtsp_base_url, webrtc_base_url, username, password, enabled, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                gateway_id,
+                data.name,
+                data.rtsp_base_url,
+                data.webrtc_base_url,
+                data.username,
+                data.password,
+                1 if data.enabled else 0,
+                created_at,
+            ),
+        )
+        await db.commit()
+    return VideoGateway(id=gateway_id, created_at=created_at, **data.model_dump())
+
+
+async def update_video_gateway(gateway_id: str, data: VideoGatewayUpdate) -> VideoGateway | None:
+    """Update a video gateway.
+    更新视频网关。"""
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    async with _db_session() as db:
+        if updates:
+            fields = []
+            values: list[object] = []
+            for key, value in updates.items():
+                fields.append(f"{key} = ?")
+                values.append(1 if key == "enabled" and value else 0 if key == "enabled" else value)
+            values.append(gateway_id)
+            await db.execute(
+                f"UPDATE video_gateways SET {', '.join(fields)} WHERE id = ?",
+                values,
+            )
+            await db.commit()
+        async with db.execute(
+            "SELECT id, name, rtsp_base_url, webrtc_base_url, username, password, enabled, created_at "
+            "FROM video_gateways WHERE id = ?",
+            (gateway_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return _row_to_video_gateway(row) if row else None
+
+
+def _row_to_notification_provider(row: tuple) -> NotificationProvider:
+    return NotificationProvider(
+        id=row[0],
+        name=row[1],
+        type=row[2],
+        enabled=_normalize_bool_db_value(row[3]),
+        config=_json_dict(row[4]),
+        created_at=row[5],
+    )
+
+
+async def list_notification_providers() -> list[NotificationProvider]:
+    """List notification providers.
+    列出通知服务。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, name, type, enabled, config, created_at "
+            "FROM notification_providers ORDER BY created_at"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_notification_provider(row) for row in rows]
+
+
+async def create_notification_provider(data: NotificationProviderCreate) -> NotificationProvider:
+    provider_id = str(uuid.uuid4())
+    created_at = _now_iso()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO notification_providers (id, name, type, enabled, config, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                provider_id,
+                data.name,
+                data.type,
+                1 if data.enabled else 0,
+                _json_dumps(data.config),
+                created_at,
+            ),
+        )
+        await db.commit()
+    return NotificationProvider(id=provider_id, created_at=created_at, **data.model_dump())
+
+
+async def update_notification_provider(
+    provider_id: str,
+    data: NotificationProviderUpdate,
+) -> NotificationProvider | None:
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    async with _db_session() as db:
+        if updates:
+            fields = []
+            values: list[object] = []
+            for key, value in updates.items():
+                fields.append(f"{key} = ?")
+                if key == "enabled":
+                    values.append(1 if value else 0)
+                elif key == "config":
+                    values.append(_json_dumps(value))
+                else:
+                    values.append(value)
+            values.append(provider_id)
+            await db.execute(
+                f"UPDATE notification_providers SET {', '.join(fields)} WHERE id = ?",
+                values,
+            )
+            await db.commit()
+        async with db.execute(
+            "SELECT id, name, type, enabled, config, created_at "
+            "FROM notification_providers WHERE id = ?",
+            (provider_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return _row_to_notification_provider(row) if row else None
+
+
+def _row_to_notification_template(row: tuple) -> NotificationTemplate:
+    return NotificationTemplate(
+        id=row[0],
+        name=row[1],
+        channel=row[2],
+        subject_template=row[3],
+        body_template=row[4],
+        created_at=row[5],
+    )
+
+
+async def list_notification_templates() -> list[NotificationTemplate]:
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, name, channel, subject_template, body_template, created_at "
+            "FROM notification_templates ORDER BY created_at"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_notification_template(row) for row in rows]
+
+
+async def create_notification_template(data: NotificationTemplateCreate) -> NotificationTemplate:
+    template_id = str(uuid.uuid4())
+    created_at = _now_iso()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO notification_templates "
+            "(id, name, channel, subject_template, body_template, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                template_id,
+                data.name,
+                data.channel,
+                data.subject_template,
+                data.body_template,
+                created_at,
+            ),
+        )
+        await db.commit()
+    return NotificationTemplate(id=template_id, created_at=created_at, **data.model_dump())
+
+
+async def update_notification_template(
+    template_id: str,
+    data: NotificationTemplateUpdate,
+) -> NotificationTemplate | None:
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    async with _db_session() as db:
+        if updates:
+            values = [*updates.values(), template_id]
+            await db.execute(
+                f"UPDATE notification_templates SET {', '.join(f'{key} = ?' for key in updates)} "
+                "WHERE id = ?",
+                values,
+            )
+            await db.commit()
+        async with db.execute(
+            "SELECT id, name, channel, subject_template, body_template, created_at "
+            "FROM notification_templates WHERE id = ?",
+            (template_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return _row_to_notification_template(row) if row else None
+
+
+def _row_to_notification_policy(row: tuple) -> NotificationPolicy:
+    return NotificationPolicy(
+        id=row[0],
+        name=row[1],
+        enabled=_normalize_bool_db_value(row[2]),
+        cooldown_seconds=int(row[3]),
+        provider_ids=[str(item) for item in _json_list(row[4])],
+        template_id=row[5],
+        created_at=row[6],
+    )
+
+
+async def list_notification_policies() -> list[NotificationPolicy]:
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, name, enabled, cooldown_seconds, provider_ids, template_id, created_at "
+            "FROM notification_policies ORDER BY created_at"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_notification_policy(row) for row in rows]
+
+
+async def create_notification_policy(data: NotificationPolicyCreate) -> NotificationPolicy:
+    policy_id = str(uuid.uuid4())
+    created_at = _now_iso()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO notification_policies "
+            "(id, name, enabled, cooldown_seconds, provider_ids, template_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                policy_id,
+                data.name,
+                1 if data.enabled else 0,
+                data.cooldown_seconds,
+                _json_dumps(data.provider_ids),
+                data.template_id,
+                created_at,
+            ),
+        )
+        await db.commit()
+    return NotificationPolicy(id=policy_id, created_at=created_at, **data.model_dump())
+
+
+async def update_notification_policy(
+    policy_id: str,
+    data: NotificationPolicyUpdate,
+) -> NotificationPolicy | None:
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    async with _db_session() as db:
+        if updates:
+            fields = []
+            values: list[object] = []
+            for key, value in updates.items():
+                fields.append(f"{key} = ?")
+                if key == "enabled":
+                    values.append(1 if value else 0)
+                elif key == "provider_ids":
+                    values.append(_json_dumps(value))
+                else:
+                    values.append(value)
+            values.append(policy_id)
+            await db.execute(
+                f"UPDATE notification_policies SET {', '.join(fields)} WHERE id = ?",
+                values,
+            )
+            await db.commit()
+        async with db.execute(
+            "SELECT id, name, enabled, cooldown_seconds, provider_ids, template_id, created_at "
+            "FROM notification_policies WHERE id = ?",
+            (policy_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return _row_to_notification_policy(row) if row else None
 
 
 async def get_all_settings() -> dict[str, str]:
@@ -745,8 +1370,8 @@ async def rewrite_source_rtsp_urls(
             if not next_rtsp_url or next_rtsp_url == current_rtsp_url:
                 continue
             await db.execute(
-                "UPDATE video_sources SET rtsp_url = ? WHERE id = ?",
-                (next_rtsp_url, source_id),
+                "UPDATE video_sources SET rtsp_url = ?, route_path = ? WHERE id = ?",
+                (next_rtsp_url, route_path, source_id),
             )
             updated_count += 1
 

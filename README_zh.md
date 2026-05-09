@@ -151,10 +151,10 @@ DB_PATH=./v_sentinel.db
 大部分业务配置会保存在数据库中，并在系统启动后通过**设置**页面维护，包括：
 
 - V-Engine 主机、端口和服务开关
-- MediaMTX 的 RTSP / WebRTC 基地址
-- MediaMTX 的 RTSP / WebRTC 用户名和密码
+- 视频网关（默认兼容 MediaMTX）的 RTSP / WebRTC 基地址
+- 视频网关共享用户名和密码（RTSP 与 WebRTC 永远使用同一套凭据，但认证方式按协议分别处理）
 - 烟火检测阈值
-- 邮件通知模板和收件人
+- 通知服务、通知模板和通知策略
 
 运行时消息缩略图会保存在数据库同级目录下的 `message_thumbnails/` 中，标记为误报后导出的原图与检测图会保存在 `false_positives/` 中。
 
@@ -189,6 +189,18 @@ DB_PATH=./v_sentinel.db
 `{site_title}`、`{local_time}`、`{timezone}`、`{source_name}`、`{source_id}`、
 `{event_type}`、`{event_label}`、`{labels}`、`{confidence_percent}`、
 `{detection_count}`、`{frame_id}`、`{active_tracks}`。
+
+### 模板化扩展基础
+
+系统正在从“烟火检测应用”扩展为“通用视频 AI 模板 + 场景插件”架构：
+
+- 一个视频源只绑定一个场景，当前内置场景为 `smoke`。
+- 新增 `/api/scenes` 暴露场景元数据，后续前端可按场景动态渲染普通配置与专家模式配置。
+- 新增 `/api/video-gateways` 管理视频网关。默认网关为 MediaMTX，RTSP 后端拉流和 WebRTC 前端播放共享同一套账号密码。
+- 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；邮件通知目标是直接使用 SMTP，不再依赖邮件微服务。
+- 新增 `/api/access/roles` 暴露三级权限模型：用户、操作员、管理员。
+
+当前阶段优先面向空白数据库，不处理旧数据库迁移。
 
 ### 前端代理端口
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, model_validator
 
@@ -40,6 +40,8 @@ class VideoSourceCreate(BaseModel):
     name: str
     rtsp_url: str | None = None
     route_path: str | None = None
+    scene_id: str = "smoke"
+    notification_policy_ids: list[str] = []
 
     @model_validator(mode="after")
     def validate_source_address(self) -> "VideoSourceCreate":
@@ -59,6 +61,8 @@ class VideoSourceUpdate(BaseModel):
     name: str | None = None
     rtsp_url: str | None = None
     route_path: str | None = None
+    scene_id: str | None = None
+    notification_policy_ids: list[str] | None = None
     rois: list[ROICreate] | None = None
 
     @model_validator(mode="after")
@@ -77,8 +81,163 @@ class VideoSource(BaseModel):
     id: str
     name: str
     rtsp_url: str
+    route_path: str = ""
+    scene_id: str = "smoke"
+    notification_policy_ids: list[str] = []
     rois: list[ROI] = []
     created_at: str
+
+
+class SceneDefinition(BaseModel):
+    """Scene plugin metadata exposed to backend/frontend.
+    暴露给后端和前端的场景插件元数据。"""
+
+    id: str
+    label_zh: str
+    label_en: str
+    description: str = ""
+    required_services: list[str] = []
+    default_roi_tags: list[str] = []
+    event_types: list[str] = []
+    default_config: dict[str, Any] = {}
+    expert_config_schema: dict[str, Any] = {}
+
+
+class VideoGatewayCreate(BaseModel):
+    """Create a video gateway such as MediaMTX.
+    创建视频网关（例如 MediaMTX）。"""
+
+    name: str
+    rtsp_base_url: str
+    webrtc_base_url: str
+    username: str = ""
+    password: str = ""
+    enabled: bool = True
+
+
+class VideoGatewayUpdate(BaseModel):
+    """Partial update for a video gateway.
+    视频网关局部更新。"""
+
+    name: str | None = None
+    rtsp_base_url: str | None = None
+    webrtc_base_url: str | None = None
+    username: str | None = None
+    password: str | None = None
+    enabled: bool | None = None
+
+
+class VideoGateway(VideoGatewayCreate):
+    """Persisted video gateway.
+    已持久化的视频网关。"""
+
+    id: str
+    created_at: str
+
+
+NotificationProviderType = Literal["email", "webhook"]
+
+
+class NotificationProviderCreate(BaseModel):
+    """Create an email/webhook notification provider.
+    创建邮件或 Webhook 通知服务。"""
+
+    name: str
+    type: NotificationProviderType
+    enabled: bool = True
+    config: dict[str, Any] = {}
+
+
+class NotificationProviderUpdate(BaseModel):
+    """Partial notification provider update.
+    通知服务局部更新。"""
+
+    name: str | None = None
+    type: NotificationProviderType | None = None
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
+
+
+class NotificationProvider(NotificationProviderCreate):
+    """Persisted notification provider.
+    已持久化的通知服务。"""
+
+    id: str
+    created_at: str
+
+
+NotificationTemplateChannel = Literal["email", "webhook"]
+
+
+class NotificationTemplateCreate(BaseModel):
+    """Create a reusable notification template.
+    创建可复用通知模板。"""
+
+    name: str
+    channel: NotificationTemplateChannel
+    subject_template: str = ""
+    body_template: str = ""
+
+
+class NotificationTemplateUpdate(BaseModel):
+    """Partial notification template update.
+    通知模板局部更新。"""
+
+    name: str | None = None
+    channel: NotificationTemplateChannel | None = None
+    subject_template: str | None = None
+    body_template: str | None = None
+
+
+class NotificationTemplate(NotificationTemplateCreate):
+    """Persisted notification template.
+    已持久化的通知模板。"""
+
+    id: str
+    created_at: str
+
+
+class NotificationPolicyCreate(BaseModel):
+    """Create a notification policy that can fan out to providers.
+    创建可分发到多个通知服务的通知策略。"""
+
+    name: str
+    enabled: bool = True
+    cooldown_seconds: int = 300
+    provider_ids: list[str] = []
+    template_id: str | None = None
+
+
+class NotificationPolicyUpdate(BaseModel):
+    """Partial notification policy update.
+    通知策略局部更新。"""
+
+    name: str | None = None
+    enabled: bool | None = None
+    cooldown_seconds: int | None = None
+    provider_ids: list[str] | None = None
+    template_id: str | None = None
+
+
+class NotificationPolicy(NotificationPolicyCreate):
+    """Persisted notification policy.
+    已持久化的通知策略。"""
+
+    id: str
+    created_at: str
+
+
+UserRole = Literal["user", "operator", "admin"]
+
+
+class RoleInfo(BaseModel):
+    """Role and permission metadata for the three-level RBAC model.
+    三级权限模型的角色与权限元数据。"""
+
+    role: UserRole
+    label_zh: str
+    label_en: str
+    permissions: list[str]
 
 
 class ProcessorStartRequest(BaseModel):
