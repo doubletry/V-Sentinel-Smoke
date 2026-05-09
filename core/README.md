@@ -8,7 +8,7 @@ without importing or running the full V-Sentinel backend.
 
 Once your processor works in standalone mode, add a thin backend adapter in
 `backend/processing/`, register it in `backend/processing/registry.py`, and
-switch the `processor_plugin` setting to activate it.
+bind a video source to the plugin's `scene_id` to activate it.
 
 ## Quick Start
 

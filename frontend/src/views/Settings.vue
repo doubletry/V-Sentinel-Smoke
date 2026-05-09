@@ -17,6 +17,8 @@
         label-position="right"
         v-loading="loading"
       >
+        <el-tabs v-model="activeSettingsTab" class="settings-tabs">
+          <el-tab-pane :label="t('settings.platformSettings')" name="platform">
         <section class="settings-section friendly-mode-section">
           <h2>{{ t('settings.configurationMode') }}</h2>
           <el-form-item :label="t('settings.expertMode')">
@@ -78,58 +80,10 @@
           <el-form-item :label="t('settings.iconPath')">
             <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
           </el-form-item>
-          <el-form-item :label="t('settings.roiTagCandidates')">
-            <div class="roi-tags-editor">
-              <el-tag
-                v-for="tag in roiTagList"
-                :key="tag"
-                closable
-                type="info"
-                effect="dark"
-                class="roi-tag-item"
-                @close="removeRoiTag(tag)"
-              >
-                {{ tag }}
-              </el-tag>
-              <span v-if="!roiTagList.length" class="roi-tag-empty">
-                {{ t('settings.noRoiTags') }}
-              </span>
-            </div>
-            <div class="roi-tag-input-row">
-              <el-input
-                v-model="roiTagInput"
-                :placeholder="t('settings.roiTagInputPlaceholder')"
-                @keyup.enter="addRoiTag"
-              />
-              <el-button type="primary" @click="addRoiTag">
-                {{ t('settings.addRoiTag') }}
-              </el-button>
-            </div>
-            <p class="roi-tag-hint">{{ t('settings.roiTagHint') }}</p>
-          </el-form-item>
         </section>
 
         <section class="settings-section">
           <h2>{{ t('settings.backendService') }}</h2>
-          <el-form-item :label="t('settings.processorPlugin')">
-            <div class="field-stack">
-              <el-select
-                v-model="form.processor_plugin"
-                style="width: 100%"
-                filterable
-                allow-create
-                default-first-option
-              >
-                <el-option
-                  v-for="option in localizedProcessorPluginOptions"
-                  :key="option.value"
-                  :label="option.label"
-                  :value="option.value"
-                />
-              </el-select>
-              <p class="form-hint">{{ t('settings.processorPluginHint') }}</p>
-            </div>
-          </el-form-item>
           <div class="service-control-row">
             <el-tag :type="sourceStore.runningCount > 0 ? 'success' : 'info'" effect="dark">
               {{
@@ -196,81 +150,6 @@
           <p class="service-tip">{{ t('settings.serviceToggleTip') }}</p>
         </section>
 
-
-        <section class="settings-section">
-          <h2>{{ t('settings.smokeScene') }}</h2>
-          <el-form-item :label="t('settings.smokeDetectionModelName')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
-              <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeDetectionModelVersion')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
-              <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeDetectionConfidence')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
-              <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeDetectionNms')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
-              <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
-              <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
-              <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeMaxMissFrames')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
-              <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeAlarmHoldTime')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
-              <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeAppearanceFilter')">
-            <div class="field-stack">
-              <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
-              <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item v-if="expertMode" :label="t('settings.smokeAdvancedThresholds')">
-            <div class="field-stack">
-              <div class="settings-inline-actions">
-                <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
-                <el-button size="small" @click="resetSmokeAdvancedThresholds">
-                  {{ t('settings.resetAdvancedThresholds') }}
-                </el-button>
-              </div>
-              <div class="smoke-threshold-grid">
-                <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
-                  <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
-                  <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
-                  <p class="form-hint">{{ t(item.hintKey) }}</p>
-                </div>
-              </div>
-            </div>
-          </el-form-item>
-        </section>
 
         <section class="settings-section">
           <h2>{{ t('settings.mediamtx') }}</h2>
@@ -404,6 +283,115 @@
           </el-form-item>
         </section>
 
+          </el-tab-pane>
+
+          <el-tab-pane :label="t('settings.smokeScene')" name="plugin-smoke">
+        <section class="settings-section">
+          <h2>{{ t('settings.smokeScene') }}</h2>
+          <el-form-item :label="t('settings.smokeDetectionModelName')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+              <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionModelVersion')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+              <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionConfidence')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+              <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeDetectionNms')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+              <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+              <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+              <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeMaxMissFrames')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+              <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAlarmHoldTime')">
+            <div class="field-stack">
+              <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+              <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item :label="t('settings.smokeAppearanceFilter')">
+            <div class="field-stack">
+              <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+              <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
+            </div>
+          </el-form-item>
+          <el-form-item v-if="expertMode" :label="t('settings.smokeAdvancedThresholds')">
+            <div class="field-stack">
+              <div class="settings-inline-actions">
+                <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+                <el-button size="small" @click="resetSmokeAdvancedThresholds">
+                  {{ t('settings.resetAdvancedThresholds') }}
+                </el-button>
+              </div>
+              <div class="smoke-threshold-grid">
+                <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
+                  <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
+                  <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
+                  <p class="form-hint">{{ t(item.hintKey) }}</p>
+                </div>
+              </div>
+            </div>
+          </el-form-item>
+        </section>
+
+
+            <section class="settings-section">
+              <h2>{{ t('settings.pluginRoiTags') }}</h2>
+              <div class="plugin-tag-list">
+                <el-tag v-for="tag in sceneRoiTags('smoke')" :key="tag" effect="dark">{{ tag }}</el-tag>
+                <span v-if="!sceneRoiTags('smoke').length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
+              </div>
+              <p class="service-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
+            </section>
+          </el-tab-pane>
+
+          <el-tab-pane :label="sceneTabLabel('template')" name="plugin-template">
+            <section class="settings-section">
+              <h2>{{ sceneTabLabel('template') }}</h2>
+              <p class="service-tip">{{ sceneDescription('template') || t('settings.templateSceneHint') }}</p>
+              <el-form-item :label="t('settings.pluginRoiTags')">
+                <div class="plugin-tag-list">
+                  <el-tag v-for="tag in sceneRoiTags('template')" :key="tag" effect="dark">{{ tag }}</el-tag>
+                  <span v-if="!sceneRoiTags('template').length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
+                </div>
+              </el-form-item>
+              <el-form-item :label="t('settings.pluginDefaultConfig')">
+                <div class="plugin-config-list">
+                  <el-tag v-for="item in sceneDefaultConfigRows('template')" :key="item" type="info">{{ item }}</el-tag>
+                  <span v-if="!sceneDefaultConfigRows('template').length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
+                </div>
+              </el-form-item>
+            </section>
+          </el-tab-pane>
+        </el-tabs>
+
         <div class="settings-actions">
           <el-button @click="reload">{{ t('common.reset') }}</el-button>
           <el-button @click="testEmailConfig" :loading="testingEmail">
@@ -424,7 +412,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { localeOptions } from '../i18n/index.js'
-import { processorApi, settingsApi } from '../api/index.js'
+import { scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useSourceStore } from '../stores/source.js'
 
@@ -432,8 +420,9 @@ const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const sourceStore = useSourceStore()
 const languageOptions = localeOptions
-const processorPluginOptions = ref([])
 const retentionDayOptions = [7, 15, 21, 30]
+const activeSettingsTab = ref('platform')
+const sceneDefinitions = ref([])
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
@@ -460,7 +449,6 @@ const SMOKE_ADVANCED_DEFAULTS = {
   smoke_iou_threshold: '0.3',
 }
 const PROCESSOR_RESTART_SETTING_KEYS = [
-  'processor_plugin',
   'smoke_detection_model_name',
   'smoke_detection_model_version',
   'smoke_detection_confidence',
@@ -500,8 +488,6 @@ const saving = ref(false)
 const testingEmail = ref(false)
 const serviceAction = ref('')
 const expertMode = ref(false)
-const roiTagInput = ref('')
-const roiTagList = ref([])
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -574,67 +560,38 @@ const form = ref({
   max_cpu_workers: '',
 })
 
-const localizedProcessorPluginOptions = computed(() =>
-  processorPluginOptions.value.map((option) => ({
-    ...option,
-    label: locale.value === 'en-US' ? option.label_en : option.label_zh,
-  }))
-)
-
-function parseRoiTagOptions(raw) {
-  if (Array.isArray(raw)) {
-    return Array.from(new Set(raw.map((item) => String(item || '').trim()).filter(Boolean)))
-  }
-
-  const text = String(raw || '').trim()
-  if (!text) return []
-
-  try {
-    const parsed = JSON.parse(text)
-    if (Array.isArray(parsed)) {
-      return Array.from(
-        new Set(parsed.map((item) => String(item || '').trim()).filter(Boolean))
-      )
-    }
-  } catch (_) {
-    // Fallback for legacy comma-separated values.
-  }
-
-  return Array.from(new Set(text.split(',').map((item) => item.trim()).filter(Boolean)))
+function sceneById(sceneId) {
+  return sceneDefinitions.value.find((scene) => scene.id === sceneId)
 }
 
-function syncRoiTagOptionsToForm() {
-  form.value.roi_tag_options = JSON.stringify(roiTagList.value)
+function sceneTabLabel(sceneId) {
+  const scene = sceneById(sceneId)
+  if (!scene) return sceneId
+  return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
-function addRoiTag() {
-  const tag = roiTagInput.value.trim()
-  if (!tag) return
-
-  if (roiTagList.value.includes(tag)) {
-    ElMessage.warning(t('settings.roiTagExists'))
-    return
-  }
-
-  roiTagList.value.push(tag)
-  roiTagInput.value = ''
-  syncRoiTagOptionsToForm()
+function sceneDescription(sceneId) {
+  return sceneById(sceneId)?.description || ''
 }
 
-function removeRoiTag(tag) {
-  roiTagList.value = roiTagList.value.filter((item) => item !== tag)
-  syncRoiTagOptionsToForm()
+function sceneRoiTags(sceneId) {
+  return sceneById(sceneId)?.default_roi_tags || []
+}
+
+function sceneDefaultConfigRows(sceneId) {
+  const config = sceneById(sceneId)?.default_config || {}
+  return Object.entries(config).map(([key, value]) => `${key}: ${value}`)
 }
 
 async function reload() {
   loading.value = true
   try {
-    const [data, plugins] = await Promise.all([
+    const [data, scenes] = await Promise.all([
       appSettingsStore.fetchSettings(true),
-      processorApi.plugins(),
+      scenesApi.list(),
     ])
     Object.assign(form.value, data)
-    processorPluginOptions.value = Array.isArray(plugins) ? plugins : []
+    sceneDefinitions.value = Array.isArray(scenes) ? scenes : []
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
       if (Array.isArray(placeholderData?.placeholders)) {
@@ -643,8 +600,6 @@ async function reload() {
     } catch (_) {
       // Keep built-in placeholder list when the backend endpoint is unavailable.
     }
-    roiTagList.value = parseRoiTagOptions(form.value.roi_tag_options)
-    syncRoiTagOptionsToForm()
   } catch (err) {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))
   } finally {
@@ -654,14 +609,10 @@ async function reload() {
 
 async function save() {
   saving.value = true
-  const previousPlugin = appSettingsStore.settings?.processor_plugin || 'smoke'
   const previousSettings = appSettingsStore.settings || {}
   try {
-    syncRoiTagOptionsToForm()
-    const pluginChanged = previousPlugin !== form.value.processor_plugin
     const processorConfigChanged = (
-      pluginChanged
-      || PROCESSOR_RESTART_SETTING_KEYS.some(
+      PROCESSOR_RESTART_SETTING_KEYS.some(
         (key) => String(previousSettings[key] || '') !== String(form.value[key] || '')
       )
     )
@@ -683,7 +634,6 @@ async function save() {
 
     const data = await appSettingsStore.updateSettings(form.value)
     Object.assign(form.value, data)
-    roiTagList.value = parseRoiTagOptions(form.value.roi_tag_options)
     appSettingsStore.applyLanguage(form.value.ui_language)
     if (mediamtxRtspChanged || mediamtxWebrtcChanged) {
       await sourceStore.fetchSources()
@@ -865,6 +815,18 @@ onMounted(async () => {
   margin-bottom: 10px;
 }
 
+.settings-tabs :deep(.el-tabs__item) {
+  color: #aab7d2;
+}
+
+.settings-tabs :deep(.el-tabs__item.is-active) {
+  color: #79bbff;
+}
+
+.settings-tabs :deep(.el-tabs__nav-wrap::after) {
+  background-color: #30364d;
+}
+
 .icon-upload-group {
   display: flex;
   align-items: center;
@@ -898,6 +860,14 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.plugin-tag-list,
+.plugin-config-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 24px;
 }
 
 .settings-inline-actions {

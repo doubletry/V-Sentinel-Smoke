@@ -60,6 +60,10 @@
           </el-button>
         </el-button-group>
 
+        <el-tag type="info" effect="dark">
+          {{ t('roi.boundScene') }}: {{ boundScene?.label_zh || source.scene_id || 'smoke' }}
+        </el-tag>
+
         <el-button size="small" type="success" :loading="saving" @click="save">
           <el-icon><Check /></el-icon>
           {{ t('roi.saveRois') }}
@@ -119,8 +123,7 @@ import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useSourceStore } from '../stores/source.js'
-import { useAppSettingsStore } from '../stores/appSettings.js'
-import { sourcesApi } from '../api/index.js'
+import { scenesApi, sourcesApi } from '../api/index.js'
 
 const props = defineProps({
   source: {
@@ -135,7 +138,6 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useSourceStore()
-const appSettingsStore = useAppSettingsStore()
 const { t } = useI18n()
 
 const canvasEl = ref(null)
@@ -145,6 +147,7 @@ const mode = ref('polygon')
 const saving = ref(false)
 
 const shapes = ref([])
+const scenes = ref([])
 const selectedIdx = ref(null)
 const isDrawing = ref(false)
 const currentPoints = ref([])
@@ -154,7 +157,10 @@ const pointerPos = ref(null)
     形状被选中时的屏幕相对坐标（用于浮动菜单）。 */
 const selectionPos = ref({ x: 0, y: 0 })
 
-const tagOptions = computed(() => appSettingsStore.roiTagOptions)
+const boundScene = computed(() =>
+  scenes.value.find((scene) => scene.id === (props.source?.scene_id || 'smoke'))
+)
+const tagOptions = computed(() => boundScene.value?.default_roi_tags || [])
 
 /** Compute inline style positioning the context menu near the mouse click.
     计算内联样式，将上下文菜单定位在鼠标点击附近。
@@ -628,7 +634,7 @@ async function save() {
   }
 
   if (!tagOptions.value.length) {
-    ElMessage.warning(t('roi.noTagOptions'))
+    ElMessage.warning(t('roi.noSceneTagOptions'))
     return
   }
 
@@ -726,6 +732,11 @@ function loadExistingRois() {
 const resizeObserver = new ResizeObserver(resizeCanvas)
 
 watch(() => props.source?.id, loadExistingRois)
+watch(() => props.source?.scene_id, () => {
+  selectedIdx.value = null
+  clearDrawingState()
+  render()
+})
 
 watch(() => props.readOnly, () => {
   selectedIdx.value = null
@@ -734,11 +745,7 @@ watch(() => props.readOnly, () => {
 })
 
 onMounted(async () => {
-  if (!appSettingsStore.loaded) {
-    await appSettingsStore.fetchSettings().catch(() => {
-      // Keep fallback tag options when settings API is unavailable.
-    })
-  }
+  scenes.value = await scenesApi.list().catch(() => [])
 
   loadExistingRois()
   resizeCanvas()

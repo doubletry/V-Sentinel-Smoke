@@ -15,7 +15,7 @@ The default scene plugin is `smoke`, which detects `smoke` and `fire` labels.
 - `backend/api/notifications.py`: notification provider/template/policy APIs. Email and Webhook are the first two reserved channel types.
 - `backend/api/access.py`: built-in user/operator/admin role catalog for the three-level RBAC model.
 - `backend/processing/template/`: runnable backend scene template; see `docs/scene-template-development.md`.
-- `frontend/src/views/Settings.vue`: configurable model, post-processing, email cooldown, and email template settings.
+- `frontend/src/views/Settings.vue`: platform settings plus per-scene plugin tabs. Platform fields are plugin-agnostic; plugin tabs hold scene-specific model/post-processing and ROI tag guidance.
 
 ## Template foundation APIs
 
@@ -81,17 +81,33 @@ thresholds and thread-pool controls are hidden until expert mode is enabled, so
 regular operators can configure common fields without navigating low-frequency
 tuning options.
 
-## Smoke plugin
+## Scene-bound plugins
 
-Set the DB-backed setting below to enable the smoke/fire scene:
+Processor selection is source-scoped. Each source carries a `scene_id`, and the
+processor manager loads the matching plugin for that source. This allows one
+deployment to run smoke/fire, template, and future scene plugins concurrently.
+
+Example source payload:
 
 ```json
 {
-  "processor_plugin": "smoke"
+  "name": "Factory Camera 1",
+  "route_path": "factory/cam-1",
+  "scene_id": "smoke",
+  "notification_policy_ids": ["default-alert-policy"]
 }
 ```
 
-The smoke plugin only requires the detection service. It forwards `model_name`, optional `model_version`, confidence, NMS, and ROI to V-Engine detection, then applies the temporal smoke/fire post-processor.
+ROI tags are also scene-scoped. Frontend ROI drawing reads the bound scene's
+`default_roi_tags`, and backend YAML import validates against that same scene
+tag set. When a source changes scene, existing ROIs are cleared unless the
+request explicitly provides a replacement ROI list.
+
+## Smoke plugin
+
+The smoke plugin only requires the detection service. It forwards `model_name`,
+optional `model_version`, confidence, NMS, and ROI to V-Engine detection, then
+applies the temporal smoke/fire post-processor.
 
 ## Notifications and SMTP email
 

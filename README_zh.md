@@ -255,9 +255,9 @@ run_processor(
 )
 ```
 
-开发完成后，在 `backend/processing/` 中增加一个薄适配层，
-并在 `backend/processing/registry.py` 中注册，再通过 `processor_plugin`
-设置切换即可。
+开发完成后，在 `backend/processing/` 中增加一个薄适配层，在
+`backend/processing/registry.py` 中注册，并增加场景定义。每个视频源通过
+`scene_id` 绑定自己的场景插件。
 
 详见 [`core/README.md`](core/README.md)。
 插件化接入方式详见 [`docs/processor-plugin-usage.md`](docs/processor-plugin-usage.md)。
@@ -305,11 +305,13 @@ class MyProcessor(BaseVideoProcessor):
         return result
 ```
 
-在 `backend/processing/registry.py` 中注册，然后设置：
+在 `backend/processing/registry.py` 中注册，然后把视频源绑定到该场景：
 
 ```json
 {
-    "processor_plugin": "my_scene"
+    "name": "Factory Camera 1",
+    "route_path": "factory/cam-1",
+    "scene_id": "my_scene"
 }
 ```
 
