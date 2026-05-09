@@ -206,7 +206,9 @@ const localizedScenes = computed(() =>
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 
 function defaultSceneId() {
-  return scenes.value[0]?.id ?? DEFAULT_SCENE_ID
+  return sceneById.value.has(DEFAULT_SCENE_ID)
+    ? DEFAULT_SCENE_ID
+    : (scenes.value[0]?.id ?? DEFAULT_SCENE_ID)
 }
 
 function sceneLabel(sceneId) {

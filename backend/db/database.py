@@ -918,20 +918,6 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
                     ),
                 )
             )
-        scene_changed = False
-        if data.scene_id is not None:
-            async with db.execute(
-                "SELECT scene_id FROM video_sources WHERE id = ?",
-                (source_id,),
-            ) as cursor:
-                current_row = await cursor.fetchone()
-            if current_row is None:
-                return None
-            current_scene_id = str(current_row[0] or DEFAULT_SCENE_ID)
-            next_scene_id = data.scene_id or DEFAULT_SCENE_ID
-            scene_changed = next_scene_id != current_scene_id
-            fields.append("scene_id = ?")
-            values.append(next_scene_id)
         if data.notification_policy_ids is not None:
             fields.append("notification_policy_ids = ?")
             values.append(_json_dumps(data.notification_policy_ids))
@@ -941,6 +927,14 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
                 f"UPDATE video_sources SET {', '.join(fields)} WHERE id = ?",
                 values,
             )
+        scene_changed = False
+        if data.scene_id is not None:
+            next_scene_id = data.scene_id or DEFAULT_SCENE_ID
+            cursor = await db.execute(
+                "UPDATE video_sources SET scene_id = ? WHERE id = ? AND scene_id != ?",
+                (next_scene_id, source_id, next_scene_id),
+            )
+            scene_changed = cursor.rowcount > 0
         if data.rois is not None:
             await _save_rois_in_db(db, source_id, data.rois)
         elif scene_changed:
