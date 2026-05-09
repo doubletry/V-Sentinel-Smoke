@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from urllib.parse import quote
 
@@ -145,10 +144,10 @@ async def import_rois_yaml(
     """Import ROIs from a YAML file into a video source.
     从 YAML 文件导入 ROI 到视频源。
 
-    Validates that every ``tag`` in the YAML is present in the current
-    system ``roi_tag_options``.  Rejects the import if any tag is unknown.
-    验证 YAML 中的每个标签是否存在于当前系统 ``roi_tag_options`` 中，
-    如有未知标签则拒绝导入。
+    Validates that every ``tag`` in the YAML is present in the source scene's
+    plugin-owned ``default_roi_tags``. Rejects the import if any tag is unknown.
+    验证 YAML 中的每个标签是否存在于视频源场景插件自己的
+    ``default_roi_tags`` 中，如有未知标签则拒绝导入。
     """
     source = await db.get_source(source_id)
     if source is None:
@@ -171,17 +170,10 @@ async def import_rois_yaml(
     if not isinstance(rois_raw, list):
         raise HTTPException(status_code=400, detail='"rois" must be a list')
 
-    # Load current tag options from DB settings / 从数据库设置加载当前标签选项
-    app_settings = await db.get_all_settings()
-    tag_options_str = app_settings.get("roi_tag_options", "[]")
-    try:
-        parsed = json.loads(tag_options_str)
-        if isinstance(parsed, list):
-            valid_tags = set(str(t).strip() for t in parsed if t)
-        else:
-            valid_tags = set()
-    except (json.JSONDecodeError, TypeError):
-        valid_tags = set(tag_options_str.split(",")) if tag_options_str else set()
+    # ROI tags are owned by the bound scene/plugin, not global platform settings.
+    # ROI 标签由当前绑定的场景/插件拥有，而不是平台全局设置。
+    scene = await db.get_scene(source.scene_id)
+    valid_tags = set(scene.default_roi_tags if scene else [])
 
     # Validate each ROI entry / 验证每个 ROI 条目
     validated_rois: list[dict] = []
@@ -208,7 +200,7 @@ async def import_rois_yaml(
                 status_code=400,
                 detail=(
                     f'ROI at index {idx}: tag "{tag}" is not in the '
-                    f"system's configured tag options: {sorted(valid_tags)}"
+                    f"scene '{source.scene_id}' ROI tag options: {sorted(valid_tags)}"
                 ),
             )
         points = roi.get("points", [])

@@ -178,6 +178,29 @@ class TestUpdateSource:
         assert updated.rois[0].tag == "zone"
         assert updated.rois[0].type == "rectangle"
 
+    async def test_scene_change_clears_existing_rois(self):
+        src = await create_source(
+            VideoSourceCreate(name="Scene ROI", rtsp_url="rtsp://scene-roi", scene_id="smoke")
+        )
+        await update_source(
+            src.id,
+            VideoSourceUpdate(
+                rois=[
+                    ROICreate(
+                        type="rectangle",
+                        points=[ROIPoint(x=0.1, y=0.2), ROIPoint(x=0.8, y=0.9)],
+                        tag="smoke_zone",
+                    )
+                ]
+            ),
+        )
+
+        updated = await update_source(src.id, VideoSourceUpdate(scene_id="template"))
+
+        assert updated is not None
+        assert updated.scene_id == "template"
+        assert updated.rois == []
+
     async def test_not_found(self):
         result = await update_source("bad", VideoSourceUpdate(name="X"))
         assert result is None

@@ -266,14 +266,14 @@ class TestROIImport:
     async def test_import_valid_yaml(
         self, async_client: AsyncClient, sample_source_data: dict
     ):
-        """Import ROIs with tags that match system roi_tag_options."""
+        """Import ROIs with tags that match the source scene's ROI tags."""
         source_id = await self._create_source(async_client, sample_source_data)
 
-        # Default roi_tag_options contains "person", "vehicle", "intrusion"
+        # The default smoke scene owns smoke_zone and fire_zone ROI tags.
         yaml_content = (
             "rois:\n"
             "  - type: rectangle\n"
-            '    tag: "person"\n'
+            '    tag: "smoke_zone"\n'
             "    points:\n"
             "      - {x: 0.1, y: 0.1}\n"
             "      - {x: 0.9, y: 0.1}\n"
@@ -287,12 +287,12 @@ class TestROIImport:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["rois"]) == 1
-        assert data["rois"][0]["tag"] == "person"
+        assert data["rois"][0]["tag"] == "smoke_zone"
 
     async def test_import_invalid_tag(
         self, async_client: AsyncClient, sample_source_data: dict
     ):
-        """Reject import when tag is not in system roi_tag_options."""
+        """Reject import when tag is not in the source scene's ROI tags."""
         source_id = await self._create_source(async_client, sample_source_data)
 
         yaml_content = (

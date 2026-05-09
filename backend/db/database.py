@@ -890,6 +890,14 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
     """Update a video source's fields and/or ROIs.
     更新视频源的字段和/或 ROI。"""
     async with _db_session() as db:
+        async with db.execute(
+            "SELECT scene_id FROM video_sources WHERE id = ?",
+            (source_id,),
+        ) as cursor:
+            current_row = await cursor.fetchone()
+        if current_row is None:
+            return None
+        current_scene_id = str(current_row[0] or "smoke")
         fields: list[str] = []
         values: list[str] = []
         if data.name is not None:
@@ -917,9 +925,12 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
                     ),
                 )
             )
+        scene_changed = False
         if data.scene_id is not None:
+            next_scene_id = data.scene_id or "smoke"
+            scene_changed = next_scene_id != current_scene_id
             fields.append("scene_id = ?")
-            values.append(data.scene_id or "smoke")
+            values.append(next_scene_id)
         if data.notification_policy_ids is not None:
             fields.append("notification_policy_ids = ?")
             values.append(_json_dumps(data.notification_policy_ids))
@@ -931,6 +942,13 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             )
         if data.rois is not None:
             await _save_rois_in_db(db, source_id, data.rois)
+        elif scene_changed:
+            # ROI coordinates and tags are scene/plugin-specific. When a source
+            # switches scene without an explicit ROI replacement, clear the old
+            # ROI set so the new plugin cannot consume stale labels.
+            # ROI 坐标与标签属于场景/插件配置。视频源切换场景且未显式提交新 ROI 时，
+            # 清空旧 ROI，避免新插件误用旧标签。
+            await db.execute("DELETE FROM rois WHERE source_id = ?", (source_id,))
         await db.commit()
         async with db.execute(
             "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
