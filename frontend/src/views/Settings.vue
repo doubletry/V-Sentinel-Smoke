@@ -611,10 +611,14 @@ function readInitialSettingsTab() {
   // Only validate the URL shape here; existence is checked after `/api/scenes`
   // finishes loading in resetInvalidSettingsTab().
   // 这里只校验 URL 形态；实际场景是否存在会在 `/api/scenes` 加载后校验。
-  if (hashTab === 'platform' || PLUGIN_TAB_NAME_PATTERN.test(hashTab)) {
+  if (isValidSettingsTabName(hashTab)) {
     return hashTab
   }
   return 'platform'
+}
+
+function isValidSettingsTabName(tabName) {
+  return tabName === 'platform' || PLUGIN_TAB_NAME_PATTERN.test(tabName)
 }
 
 function extractSceneIdFromTabName(tabName) {
@@ -649,6 +653,7 @@ function resetInvalidSettingsTab() {
 
 function onSettingsTabChange(tabName) {
   if (typeof window === 'undefined') return
+  if (!isValidSettingsTabName(tabName)) return
   if (window.location.hash.slice(1) !== tabName) {
     window.location.hash = tabName
   }
