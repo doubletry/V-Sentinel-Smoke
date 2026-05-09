@@ -32,7 +32,6 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "site_title": "V-Sentinel",
     "site_description": "AI Video Surveillance Analysis Platform",
     "favicon_url": "/favicon.ico",
-    "roi_tag_options": "[\"person\", \"vehicle\", \"intrusion\"]",
     # Shared V-Engine host / 共享 V-Engine 主机
     "vengine_host": "localhost",
     # Per-service ports / 各服务端口
@@ -47,8 +46,6 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "action_enabled": "false",
     "ocr_enabled": "false",
     "upload_enabled": "false",
-    # Processor plugin / 处理器插件
-    "processor_plugin": "smoke",
     # MediaMTX
     "mediamtx_rtsp_addr": "rtsp://localhost:8554",
     "mediamtx_rtsp_username": "",

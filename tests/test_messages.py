@@ -164,13 +164,6 @@ class TestMessagesAPI:
         assert data["total"] == 25
         assert len(data["items"]) == 5
 
-    async def test_processor_plugins_endpoint(self, async_client: AsyncClient):
-        resp = await async_client.get("/api/processor/plugins")
-        assert resp.status_code == 200
-        data = resp.json()
-        values = {item["value"] for item in data}
-        assert {"smoke", "example"} <= values
-
     async def test_mark_false_positive_exports_images_and_can_filter(self, async_client: AsyncClient, _tmp_db: str):
         original = base64.b64encode(b"original-bytes").decode("ascii")
         detected = base64.b64encode(b"detected-bytes").decode("ascii")

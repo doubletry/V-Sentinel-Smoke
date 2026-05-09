@@ -4,13 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.auth.dependencies import require_permission
 from backend.models.schemas import (
-    ProcessorPluginInfo,
     ProcessorStartRequest,
     ProcessorStatus,
     ProcessorStopRequest,
 )
 from backend.processing.log_buffer import processing_log_buffer
-from backend.processing.registry import list_processor_plugins
 
 router = APIRouter(prefix="/api/processor", tags=["processor"])
 
@@ -46,30 +44,6 @@ async def stop_processor(
     return result
 
 
-@router.post("/start-all", status_code=200)
-async def start_all_processors(
-    _role: str = Depends(require_permission("sources:operate")),
-) -> dict:
-    """Start AI analysis for all configured sources.
-    为所有已配置的视频源启动 AI 分析。"""
-    from backend.main import processor_manager
-
-    result = await processor_manager.start_all_processors()
-    return result
-
-
-@router.post("/stop-all", status_code=200)
-async def stop_all_processors(
-    _role: str = Depends(require_permission("sources:operate")),
-) -> dict:
-    """Stop AI analysis for all running sources.
-    停止所有正在运行的视频源 AI 分析。"""
-    from backend.main import processor_manager
-
-    result = await processor_manager.stop_all_processors()
-    return result
-
-
 @router.get("/status", response_model=list[ProcessorStatus])
 async def get_status() -> list[ProcessorStatus]:
     """Get status of all running processors.
@@ -77,13 +51,6 @@ async def get_status() -> list[ProcessorStatus]:
     from backend.main import processor_manager
 
     return processor_manager.get_all_status()
-
-
-@router.get("/plugins", response_model=list[ProcessorPluginInfo])
-async def get_processor_plugins() -> list[ProcessorPluginInfo]:
-    """Get available processor plugins with display metadata.
-    获取可用处理器插件及其展示元数据。"""
-    return list_processor_plugins()
 
 
 @router.get("/logs")

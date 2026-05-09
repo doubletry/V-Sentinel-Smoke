@@ -51,9 +51,6 @@ export const sourcesApi = {
 export const processorApi = {
   start: (sourceId) => api.post('/api/processor/start', { source_id: sourceId }),
   stop: (sourceId) => api.post('/api/processor/stop', { source_id: sourceId }),
-  startAll: () => api.post('/api/processor/start-all'),
-  stopAll: () => api.post('/api/processor/stop-all'),
-  plugins: () => api.get('/api/processor/plugins'),
   logs: (page = 1, pageSize = 20) => api.get('/api/processor/logs', {
     params: { page, page_size: pageSize },
   }),

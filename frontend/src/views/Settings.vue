@@ -25,6 +25,7 @@
           <el-tab-pane :label="t('settings.platformSettings')" name="platform">
         <section class="settings-section friendly-mode-section">
           <h2>{{ t('settings.configurationMode') }}</h2>
+          <p class="service-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
           <el-form-item :label="t('settings.expertMode')">
             <div class="field-stack">
               <el-switch v-model="expertMode" />
@@ -84,36 +85,6 @@
           <el-form-item :label="t('settings.iconPath')">
             <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
           </el-form-item>
-        </section>
-
-        <section class="settings-section">
-          <h2>{{ t('settings.backendService') }}</h2>
-          <div class="service-control-row">
-            <el-tag :type="sourceStore.runningCount > 0 ? 'success' : 'info'" effect="dark">
-              {{
-                sourceStore.runningCount > 0
-                  ? t('settings.runningStatus', { count: sourceStore.runningCount })
-                  : t('settings.stoppedStatus')
-              }}
-            </el-tag>
-            <div class="service-buttons">
-              <el-button
-                type="success"
-                :loading="serviceAction === 'start'"
-                @click="startAllServices"
-              >
-                {{ t('settings.startAll') }}
-              </el-button>
-              <el-button
-                type="warning"
-                :loading="serviceAction === 'stop'"
-                @click="stopAllServices"
-              >
-                {{ t('settings.stopAll') }}
-              </el-button>
-            </div>
-          </div>
-          <p class="service-tip">{{ t('settings.backendServiceTip') }}</p>
         </section>
 
         <section class="settings-section">
@@ -440,7 +411,25 @@ const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
 const activeSettingsTab = ref(readInitialSettingsTab())
-const sceneDefinitions = ref([])
+const DEFAULT_SCENE_DEFINITIONS = [
+  {
+    id: 'smoke',
+    label_zh: '烟火检测',
+    label_en: 'Smoke/Fire Detection',
+    description: 'Detects smoke and fire with temporal post-processing.',
+    default_roi_tags: ['smoke_zone', 'fire_zone'],
+    default_config: {},
+  },
+  {
+    id: 'template',
+    label_zh: '场景模板',
+    label_en: 'Scene Template',
+    description: '',
+    default_roi_tags: [],
+    default_config: {},
+  },
+]
+const sceneDefinitions = ref(DEFAULT_SCENE_DEFINITIONS)
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
@@ -504,16 +493,13 @@ const smokeAdvancedFields = [
 const loading = ref(false)
 const saving = ref(false)
 const testingEmail = ref(false)
-const serviceAction = ref('')
 const expertMode = ref(false)
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'smoke',
   site_title: '',
   site_description: '',
   favicon_url: '/favicon.ico',
-  roi_tag_options: '[]',
   vengine_host: '',
   detection_port: '',
   classification_port: '',
@@ -669,7 +655,9 @@ async function reload() {
       scenesApi.list(),
     ])
     Object.assign(form.value, data)
-    sceneDefinitions.value = Array.isArray(scenes) ? scenes : []
+    sceneDefinitions.value = Array.isArray(scenes) && scenes.length
+      ? scenes
+      : DEFAULT_SCENE_DEFINITIONS
     resetInvalidSettingsTab()
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
@@ -806,29 +794,8 @@ function resetSmokeAdvancedThresholds() {
   Object.assign(form.value, SMOKE_ADVANCED_DEFAULTS)
 }
 
-async function startAllServices() {
-  serviceAction.value = 'start'
-  try {
-    await sourceStore.startAllProcessing()
-  } finally {
-    serviceAction.value = ''
-  }
-}
-
-async function stopAllServices() {
-  serviceAction.value = 'stop'
-  try {
-    await sourceStore.stopAllProcessing()
-  } finally {
-    serviceAction.value = ''
-  }
-}
-
 onMounted(async () => {
-  await Promise.all([
-    reload(),
-    sourceStore.syncProcessorStatus(),
-  ])
+  await reload()
 })
 </script>
 
@@ -981,20 +948,6 @@ onMounted(async () => {
   margin-top: 6px;
   color: #8f9fbe;
   font-size: 12px;
-}
-
-.service-control-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.service-buttons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .service-tip {

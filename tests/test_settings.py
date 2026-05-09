@@ -27,8 +27,6 @@ class TestSettingsDB:
         assert all_settings["timezone"] == "Asia/Shanghai"
         assert all_settings["site_title"] == "V-Sentinel"
         assert all_settings["favicon_url"] == "/favicon.ico"
-        assert all_settings["processor_plugin"] == "smoke"
-        assert "roi_tag_options" in all_settings
         assert all_settings["vengine_host"] == "localhost"
         assert all_settings["detection_port"] == "50051"
         assert all_settings["ocr_port"] == "50054"
@@ -108,8 +106,6 @@ class TestSettingsAPI:
                 "timezone": "UTC",
                 "detection_port": "9999",
                 "site_title": "My Sentinel",
-                "processor_plugin": "example",
-                "roi_tag_options": "[\"person\",\"vehicle\"]",
                 "email_from_address": "sender@example.com",
                 "email_smtp_password": "secret",
                 "email_to_addresses": "to1@example.com,to2@example.com",
@@ -136,8 +132,6 @@ class TestSettingsAPI:
         assert data["timezone"] == "UTC"
         assert data["detection_port"] == "9999"
         assert data["site_title"] == "My Sentinel"
-        assert data["processor_plugin"] == "example"
-        assert data["roi_tag_options"] == "[\"person\",\"vehicle\"]"
         assert data["email_from_address"] == "sender@example.com"
         assert data["email_smtp_password"] == "secret"
         assert data["email_to_addresses"] == "to1@example.com,to2@example.com"

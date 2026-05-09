@@ -18,11 +18,9 @@ const DEFAULT_EVENT_EMAIL_BODY_TEMPLATE = [
 const DEFAULT_UI_SETTINGS = {
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'smoke',
   site_title: config.siteName,
   site_description: config.siteDescription,
   favicon_url: '/favicon.ico',
-  roi_tag_options: '["person","vehicle","intrusion"]',
   mediamtx_rtsp_addr: 'rtsp://localhost:8554',
   mediamtx_rtsp_username: '',
   mediamtx_rtsp_password: '',
@@ -47,32 +45,6 @@ const DEFAULT_UI_SETTINGS = {
   message_retention_days: '7',
 }
 
-function parseRoiTagOptions(raw) {
-  if (Array.isArray(raw)) {
-    return Array.from(
-      new Set(raw.map((item) => String(item || '').trim()).filter(Boolean))
-    )
-  }
-
-  const text = String(raw || '').trim()
-  if (!text) return []
-
-  try {
-    const parsed = JSON.parse(text)
-    if (Array.isArray(parsed)) {
-      return Array.from(
-        new Set(parsed.map((item) => String(item || '').trim()).filter(Boolean))
-      )
-    }
-  } catch (_) {
-    // Fallback to comma-separated parsing for backward compatibility.
-  }
-
-  return Array.from(
-    new Set(text.split(',').map((item) => item.trim()).filter(Boolean))
-  )
-}
-
 function withDefaults(data = {}) {
   return {
     ...DEFAULT_UI_SETTINGS,
@@ -91,9 +63,6 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const timeZone = computed(() => settings.value.timezone || DEFAULT_UI_SETTINGS.timezone)
   const faviconUrl = computed(() => settings.value.favicon_url || DEFAULT_UI_SETTINGS.favicon_url)
   const siteIconUrl = computed(() => faviconUrl.value)
-  const roiTagOptions = computed(
-    () => parseRoiTagOptions(settings.value.roi_tag_options || DEFAULT_UI_SETTINGS.roi_tag_options)
-  )
   const mediamtxRtspAddr = computed(
     () => settings.value.mediamtx_rtsp_addr || DEFAULT_UI_SETTINGS.mediamtx_rtsp_addr
   )
@@ -162,7 +131,6 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     timeZone,
     faviconUrl,
     siteIconUrl,
-    roiTagOptions,
     mediamtxRtspAddr,
     mediamtxWebrtcAddr,
     mediamtxRtspUsername,

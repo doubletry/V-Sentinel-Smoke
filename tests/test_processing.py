@@ -207,7 +207,6 @@ class TestProcessorManager:
             )
         )
         mgr = self._make_manager()
-        mgr._app_settings["processor_plugin"] = "smoke"
 
         processor = MagicMock(status="stopped")
         processor.start = AsyncMock()
@@ -222,7 +221,6 @@ class TestProcessorManager:
         processor_cls.assert_called_once()
         processor.start.assert_awaited_once()
         assert mgr._processors[source.id] is processor
-        assert result["processor_plugin"] == "example"
         assert result["scene_id"] == "example"
 
     async def test_stop_all_empty(self):

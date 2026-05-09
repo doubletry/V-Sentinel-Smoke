@@ -311,15 +311,6 @@ class AnalysisMessage(BaseModel):
     false_positive: bool = False
 
 
-class ProcessorPluginInfo(BaseModel):
-    """Processor plugin display metadata.
-    处理器插件展示元数据。"""
-
-    value: str
-    label_zh: str
-    label_en: str
-
-
 class PaginatedMessagesResponse(BaseModel):
     """Paginated persisted analysis messages.
     持久化分析消息的分页响应。"""
@@ -340,7 +331,6 @@ class AppSettingsUpdate(BaseModel):
     site_title: str | None = None
     site_description: str | None = None
     favicon_url: str | None = None
-    roi_tag_options: str | None = None
 
     vengine_host: str | None = None
     detection_port: str | None = None
@@ -354,8 +344,6 @@ class AppSettingsUpdate(BaseModel):
     action_enabled: str | None = None
     ocr_enabled: str | None = None
     upload_enabled: str | None = None
-
-    processor_plugin: str | None = None
 
     mediamtx_rtsp_addr: str | None = None
     mediamtx_rtsp_username: str | None = None
