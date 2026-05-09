@@ -61,7 +61,7 @@
         </el-button-group>
 
         <el-tag type="info" effect="dark">
-          {{ t('roi.boundScene') }}: {{ boundScene?.label_zh || source.scene_id || 'smoke' }}
+          {{ t('roi.boundScene') }}: {{ boundScene?.label_zh || source.scene_id || DEFAULT_SCENE_ID }}
         </el-tag>
 
         <el-button size="small" type="success" :loading="saving" @click="save">
@@ -139,6 +139,7 @@ const emit = defineEmits(['close'])
 
 const store = useSourceStore()
 const { t } = useI18n()
+const DEFAULT_SCENE_ID = 'smoke'
 
 const canvasEl = ref(null)
 const overlayEl = ref(null)
@@ -158,7 +159,7 @@ const pointerPos = ref(null)
 const selectionPos = ref({ x: 0, y: 0 })
 
 const boundScene = computed(() =>
-  scenes.value.find((scene) => scene.id === (props.source?.scene_id || 'smoke'))
+  scenes.value.find((scene) => scene.id === (props.source?.scene_id || DEFAULT_SCENE_ID))
 )
 const tagOptions = computed(() => boundScene.value?.default_roi_tags || [])
 

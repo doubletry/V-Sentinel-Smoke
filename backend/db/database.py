@@ -34,6 +34,7 @@ from backend.models.schemas import (
 
 
 _DB_PATH = settings.db_path
+DEFAULT_SCENE_ID = "smoke"
 
 CREATE_SOURCES_TABLE = """
 CREATE TABLE IF NOT EXISTS video_sources (
@@ -897,7 +898,7 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             current_row = await cursor.fetchone()
         if current_row is None:
             return None
-        current_scene_id = str(current_row[0] or "smoke")
+        current_scene_id = str(current_row[0] or DEFAULT_SCENE_ID)
         fields: list[str] = []
         values: list[str] = []
         if data.name is not None:
@@ -927,7 +928,7 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             )
         scene_changed = False
         if data.scene_id is not None:
-            next_scene_id = data.scene_id or "smoke"
+            next_scene_id = data.scene_id or DEFAULT_SCENE_ID
             scene_changed = next_scene_id != current_scene_id
             fields.append("scene_id = ?")
             values.append(next_scene_id)

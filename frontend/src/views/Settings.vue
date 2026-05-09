@@ -285,7 +285,13 @@
 
           </el-tab-pane>
 
-          <el-tab-pane :label="t('settings.smokeScene')" name="plugin-smoke">
+          <el-tab-pane
+            v-for="scene in sceneDefinitions"
+            :key="scene.id"
+            :label="sceneTabLabel(scene.id)"
+            :name="`plugin-${scene.id}`"
+          >
+            <template v-if="scene.id === SMOKE_SCENE_ID">
         <section class="settings-section">
           <h2>{{ t('settings.smokeScene') }}</h2>
           <el-form-item :label="t('settings.smokeDetectionModelName')">
@@ -360,34 +366,26 @@
             </div>
           </el-form-item>
         </section>
-
+            </template>
 
             <section class="settings-section">
               <h2>{{ t('settings.pluginRoiTags') }}</h2>
+              <p v-if="scene.id !== SMOKE_SCENE_ID" class="service-tip">
+                {{ scene.description || t('settings.templateSceneHint') }}
+              </p>
               <div class="plugin-tag-list">
-                <el-tag v-for="tag in sceneRoiTags('smoke')" :key="tag" effect="dark">{{ tag }}</el-tag>
-                <span v-if="!sceneRoiTags('smoke').length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
+                <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark">{{ tag }}</el-tag>
+                <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
               </div>
               <p class="service-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
             </section>
-          </el-tab-pane>
 
-          <el-tab-pane :label="sceneTabLabel('template')" name="plugin-template">
-            <section class="settings-section">
-              <h2>{{ sceneTabLabel('template') }}</h2>
-              <p class="service-tip">{{ sceneDescription('template') || t('settings.templateSceneHint') }}</p>
-              <el-form-item :label="t('settings.pluginRoiTags')">
-                <div class="plugin-tag-list">
-                  <el-tag v-for="tag in sceneRoiTags('template')" :key="tag" effect="dark">{{ tag }}</el-tag>
-                  <span v-if="!sceneRoiTags('template').length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
-                </div>
-              </el-form-item>
-              <el-form-item :label="t('settings.pluginDefaultConfig')">
-                <div class="plugin-config-list">
-                  <el-tag v-for="item in sceneDefaultConfigRows('template')" :key="item" type="info">{{ item }}</el-tag>
-                  <span v-if="!sceneDefaultConfigRows('template').length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
-                </div>
-              </el-form-item>
+            <section v-if="scene.id !== SMOKE_SCENE_ID" class="settings-section">
+              <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
+              <div class="plugin-config-list">
+                <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item" type="info">{{ item }}</el-tag>
+                <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
+              </div>
             </section>
           </el-tab-pane>
         </el-tabs>
@@ -423,6 +421,7 @@ const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
 const activeSettingsTab = ref('platform')
 const sceneDefinitions = ref([])
+const SMOKE_SCENE_ID = 'smoke'
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
@@ -568,14 +567,6 @@ function sceneTabLabel(sceneId) {
   const scene = sceneById(sceneId)
   if (!scene) return sceneId
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
-}
-
-function sceneDescription(sceneId) {
-  return sceneById(sceneId)?.description || ''
-}
-
-function sceneRoiTags(sceneId) {
-  return sceneById(sceneId)?.default_roi_tags || []
 }
 
 function sceneDefaultConfigRows(sceneId) {

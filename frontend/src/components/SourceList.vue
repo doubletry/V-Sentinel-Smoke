@@ -192,9 +192,10 @@ const editLoading = ref(false)
 const actionLoading = reactive({})
 const editingSourceId = ref('')
 const scenes = ref([])
+const DEFAULT_SCENE_ID = 'smoke'
 
-const form = reactive({ name: '', route_path: '', scene_id: 'smoke' })
-const editForm = reactive({ name: '', route_path: '', scene_id: 'smoke' })
+const form = reactive({ name: '', route_path: '', scene_id: DEFAULT_SCENE_ID })
+const editForm = reactive({ name: '', route_path: '', scene_id: DEFAULT_SCENE_ID })
 
 const localizedScenes = computed(() =>
   scenes.value.map((scene) => ({
@@ -205,7 +206,7 @@ const localizedScenes = computed(() =>
 
 function sceneLabel(sceneId) {
   const scene = scenes.value.find((item) => item.id === sceneId)
-  if (!scene) return sceneId || 'smoke'
+  if (!scene) return sceneId || DEFAULT_SCENE_ID
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
@@ -258,7 +259,7 @@ async function addSource() {
     showAddDialog.value = false
     form.name = ''
     form.route_path = ''
-    form.scene_id = scenes.value[0]?.id || 'smoke'
+    form.scene_id = scenes.value[0]?.id || DEFAULT_SCENE_ID
     ElMessage.success(t('sourceList.sourceAdded'))
   } catch (err) {
     ElMessage.error(err.message || t('sourceList.failedToAdd'))
@@ -284,7 +285,7 @@ function openEditDialog(source) {
   editingSourceId.value = source.id
   editForm.name = source.name
   editForm.route_path = extractRoutePath(source.rtsp_url, appSettingsStore.mediamtxRtspAddr)
-  editForm.scene_id = source.scene_id || 'smoke'
+  editForm.scene_id = source.scene_id || DEFAULT_SCENE_ID
   showEditDialog.value = true
 }
 
@@ -347,7 +348,7 @@ onMounted(async () => {
     })
   }
   scenes.value = await scenesApi.list().catch(() => [])
-  form.scene_id = scenes.value[0]?.id || 'smoke'
+  form.scene_id = scenes.value[0]?.id || DEFAULT_SCENE_ID
 })
 </script>
 
