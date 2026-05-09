@@ -211,6 +211,7 @@ export default {
     emailFromAddress: 'Sender Email',
     emailGrpcPort: 'Email gRPC Port',
     emailFromAuthCode: 'Sender Password/Auth Code',
+    emailAuthCodePlaceholder: 'App password or auth code',
     emailToAddresses: 'Recipients',
     emailCcAddresses: 'CC',
     messageRetentionDays: 'Message Retention Days',

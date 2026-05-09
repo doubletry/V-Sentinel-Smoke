@@ -437,7 +437,7 @@ onMounted(async () => {
 })
 </script>
 
-<style>
+<style scoped>
 .settings-page {
   height: 100%;
   overflow-y: auto;
@@ -478,7 +478,7 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-.settings-nav {
+:deep(.settings-nav) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -492,11 +492,11 @@ onMounted(async () => {
   backdrop-filter: blur(12px);
 }
 
-.settings-nav__button {
+:deep(.settings-nav__button) {
   color: #c8d5f0;
 }
 
-.settings-nav__button:hover {
+:deep(.settings-nav__button:hover) {
   color: #ffffff;
 }
 
@@ -507,7 +507,7 @@ onMounted(async () => {
   padding: 16px;
 }
 
-.settings-section {
+:deep(.settings-section) {
   scroll-margin-top: 88px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid #30364d;
@@ -516,32 +516,32 @@ onMounted(async () => {
   margin-bottom: 14px;
 }
 
-.settings-section h2 {
+:deep(.settings-section h2) {
   font-size: 14px;
   color: #9ab2df;
   margin-bottom: 10px;
 }
 
-.settings-subsection {
+:deep(.settings-subsection) {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #30364d;
 }
 
-.settings-subsection h3 {
+:deep(.settings-subsection h3) {
   font-size: 13px;
   color: #c8d5f0;
   margin-bottom: 10px;
 }
 
-.icon-upload-group {
+:deep(.icon-upload-group) {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.roi-tags-editor {
+:deep(.roi-tags-editor) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -549,27 +549,27 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
-.roi-tag-item {
+:deep(.roi-tag-item) {
   margin: 0;
 }
 
-.roi-tag-empty {
+:deep(.roi-tag-empty) {
   color: #7f8bad;
   font-size: 12px;
 }
 
-.roi-tag-input-row {
+:deep(.roi-tag-input-row) {
   display: flex;
   gap: 8px;
 }
 
-.placeholder-tags {
+:deep(.placeholder-tags) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.settings-inline-actions {
+:deep(.settings-inline-actions) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -577,33 +577,33 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.smoke-threshold-grid {
+:deep(.smoke-threshold-grid) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
   width: 100%;
 }
 
-.smoke-threshold-item {
+:deep(.smoke-threshold-item) {
   padding: 10px;
   border: 1px solid #2d3650;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
 }
 
-.smoke-threshold-label {
+:deep(.smoke-threshold-label) {
   color: #c8d5f0;
   font-size: 12px;
   margin-bottom: 6px;
 }
 
-.roi-tag-hint {
+:deep(.roi-tag-hint) {
   margin-top: 6px;
   color: #8f9fbe;
   font-size: 12px;
 }
 
-.service-control-row {
+:deep(.service-control-row) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -611,38 +611,38 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.service-buttons {
+:deep(.service-buttons) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.service-tip {
+:deep(.service-tip) {
   margin-top: 8px;
   color: #8f9fbe;
   font-size: 12px;
   line-height: 1.45;
 }
 
-.field-stack {
+:deep(.field-stack) {
   width: 100%;
 }
 
-.form-hint {
+:deep(.form-hint) {
   margin-top: 6px;
   color: #8f9fbe;
   font-size: 12px;
   line-height: 1.45;
 }
 
-.port-switch-row {
+:deep(.port-switch-row) {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
 }
 
-.port-switch-row .el-input {
+:deep(.port-switch-row .el-input) {
   flex: 1;
 }
 
@@ -658,7 +658,7 @@ onMounted(async () => {
   background: linear-gradient(to bottom, rgba(16, 21, 37, 0), rgba(16, 21, 37, 0.96) 26%);
 }
 
-.settings-form .el-form-item__label {
+.settings-form :deep(.el-form-item__label) {
   color: #aab7d2;
   white-space: nowrap;
   overflow: hidden;
@@ -678,22 +678,22 @@ onMounted(async () => {
     font-size: 18px;
   }
 
-  .settings-form .el-form-item {
+  .settings-form :deep(.el-form-item) {
     margin-bottom: 14px;
   }
 
-  .settings-form .el-form-item__label {
+  .settings-form :deep(.el-form-item__label) {
     width: 100% !important;
     justify-content: flex-start;
     margin-bottom: 4px;
     line-height: 1.4;
   }
 
-  .settings-form .el-form-item__content {
+  .settings-form :deep(.el-form-item__content) {
     margin-left: 0 !important;
   }
 
-  .roi-tag-input-row,
+  :deep(.roi-tag-input-row),
   .settings-actions {
     flex-wrap: wrap;
   }

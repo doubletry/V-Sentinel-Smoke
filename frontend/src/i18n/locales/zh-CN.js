@@ -211,6 +211,7 @@ export default {
     emailFromAddress: '发件人邮箱',
     emailGrpcPort: '邮件 gRPC 端口',
     emailFromAuthCode: '发件人密码/授权码',
+    emailAuthCodePlaceholder: '授权码 / 密码',
     emailToAddresses: '收件人',
     emailCcAddresses: '抄送人',
     messageRetentionDays: '消息持久保存天数',

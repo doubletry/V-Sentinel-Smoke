@@ -3,56 +3,174 @@ import { ref, computed } from 'vue'
 import { sourcesApi, processorApi } from '../api/index.js'
 import ElMessage from 'element-plus/es/components/message/index'
 import { i18n } from '../i18n/index.js'
+import { extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 
 const GRID_ASSIGNMENTS_STORAGE_KEY = 'v-sentinel.grid.assignments'
+
+let gridAssignmentStorageWarningShown = false
+
+function normalizePersistedAssignment(value) {
+  if (!value || typeof value !== 'object') return null
+
+  if (value.type === 'result' && value.originalSourceId) {
+    return {
+      type: 'result',
+      originalSourceId: String(value.originalSourceId),
+      routePath: normalizeRoutePath(value.routePath || ''),
+    }
+  }
+
+  if (value.type === 'source' && value.sourceId) {
+    return {
+      type: 'source',
+      sourceId: String(value.sourceId),
+    }
+  }
+
+  if (value.isResult && value.originalSourceId) {
+    return {
+      type: 'result',
+      originalSourceId: String(value.originalSourceId),
+      routePath: normalizeRoutePath(value.routePath || String(value.streamPath || '').replace(/_processed$/, '')),
+    }
+  }
+
+  if (value.sourceId || value.id) {
+    return {
+      type: 'source',
+      sourceId: String(value.sourceId || value.id),
+    }
+  }
+
+  return null
+}
 
 function loadStoredGridAssignments() {
   if (typeof window === 'undefined') return {}
 
   try {
     const parsed = JSON.parse(window.localStorage.getItem(GRID_ASSIGNMENTS_STORAGE_KEY) || '{}')
-    return parsed && typeof parsed === 'object' ? parsed : {}
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([cell, value]) => {
+          const normalized = normalizePersistedAssignment(value)
+          return normalized ? [cell, normalized] : null
+        })
+        .filter(Boolean)
+    )
   } catch (_) {
     return {}
   }
+}
+
+function buildPersistedAssignment(source) {
+  if (!source) return null
+
+  if (source.isResult) {
+    return source.originalSourceId
+      ? {
+          type: 'result',
+          originalSourceId: String(source.originalSourceId),
+          routePath: normalizeRoutePath(String(source.streamPath || '').replace(/_processed$/, '')),
+        }
+      : null
+  }
+
+  return source.id
+    ? {
+        type: 'source',
+        sourceId: String(source.id),
+      }
+    : null
+}
+
+function warnGridAssignmentStorage(error) {
+  if (gridAssignmentStorageWarningShown) return
+  gridAssignmentStorageWarningShown = true
+  console.warn('Failed to persist video wall assignments:', error)
 }
 
 export const useSourceStore = defineStore('source', () => {
   const sources = ref([])
   const loading = ref(false)
   const runningSourceIds = ref(new Set())
+  const processorStatusLoaded = ref(false)
+  const persistedGridAssignments = ref(loadStoredGridAssignments())
 
-  // Grid cell assignments: cellIndex -> source
-  const gridAssignments = ref(loadStoredGridAssignments())
+  // Grid cell assignments: cellIndex -> hydrated source/result object
+  const gridAssignments = ref({})
 
   const isRunning = computed(() => (sourceId) => runningSourceIds.value.has(sourceId))
   const runningCount = computed(() => runningSourceIds.value.size)
 
   function persistGridAssignments() {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      GRID_ASSIGNMENTS_STORAGE_KEY,
-      JSON.stringify(gridAssignments.value)
+    try {
+      window.localStorage.setItem(
+        GRID_ASSIGNMENTS_STORAGE_KEY,
+        JSON.stringify(persistedGridAssignments.value)
+      )
+    } catch (error) {
+      warnGridAssignmentStorage(error)
+    }
+  }
+
+  function isResultStreamActive(sourceId) {
+    return runningSourceIds.value.has(sourceId)
+  }
+
+  function hydrateResultAssignment(source, assignment) {
+    if (!source) return null
+
+    if (processorStatusLoaded.value && !isResultStreamActive(source.id)) {
+      return null
+    }
+
+    const routePath = normalizeRoutePath(
+      assignment.routePath || extractRoutePath(source.rtsp_url, '')
     )
+    if (!routePath) return null
+
+    return {
+      id: `result_${source.id}`,
+      name: `${source.name} (${i18n.global.t('sourceList.resultSuffix')})`,
+      streamPath: `${routePath}_processed`,
+      isResult: true,
+      originalSourceId: source.id,
+    }
   }
 
   function syncAssignedSourceReferences() {
     const latestById = new Map(sources.value.map((source) => [source.id, source]))
-    gridAssignments.value = Object.fromEntries(
-      Object.entries(gridAssignments.value)
-        .map(([cell, source]) => {
-          if (source?.isResult) {
-            // Result streams only exist while the original processor is running,
-            // so drop stale result tiles after stop/reload to avoid dead playback.
-            return source.originalSourceId && runningSourceIds.value.has(source.originalSourceId)
-              ? [cell, source]
-              : null
-          }
-          const latest = latestById.get(source?.id)
-          return latest ? [cell, latest] : null
-        })
-        .filter(Boolean)
-    )
+    const nextAssignments = {}
+    const nextPersistedAssignments = {}
+
+    Object.entries(persistedGridAssignments.value).forEach(([cell, assignment]) => {
+      const normalized = normalizePersistedAssignment(assignment)
+      if (!normalized) return
+
+      if (normalized.type === 'result') {
+        const source = latestById.get(normalized.originalSourceId)
+        const hydrated = hydrateResultAssignment(source, normalized)
+        if (hydrated) {
+          nextAssignments[cell] = hydrated
+          nextPersistedAssignments[cell] = normalized
+        }
+        return
+      }
+
+      const source = latestById.get(normalized.sourceId)
+      if (source) {
+        nextAssignments[cell] = source
+        nextPersistedAssignments[cell] = normalized
+      }
+    })
+
+    gridAssignments.value = nextAssignments
+    persistedGridAssignments.value = nextPersistedAssignments
     persistGridAssignments()
   }
 
@@ -86,9 +204,13 @@ export const useSourceStore = defineStore('source', () => {
   async function deleteSource(id) {
     await sourcesApi.delete(id)
     sources.value = sources.value.filter((s) => s.id !== id)
-    // Remove from grid
-    for (const [cell, src] of Object.entries(gridAssignments.value)) {
-      if (src.id === id) delete gridAssignments.value[cell]
+    for (const [cell, assignment] of Object.entries(persistedGridAssignments.value)) {
+      if (
+        assignment.sourceId === id
+        || assignment.originalSourceId === id
+      ) {
+        delete persistedGridAssignments.value[cell]
+      }
     }
     runningSourceIds.value.delete(id)
     syncAssignedSourceReferences()
@@ -97,7 +219,9 @@ export const useSourceStore = defineStore('source', () => {
   async function startProcessing(sourceId) {
     try {
       await processorApi.start(sourceId)
+      processorStatusLoaded.value = true
       runningSourceIds.value.add(sourceId)
+      syncAssignedSourceReferences()
       ElMessage.success(i18n.global.t('sourceList.analysisStarted'))
     } catch (err) {
       ElMessage.error(i18n.global.t('sourceList.failedToStart', { message: err.message }))
@@ -107,7 +231,9 @@ export const useSourceStore = defineStore('source', () => {
   async function stopProcessing(sourceId) {
     try {
       await processorApi.stop(sourceId)
+      processorStatusLoaded.value = true
       runningSourceIds.value.delete(sourceId)
+      syncAssignedSourceReferences()
       ElMessage.success(i18n.global.t('sourceList.analysisStopped'))
     } catch (err) {
       ElMessage.error(i18n.global.t('sourceList.failedToStop', { message: err.message }))
@@ -160,6 +286,7 @@ export const useSourceStore = defineStore('source', () => {
       const running = new Set(
         statuses.filter((s) => s.status === 'running').map((s) => s.source_id)
       )
+      processorStatusLoaded.value = true
       runningSourceIds.value = running
       syncAssignedSourceReferences()
     } catch (_) {
@@ -225,6 +352,7 @@ export const useSourceStore = defineStore('source', () => {
       }
     }
 
+    processorStatusLoaded.value = true
     await syncProcessorStatus()
 
     return {
@@ -236,28 +364,38 @@ export const useSourceStore = defineStore('source', () => {
   }
 
   function assignToCell(cellIndex, source) {
+    const persisted = buildPersistedAssignment(source)
+    if (!persisted) return
     gridAssignments.value[cellIndex] = source
+    persistedGridAssignments.value[cellIndex] = persisted
     persistGridAssignments()
   }
 
   function removeFromCell(cellIndex) {
     delete gridAssignments.value[cellIndex]
+    delete persistedGridAssignments.value[cellIndex]
     persistGridAssignments()
   }
 
   function clearGridAssignments() {
     gridAssignments.value = {}
+    persistedGridAssignments.value = {}
     persistGridAssignments()
   }
 
   function autoAssignSources(preferredSources = []) {
     const nextAssignments = {}
+    const nextPersistedAssignments = {}
     Array.from(
       new Map((preferredSources || []).map((source) => [source.id || source.streamPath, source])).values()
     ).forEach((source, index) => {
+      const persisted = buildPersistedAssignment(source)
+      if (!persisted) return
       nextAssignments[index] = source
+      nextPersistedAssignments[index] = persisted
     })
     gridAssignments.value = nextAssignments
+    persistedGridAssignments.value = nextPersistedAssignments
     persistGridAssignments()
   }
 

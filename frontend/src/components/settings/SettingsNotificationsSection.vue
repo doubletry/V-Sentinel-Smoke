@@ -8,7 +8,12 @@
       <el-input v-model="form.email_port" placeholder="50055" />
     </el-form-item>
     <el-form-item :label="t('settings.emailFromAuthCode')">
-      <el-input v-model="form.email_from_auth_code" type="password" show-password placeholder="授权码 / 密码" />
+      <el-input
+        v-model="form.email_from_auth_code"
+        type="password"
+        show-password
+        :placeholder="t('settings.emailAuthCodePlaceholder')"
+      />
     </el-form-item>
     <el-form-item :label="t('settings.emailToAddresses')">
       <div class="field-stack">

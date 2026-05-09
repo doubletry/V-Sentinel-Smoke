@@ -40,3 +40,10 @@ defineEmits(['update:modelValue', 'submit'])
 
 const { t } = useI18n()
 </script>
+
+<style scoped>
+.route-hint {
+  color: #8f9fbe;
+  font-size: 12px;
+}
+</style>
