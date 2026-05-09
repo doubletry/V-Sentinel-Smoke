@@ -99,6 +99,19 @@ class TestSettingsAPI:
         assert data["vengine_host"] == "localhost"
         assert data["detection_port"] == "50051"
 
+    async def test_get_settings_schema(self, async_client: AsyncClient):
+        resp = await async_client.get("/api/settings/schema")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert data["defaults"]["site_title"] == DEFAULT_APP_SETTINGS["site_title"]
+        assert any(section["id"] == "interface" for section in data["sections"])
+        assert any(
+            field["key"] == "smoke_detection_model_name"
+            for section in data["sections"]
+            for field in section["fields"]
+        )
+
     async def test_update_settings(self, async_client: AsyncClient):
         resp = await async_client.put(
             "/api/settings",
