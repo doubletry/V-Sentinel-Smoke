@@ -425,18 +425,20 @@ const appSettingsStore = useAppSettingsStore()
 const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
+// Plugin tab names are exactly `plugin-{sceneId}`. Scene IDs must start with a
+// letter, number, or underscore, and later characters may also include hyphens.
+// Scene IDs are 1-57 characters here (one required first character plus up to
+// 56 more); with the `plugin-` prefix this makes the full tab name at most 64
+// characters and keeps URL hash parsing predictable without constraining
+// existing built-in IDs.
+// 插件分页名称固定为 `plugin-{sceneId}`。场景 ID 必须以字母、数字或下划线开头，
+// 后续字符还可以包含连字符。这里将场景 ID 限制为 1-57 字符（首字符必填，
+// 后续最多 56 字符），加上 `plugin-` 前缀后完整分页名称最多 64 字符，
+// 用于让 URL hash 解析保持可预期，同时不影响内置场景。
+const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 // Also referenced by the template to decide whether to render smoke-specific fields.
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
-// Plugin tab names are exactly `plugin-{sceneId}`. Scene IDs must start with a
-// letter, number, or underscore, and later characters may also include hyphens.
-// Scene IDs are capped at 57 characters here; with the `plugin-` prefix this
-// makes the full tab name at most 64 characters and keeps URL hash parsing
-// predictable without constraining existing built-in IDs.
-// 插件分页名称固定为 `plugin-{sceneId}`。场景 ID 必须以字母、数字或下划线开头，
-// 后续字符还可以包含连字符。这里将场景 ID 限制为 57 字符，加上 `plugin-`
-// 前缀后完整分页名称最多 64 字符，用于让 URL hash 解析保持可预期，同时不影响内置场景。
-const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 const activeSettingsTab = ref(readInitialSettingsTab())
 const sceneDefinitions = ref([])
 const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
@@ -644,11 +646,7 @@ function resetInvalidSettingsTab() {
   if (activeSettingsTab.value === 'platform') return
   if (!sceneDefinitions.value.length) return
   const activeSceneId = extractSceneIdFromTabName(activeSettingsTab.value)
-  if (!activeSceneId) {
-    activeSettingsTab.value = 'platform'
-    return
-  }
-  if (!sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
+  if (!activeSceneId || !sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
     activeSettingsTab.value = 'platform'
   }
 }
