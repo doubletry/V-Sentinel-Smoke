@@ -26,7 +26,16 @@ const routes = [
   },
   {
     path: '/settings',
-    name: 'Settings',
+    redirect: '/settings/platform',
+  },
+  {
+    path: '/settings/:section(platform|notifications|users)',
+    name: 'SettingsSection',
+    component: Settings,
+  },
+  {
+    path: '/settings/plugin/:sceneId',
+    name: 'SettingsPlugin',
     component: Settings,
   },
   {

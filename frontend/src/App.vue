@@ -13,7 +13,7 @@
         <el-menu
           mode="horizontal"
           :router="true"
-          :default-active="$route.path"
+          :default-active="activeHeaderPath"
           background-color="#1a1a2e"
           text-color="#ccc"
           active-text-color="#409EFF"
@@ -31,7 +31,7 @@
             <el-icon><Document /></el-icon>
             {{ t('nav.processingLogs') }}
           </el-menu-item>
-          <el-menu-item v-if="canSeeSettings" index="/settings">
+          <el-menu-item v-if="canSeeSettings" index="/settings/platform">
             <el-icon><Setting /></el-icon>
             {{ t('nav.settings') }}
           </el-menu-item>
@@ -143,6 +143,9 @@ const canSeeProcessingLogs = computed(() =>
 )
 const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
 const isAuthRoute = computed(() => route.path === '/auth')
+const activeHeaderPath = computed(() => (
+  route.path.startsWith('/settings') ? '/settings/platform' : route.path
+))
 
 function applyLocale(value) {
   setI18nLocale(value)

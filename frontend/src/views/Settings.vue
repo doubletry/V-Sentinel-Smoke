@@ -21,231 +21,261 @@
         label-position="top"
         v-loading="loading"
       >
-        <el-tabs
-          v-model="activeSettingsTab"
-          tab-position="left"
-          class="settings-tabs settings-main-tabs"
-          @tab-change="onSettingsTabChange"
-        >
-          <el-tab-pane :label="t('settings.platformSettings')" name="platform">
-            <el-tabs
-              v-model="activePlatformTab"
-              tab-position="left"
-              class="platform-settings-tabs"
+        <div class="settings-page-toolbar">
+          <div class="settings-page-nav">
+            <el-button
+              v-for="item in settingsNavItems"
+              :key="item.key"
+              :type="currentSettingsPage === item.key ? 'primary' : 'default'"
+              :plain="currentSettingsPage !== item.key"
+              class="settings-page-nav__button"
+              @click="navigateToSettingsPage(item.key)"
             >
-              <el-tab-pane :label="t('settings.platformSectionInterface')" name="overview">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.platformSectionInterface') }}</h2>
-                      <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
-                    </div>
-                    <div class="section-card__actions">
-                      <el-button
-                        :loading="activeRestoreSection === 'platform-interface'"
-                        @click="restoreSection('platform-interface', UI_SETTING_KEYS)"
-                      >
-                        {{ t('settings.restoreSection') }}
-                      </el-button>
-                      <el-button
-                        type="primary"
-                        :loading="activeSaveSection === 'platform-interface'"
-                        @click="saveSection('platform-interface', UI_SETTING_KEYS)"
-                      >
-                        {{ t('settings.saveSection') }}
-                      </el-button>
-                    </div>
-                  </div>
+              {{ item.label }}
+            </el-button>
+          </div>
+          <div v-if="pluginNavItems.length && canManageSettings" class="settings-scene-nav">
+            <el-button
+              v-for="item in pluginNavItems"
+              :key="item.key"
+              size="small"
+              :type="isPluginPage && currentPluginScene?.id === item.sceneId ? 'primary' : 'default'"
+              :plain="!isPluginPage || currentPluginScene?.id !== item.sceneId"
+              class="settings-scene-nav__button"
+              @click="navigateToPluginScene(item.sceneId)"
+            >
+              {{ item.label }}
+            </el-button>
+          </div>
+        </div>
 
-                  <div class="inline-setting-block">
-                    <div>
-                      <h3>{{ t('settings.configurationMode') }}</h3>
-                      <p class="info-tip">{{ t('settings.expertModeHint') }}</p>
-                    </div>
-                    <el-switch v-model="expertMode" />
+        <section v-if="isPlatformPage" class="settings-page-panel">
+          <div class="settings-page-panel__head">
+            <div>
+              <h2>{{ t('settings.platformSettings') }}</h2>
+              <p>{{ t('settings.subtitle') }}</p>
+            </div>
+          </div>
+          <el-tabs v-model="activePlatformTab" class="settings-top-tabs">
+            <el-tab-pane :label="t('settings.platformSectionInterface')" name="overview">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.platformSectionInterface') }}</h2>
+                    <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
                   </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'platform-interface'"
+                      @click="restoreSection('platform-interface', UI_SETTING_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'platform-interface'"
+                      @click="saveSection('platform-interface', UI_SETTING_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
 
-                  <div class="settings-form-grid wide-grid">
-                    <el-form-item :label="t('settings.systemLanguage')">
-                      <el-select v-model="form.ui_language" style="width: 100%">
-                        <el-option
-                          v-for="option in languageOptions"
-                          :key="option.value"
-                          :label="t(option.labelKey)"
-                          :value="option.value"
-                        />
-                      </el-select>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.timezone')">
-                      <el-select v-model="form.timezone" style="width: 100%" filterable allow-create default-first-option>
-                        <el-option
-                          v-for="option in timezoneOptions"
-                          :key="option"
-                          :label="option"
-                          :value="option"
-                        />
-                      </el-select>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.siteTitle')">
-                      <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.siteDescription')">
-                      <el-input
-                        v-model="form.site_description"
-                        :placeholder="t('settings.siteDescription')"
+                <div class="inline-setting-block">
+                  <div>
+                    <h3>{{ t('settings.configurationMode') }}</h3>
+                    <p class="info-tip">{{ t('settings.expertModeHint') }}</p>
+                  </div>
+                  <el-switch v-model="expertMode" />
+                </div>
+
+                <div class="settings-form-grid wide-grid">
+                  <el-form-item :label="t('settings.systemLanguage')">
+                    <el-select v-model="form.ui_language" style="width: 100%">
+                      <el-option
+                        v-for="option in languageOptions"
+                        :key="option.value"
+                        :label="t(option.labelKey)"
+                        :value="option.value"
                       />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.faviconUrl')" class="form-grid-span-full">
-                      <div class="icon-upload-group">
-                        <el-avatar :size="32" shape="square" :src="form.favicon_url">
-                          <el-icon><VideoCamera /></el-icon>
-                        </el-avatar>
-                        <el-upload
-                          class="site-icon-upload"
-                          :show-file-list="false"
-                          :auto-upload="false"
-                          accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
-                          :on-change="onSiteIconChange"
-                        >
-                          <el-button>{{ t('settings.uploadSiteIcon') }}</el-button>
-                        </el-upload>
-                        <el-button @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
-                        <el-input v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
-                      </div>
-                    </el-form-item>
-                  </div>
-                </section>
-              </el-tab-pane>
-
-              <el-tab-pane :label="t('settings.platformSectionVengine')" name="video">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.platformSectionVengine') }}</h2>
-                      <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
-                    </div>
-                    <div class="section-card__actions">
-                      <el-button
-                        :loading="activeRestoreSection === 'platform-vengine'"
-                        @click="restoreSection('platform-vengine', VENGINE_SETTING_KEYS)"
-                      >
-                        {{ t('settings.restoreSection') }}
-                      </el-button>
-                      <el-button
-                        type="primary"
-                        :loading="activeSaveSection === 'platform-vengine'"
-                        @click="saveSection('platform-vengine', VENGINE_SETTING_KEYS)"
-                      >
-                        {{ t('settings.saveSection') }}
-                      </el-button>
-                    </div>
-                  </div>
-
-                  <div class="settings-form-grid wide-grid">
-                    <el-form-item :label="t('settings.vengineHost')">
-                      <el-input v-model="form.vengine_host" placeholder="localhost" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.detectionPort')">
-                      <div class="port-switch-row">
-                        <el-input v-model="form.detection_port" placeholder="50051" :disabled="form.detection_enabled !== 'true'" />
-                        <el-switch v-model="form.detection_enabled" active-value="true" inactive-value="false" />
-                      </div>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.classificationPort')">
-                      <div class="port-switch-row">
-                        <el-input v-model="form.classification_port" placeholder="50052" :disabled="form.classification_enabled !== 'true'" />
-                        <el-switch v-model="form.classification_enabled" active-value="true" inactive-value="false" />
-                      </div>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.actionPort')">
-                      <div class="port-switch-row">
-                        <el-input v-model="form.action_port" placeholder="50053" :disabled="form.action_enabled !== 'true'" />
-                        <el-switch v-model="form.action_enabled" active-value="true" inactive-value="false" />
-                      </div>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.ocrPort')">
-                      <div class="port-switch-row">
-                        <el-input v-model="form.ocr_port" placeholder="50054" :disabled="form.ocr_enabled !== 'true'" />
-                        <el-switch v-model="form.ocr_enabled" active-value="true" inactive-value="false" />
-                      </div>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.uploadPort')">
-                      <div class="port-switch-row">
-                        <el-input v-model="form.upload_port" placeholder="50050" :disabled="form.upload_enabled !== 'true'" />
-                        <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
-                      </div>
-                    </el-form-item>
-                  </div>
-
-                  <section v-if="expertMode" class="expert-card">
-                    <h3>{{ t('settings.threadPools') }}</h3>
-                    <div class="settings-form-grid compact-grid">
-                      <el-form-item :label="t('settings.maxPullWorkers')">
-                        <el-input v-model="form.max_pull_workers" placeholder="20" />
-                      </el-form-item>
-                      <el-form-item :label="t('settings.maxPushWorkers')">
-                        <el-input v-model="form.max_push_workers" placeholder="10" />
-                      </el-form-item>
-                      <el-form-item :label="t('settings.maxCpuWorkers')">
-                        <el-input v-model="form.max_cpu_workers" placeholder="16" />
-                      </el-form-item>
-                    </div>
-                  </section>
-                </section>
-              </el-tab-pane>
-
-              <el-tab-pane :label="t('settings.platformSectionMediaMtx')" name="mediamtx">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.platformSectionMediaMtx') }}</h2>
-                      <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
-                    </div>
-                    <div class="section-card__actions">
-                      <el-button
-                        :loading="activeRestoreSection === 'platform-mediamtx'"
-                        @click="restoreSection('platform-mediamtx', MEDIAMTX_SETTING_KEYS)"
-                      >
-                        {{ t('settings.restoreSection') }}
-                      </el-button>
-                      <el-button
-                        type="primary"
-                        :loading="activeSaveSection === 'platform-mediamtx'"
-                        @click="saveSection('platform-mediamtx', MEDIAMTX_SETTING_KEYS)"
-                      >
-                        {{ t('settings.saveSection') }}
-                      </el-button>
-                    </div>
-                  </div>
-
-                  <div class="settings-form-grid wide-grid">
-                    <el-form-item :label="t('settings.rtspAddress')">
-                      <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.webrtcAddress')">
-                      <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.mediamtxUsername')">
-                      <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.mediamtxPassword')">
-                      <el-input
-                        v-model="form.mediamtx_password"
-                        type="password"
-                        show-password
-                        placeholder="stream-pass"
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.timezone')">
+                    <el-select v-model="form.timezone" style="width: 100%" filterable allow-create default-first-option>
+                      <el-option
+                        v-for="option in timezoneOptions"
+                        :key="option"
+                        :label="option"
+                        :value="option"
                       />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.siteTitle')">
+                    <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.siteDescription')">
+                    <el-input
+                      v-model="form.site_description"
+                      :placeholder="t('settings.siteDescription')"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.faviconUrl')" class="form-grid-span-full">
+                    <div class="icon-upload-group">
+                      <el-avatar :size="32" shape="square" :src="form.favicon_url">
+                        <el-icon><VideoCamera /></el-icon>
+                      </el-avatar>
+                      <el-upload
+                        class="site-icon-upload"
+                        :show-file-list="false"
+                        :auto-upload="false"
+                        accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
+                        :on-change="onSiteIconChange"
+                      >
+                        <el-button>{{ t('settings.uploadSiteIcon') }}</el-button>
+                      </el-upload>
+                      <el-button @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
+                      <el-input v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
+                    </div>
+                  </el-form-item>
+                </div>
+              </section>
+            </el-tab-pane>
+
+            <el-tab-pane :label="t('settings.platformSectionVengine')" name="video">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.platformSectionVengine') }}</h2>
+                    <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'platform-vengine'"
+                      @click="restoreSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'platform-vengine'"
+                      @click="saveSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <div class="settings-form-grid wide-grid">
+                  <el-form-item :label="t('settings.vengineHost')">
+                    <el-input v-model="form.vengine_host" placeholder="localhost" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.detectionPort')">
+                    <div class="port-switch-row">
+                      <el-input v-model="form.detection_port" placeholder="50051" :disabled="form.detection_enabled !== 'true'" />
+                      <el-switch v-model="form.detection_enabled" active-value="true" inactive-value="false" />
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.classificationPort')">
+                    <div class="port-switch-row">
+                      <el-input v-model="form.classification_port" placeholder="50052" :disabled="form.classification_enabled !== 'true'" />
+                      <el-switch v-model="form.classification_enabled" active-value="true" inactive-value="false" />
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.actionPort')">
+                    <div class="port-switch-row">
+                      <el-input v-model="form.action_port" placeholder="50053" :disabled="form.action_enabled !== 'true'" />
+                      <el-switch v-model="form.action_enabled" active-value="true" inactive-value="false" />
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.ocrPort')">
+                    <div class="port-switch-row">
+                      <el-input v-model="form.ocr_port" placeholder="50054" :disabled="form.ocr_enabled !== 'true'" />
+                      <el-switch v-model="form.ocr_enabled" active-value="true" inactive-value="false" />
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.uploadPort')">
+                    <div class="port-switch-row">
+                      <el-input v-model="form.upload_port" placeholder="50050" :disabled="form.upload_enabled !== 'true'" />
+                      <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
+                    </div>
+                  </el-form-item>
+                </div>
+
+                <section v-if="expertMode" class="expert-card">
+                  <h3>{{ t('settings.threadPools') }}</h3>
+                  <div class="settings-form-grid compact-grid">
+                    <el-form-item :label="t('settings.maxPullWorkers')">
+                      <el-input v-model="form.max_pull_workers" placeholder="20" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.maxPushWorkers')">
+                      <el-input v-model="form.max_push_workers" placeholder="10" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.maxCpuWorkers')">
+                      <el-input v-model="form.max_cpu_workers" placeholder="16" />
                     </el-form-item>
                   </div>
                 </section>
-              </el-tab-pane>
-            </el-tabs>
-          </el-tab-pane>
+              </section>
+            </el-tab-pane>
 
-          <el-tab-pane :label="t('settings.notificationManagement')" name="notifications">
-            <el-tabs v-model="activeNotificationTab" tab-position="left" class="settings-subtabs">
-              <el-tab-pane :label="t('settings.notificationEmailSection')" name="email">
-                <section class="settings-section section-card">
+            <el-tab-pane :label="t('settings.platformSectionMediaMtx')" name="mediamtx">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.platformSectionMediaMtx') }}</h2>
+                    <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'platform-mediamtx'"
+                      @click="restoreSection('platform-mediamtx', MEDIAMTX_SETTING_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'platform-mediamtx'"
+                      @click="saveSection('platform-mediamtx', MEDIAMTX_SETTING_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <div class="settings-form-grid wide-grid">
+                  <el-form-item :label="t('settings.rtspAddress')">
+                    <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.webrtcAddress')">
+                    <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.mediamtxUsername')">
+                    <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.mediamtxPassword')">
+                    <el-input
+                      v-model="form.mediamtx_password"
+                      type="password"
+                      show-password
+                      placeholder="stream-pass"
+                    />
+                  </el-form-item>
+                </div>
+              </section>
+            </el-tab-pane>
+          </el-tabs>
+        </section>
+
+        <section v-else-if="isNotificationsPage" class="settings-page-panel">
+          <div class="settings-page-panel__head">
+            <div>
+              <h2>{{ t('settings.notificationManagement') }}</h2>
+              <p>{{ t('settings.subtitle') }}</p>
+            </div>
+          </div>
+          <el-tabs v-model="activeNotificationTab" class="settings-top-tabs">
+            <el-tab-pane :label="t('settings.notificationEmailSection')" name="email">
+              <section class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.notificationEmailSection') }}</h2>
@@ -273,22 +303,13 @@
 
                 <div class="settings-form-grid wide-grid">
                   <el-form-item :label="t('settings.emailFromAddress')">
-                    <el-input
-                      v-model="form.email_from_address"
-                      placeholder="sender@example.com"
-                    />
+                    <el-input v-model="form.email_from_address" placeholder="sender@example.com" />
                   </el-form-item>
                   <el-form-item :label="t('settings.emailSmtpHost')">
-                    <el-input
-                      v-model="form.email_smtp_host"
-                      placeholder="smtp.example.com"
-                    />
+                    <el-input v-model="form.email_smtp_host" placeholder="smtp.example.com" />
                   </el-form-item>
                   <el-form-item :label="t('settings.emailSmtpPort')">
-                    <el-input
-                      v-model="form.email_smtp_port"
-                      placeholder="587"
-                    />
+                    <el-input v-model="form.email_smtp_port" placeholder="587" />
                   </el-form-item>
                   <el-form-item :label="t('settings.emailSmtpUseTls')">
                     <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
@@ -342,11 +363,11 @@
                     </div>
                   </el-form-item>
                 </div>
-                </section>
-              </el-tab-pane>
+              </section>
+            </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.notificationRetentionSection')" name="retention">
-                <section class="settings-section section-card compact-section">
+            <el-tab-pane :label="t('settings.notificationRetentionSection')" name="retention">
+              <section class="settings-section section-card compact-section">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.notificationRetentionSection') }}</h2>
@@ -383,250 +404,253 @@
                     <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
                   </el-form-item>
                 </div>
-                </section>
-              </el-tab-pane>
-            </el-tabs>
-          </el-tab-pane>
-
-          <el-tab-pane
-            v-if="authStore.canManageUsers"
-            :label="t('settings.userManagement')"
-            name="users"
-          >
-            <div class="settings-split-grid">
-              <section class="settings-section section-card">
-                <div class="section-card__head">
-                  <div>
-                    <h2>{{ t('settings.accountList') }}</h2>
-                    <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
-                  </div>
-                </div>
-                <div class="user-list">
-                  <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
-                    <span>{{ item.username }}</span>
-                    <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
-                    <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
-                  </div>
-                  <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
-                </div>
               </section>
+            </el-tab-pane>
+          </el-tabs>
+        </section>
 
-              <section class="settings-section section-card">
-                <div class="section-card__head">
-                  <div>
-                    <h2>{{ t('settings.createUser') }}</h2>
-                    <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
-                  </div>
-                </div>
-                <el-form-item :label="t('settings.username')">
-                  <el-input v-model="userForm.username" autocomplete="username" />
-                </el-form-item>
-                <el-form-item :label="t('settings.userRole')">
-                  <el-select v-model="userForm.role" style="width: 100%">
-                    <el-option value="user" :label="t('auth.roles.user')" />
-                    <el-option value="operator" :label="t('auth.roles.operator')" />
-                    <el-option value="admin" :label="t('auth.roles.admin')" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item :label="t('settings.temporaryPassword')">
-                  <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
-                </el-form-item>
-                <div class="section-card__actions single-action">
-                  <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-                    {{ t('settings.createUser') }}
-                  </el-button>
-                </div>
-              </section>
+        <section v-else-if="isUsersPage" class="settings-page-panel">
+          <div class="settings-page-panel__head">
+            <div>
+              <h2>{{ t('settings.userManagement') }}</h2>
+              <p>{{ t('settings.userManagementHint') }}</p>
             </div>
-          </el-tab-pane>
-
-          <el-tab-pane
-            v-for="scene in sceneDefinitions"
-            :key="scene.id"
-            :label="sceneTabLabel(scene.id)"
-            :name="`plugin-${scene.id}`"
-          >
-            <el-tabs v-model="activePluginTab" tab-position="left" class="settings-subtabs">
-              <el-tab-pane :label="t('settings.saveSection')" name="config">
-                <template v-if="scene.id === SMOKE_SCENE_ID">
-                  <section class="settings-section section-card">
-                    <div class="section-card__head">
-                      <div>
-                        <h2>{{ t('settings.smokeScene') }}</h2>
-                        <p class="info-tip">{{ scene.description }}</p>
-                      </div>
-                      <div class="section-card__actions">
-                        <el-button
-                          :loading="activeRestoreSection === `plugin-${scene.id}`"
-                          @click="restoreSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
-                        >
-                          {{ t('settings.restoreSection') }}
-                        </el-button>
-                        <el-button
-                          type="primary"
-                          :loading="activeSaveSection === `plugin-${scene.id}`"
-                          @click="saveSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
-                        >
-                          {{ t('settings.savePluginSection') }}
-                        </el-button>
-                      </div>
-                    </div>
-
-                    <div class="settings-form-grid wide-grid">
-                  <el-form-item :label="t('settings.smokeDetectionModelName')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
-                      <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeDetectionModelVersion')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
-                      <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeDetectionConfidence')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
-                      <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeDetectionNms')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
-                      <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
-                      <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
-                      <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeMaxMissFrames')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
-                      <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeAlarmHoldTime')">
-                    <div class="field-stack">
-                      <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
-                      <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeAppearanceFilter')" class="form-grid-span-full">
-                    <div class="field-stack switch-field-stack">
-                      <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
-                      <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
-                    </div>
-                  </el-form-item>
+          </div>
+          <div class="settings-split-grid">
+            <section class="settings-section section-card">
+              <div class="section-card__head">
+                <div>
+                  <h2>{{ t('settings.accountList') }}</h2>
+                  <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
                 </div>
+              </div>
+              <div class="user-list">
+                <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
+                  <span>{{ item.username }}</span>
+                  <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
+                  <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
+                </div>
+                <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
+              </div>
+            </section>
 
-                  <section v-if="expertMode" class="expert-card plugin-advanced-card">
-                    <div class="section-card__head threshold-head">
-                      <div>
-                      <h3>{{ t('settings.smokeAdvancedThresholds') }}</h3>
-                      <p class="info-tip">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
-                    </div>
-                    <el-button @click="resetSmokeAdvancedThresholds">
-                      {{ t('settings.resetAdvancedThresholds') }}
-                    </el-button>
-                  </div>
-                  <div class="smoke-threshold-grid">
-                    <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
-                      <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
-                      <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
-                      <p class="form-hint">{{ t(item.hintKey) }}</p>
-                    </div>
-                    </div>
-                  </section>
-                  </section>
-                </template>
-                <section v-else class="settings-section section-card">
+            <section class="settings-section section-card">
+              <div class="section-card__head">
+                <div>
+                  <h2>{{ t('settings.createUser') }}</h2>
+                  <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
+                </div>
+              </div>
+              <el-form-item :label="t('settings.username')">
+                <el-input v-model="userForm.username" autocomplete="username" />
+              </el-form-item>
+              <el-form-item :label="t('settings.userRole')">
+                <el-select v-model="userForm.role" style="width: 100%">
+                  <el-option value="user" :label="t('auth.roles.user')" />
+                  <el-option value="operator" :label="t('auth.roles.operator')" />
+                  <el-option value="admin" :label="t('auth.roles.admin')" />
+                </el-select>
+              </el-form-item>
+              <el-form-item :label="t('settings.temporaryPassword')">
+                <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
+              </el-form-item>
+              <div class="section-card__actions single-action">
+                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                  {{ t('settings.createUser') }}
+                </el-button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section v-else-if="currentPluginScene" class="settings-page-panel">
+          <div class="settings-page-panel__head">
+            <div>
+              <h2>{{ currentPluginSceneLabel }}</h2>
+              <p>{{ currentPluginScene.description || t('settings.templateSceneHint') }}</p>
+            </div>
+          </div>
+          <el-tabs v-model="activePluginTab" class="settings-top-tabs">
+            <el-tab-pane :label="t('settings.savePluginSection')" name="config">
+              <template v-if="currentPluginScene.id === SMOKE_SCENE_ID">
+                <section class="settings-section section-card">
                   <div class="section-card__head">
                     <div>
-                      <h2>{{ sceneTabLabel(scene.id) }}</h2>
-                      <p class="info-tip">{{ scene.description || t('settings.templateSceneHint') }}</p>
+                      <h2>{{ t('settings.smokeScene') }}</h2>
+                      <p class="info-tip">{{ currentPluginScene.description }}</p>
                     </div>
                     <div class="section-card__actions">
                       <el-button
-                        :loading="activeRestoreSection === `plugin-${scene.id}`"
-                        @click="restoreSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                        :loading="activeRestoreSection === `plugin-${currentPluginScene.id}`"
+                        @click="restoreSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
                       >
                         {{ t('settings.restoreSection') }}
                       </el-button>
                       <el-button
                         type="primary"
-                        :loading="activeSaveSection === `plugin-${scene.id}`"
-                        @click="saveSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                        :loading="activeSaveSection === `plugin-${currentPluginScene.id}`"
+                        @click="saveSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
                       >
                         {{ t('settings.savePluginSection') }}
                       </el-button>
                     </div>
                   </div>
-                </section>
-              </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.pluginRoiTags')" name="roi-tags">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.pluginRoiTags') }}</h2>
-                      <p class="scene-scope-line">
-                        {{ t('settings.pluginRoiTagsScene', { scene: sceneTabLabel(scene.id), id: scene.id }) }}
-                      </p>
-                    </div>
+                  <div class="settings-form-grid wide-grid">
+                    <el-form-item :label="t('settings.smokeDetectionModelName')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+                        <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeDetectionModelVersion')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+                        <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeDetectionConfidence')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+                        <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeDetectionNms')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+                        <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+                        <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+                        <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeMaxMissFrames')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+                        <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeAlarmHoldTime')">
+                      <div class="field-stack">
+                        <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+                        <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeAppearanceFilter')" class="form-grid-span-full">
+                      <div class="field-stack switch-field-stack">
+                        <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+                        <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
+                      </div>
+                    </el-form-item>
                   </div>
-                  <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
-                    {{ scene.description || t('settings.templateSceneHint') }}
-                  </p>
-                  <div class="plugin-tag-list">
-                    <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark" :title="tag">
-                      {{ roiTagLabel(scene, tag) }}
-                    </el-tag>
-                    <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
-                  </div>
-                  <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
-                </section>
-              </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.pluginDefaultConfig')" name="defaults">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
-                      <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
-                        {{ scene.description || t('settings.templateSceneHint') }}
-                      </p>
+                  <section v-if="expertMode" class="expert-card plugin-advanced-card">
+                    <div class="section-card__head threshold-head">
+                      <div>
+                        <h3>{{ t('settings.smokeAdvancedThresholds') }}</h3>
+                        <p class="info-tip">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+                      </div>
+                      <el-button @click="resetSmokeAdvancedThresholds">
+                        {{ t('settings.resetAdvancedThresholds') }}
+                      </el-button>
                     </div>
-                  </div>
-                  <div class="plugin-config-list">
-                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item.key" type="info">
-                      {{ item.key }}: {{ item.value }}
-                    </el-tag>
-                    <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
-                  </div>
+                    <div class="smoke-threshold-grid">
+                      <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
+                        <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
+                        <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
+                        <p class="form-hint">{{ t(item.hintKey) }}</p>
+                      </div>
+                    </div>
+                  </section>
                 </section>
-              </el-tab-pane>
-            </el-tabs>
-          </el-tab-pane>
-        </el-tabs>
+              </template>
+              <section v-else class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ currentPluginSceneLabel }}</h2>
+                    <p class="info-tip">{{ currentPluginScene.description || t('settings.templateSceneHint') }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === `plugin-${currentPluginScene.id}`"
+                      @click="restoreSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === `plugin-${currentPluginScene.id}`"
+                      @click="saveSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
+                    >
+                      {{ t('settings.savePluginSection') }}
+                    </el-button>
+                  </div>
+                </div>
+              </section>
+            </el-tab-pane>
+
+            <el-tab-pane :label="t('settings.pluginRoiTags')" name="roi-tags">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.pluginRoiTags') }}</h2>
+                    <p class="scene-scope-line">
+                      {{ t('settings.pluginRoiTagsScene', { scene: currentPluginSceneLabel, id: currentPluginScene.id }) }}
+                    </p>
+                  </div>
+                </div>
+                <p v-if="currentPluginScene.id !== SMOKE_SCENE_ID" class="info-tip">
+                  {{ currentPluginScene.description || t('settings.templateSceneHint') }}
+                </p>
+                <div class="plugin-tag-list">
+                  <el-tag v-for="tag in currentPluginScene.default_roi_tags" :key="tag" effect="dark" :title="tag">
+                    {{ roiTagLabel(currentPluginScene, tag) }}
+                  </el-tag>
+                  <span v-if="!currentPluginScene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
+                </div>
+                <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
+              </section>
+            </el-tab-pane>
+
+            <el-tab-pane :label="t('settings.pluginDefaultConfig')" name="defaults">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
+                    <p v-if="currentPluginScene.id !== SMOKE_SCENE_ID" class="info-tip">
+                      {{ currentPluginScene.description || t('settings.templateSceneHint') }}
+                    </p>
+                  </div>
+                </div>
+                <div class="plugin-config-list">
+                  <el-tag v-for="item in sceneDefaultConfigRows(currentPluginScene.id)" :key="item.key" type="info">
+                    {{ item.key }}: {{ item.value }}
+                  </el-tag>
+                  <span v-if="!sceneDefaultConfigRows(currentPluginScene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
+                </div>
+              </section>
+            </el-tab-pane>
+          </el-tabs>
+        </section>
       </el-form>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
+import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
 import { scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
@@ -636,27 +660,16 @@ import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
 
 const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
-const MAIN_SETTINGS_TABS = new Set(['platform', 'notifications', 'users'])
-// Plugin tab names are exactly `plugin-{sceneId}`. Scene IDs must start with a
-// letter, number, or underscore, and later characters may also include hyphens.
-// Scene IDs are 1-57 characters here (one required first character plus up to
-// 56 more); with the `plugin-` prefix this makes the full tab name at most 64
-// characters and keeps URL hash parsing predictable without constraining
-// existing built-in IDs.
-// 插件分页名称固定为 `plugin-{sceneId}`。场景 ID 必须以字母、数字或下划线开头，
-// 后续字符还可以包含连字符。这里将场景 ID 限制为 1-57 字符（首字符必填，
-// 后续最多 56 字符），加上 `plugin-` 前缀后完整分页名称最多 64 字符，
-// 用于让 URL hash 解析保持可预期，同时不影响内置场景。
-const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 // Also referenced by the template to decide whether to render smoke-specific fields.
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
-const activeSettingsTab = ref(readInitialSettingsTab())
 const activePlatformTab = ref('overview')
 const activeNotificationTab = ref('email')
 const activePluginTab = ref('config')
@@ -801,7 +814,8 @@ const userForm = ref({
   password: '',
   role: 'operator',
 })
-const canAccessSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
+const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
+const canAccessSettings = computed(() => canManageSettings.value || authStore.canManageUsers)
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -869,6 +883,40 @@ const form = ref({
   max_push_workers: '',
   max_cpu_workers: '',
 })
+const currentSettingsPage = computed(() => (
+  route.name === 'SettingsPlugin'
+    ? 'plugin'
+    : String(route.params.section || 'platform')
+))
+const currentPluginSceneId = computed(() => (
+  route.name === 'SettingsPlugin' ? String(route.params.sceneId || '') : ''
+))
+const currentPluginScene = computed(() => sceneById(currentPluginSceneId.value))
+const currentPluginSceneLabel = computed(() => (
+  currentPluginScene.value ? sceneTabLabel(currentPluginScene.value.id) : ''
+))
+const isPlatformPage = computed(() => currentSettingsPage.value === 'platform')
+const isNotificationsPage = computed(() => currentSettingsPage.value === 'notifications')
+const isUsersPage = computed(() => currentSettingsPage.value === 'users')
+const isPluginPage = computed(() => currentSettingsPage.value === 'plugin')
+const settingsNavItems = computed(() => {
+  const items = []
+  if (canManageSettings.value) {
+    items.push(
+      { key: 'platform', label: t('settings.platformSettings') },
+      { key: 'notifications', label: t('settings.notificationManagement') },
+    )
+  }
+  if (authStore.canManageUsers) {
+    items.push({ key: 'users', label: t('settings.userManagement') })
+  }
+  return items
+})
+const pluginNavItems = computed(() => (
+  canManageSettings.value
+    ? sceneDefinitions.value.map((scene) => ({ key: `plugin-${scene.id}`, sceneId: scene.id, label: sceneTabLabel(scene.id) }))
+    : []
+))
 
 function sceneById(sceneId) {
   return sceneDefinitions.value.find((scene) => scene.id === sceneId)
@@ -906,58 +954,6 @@ function formatConfigValue(value) {
   return String(value)
 }
 
-function readInitialSettingsTab() {
-  if (typeof window === 'undefined' || !window.location.hash) {
-    return 'platform'
-  }
-  const hashTab = window.location.hash.slice(1)
-  // Only validate the URL shape here; existence is checked after `/api/scenes`
-  // finishes loading in resetInvalidSettingsTab().
-  // 这里只校验 URL 形态；实际场景是否存在会在 `/api/scenes` 加载后校验。
-  if (isValidSettingsTabName(hashTab)) {
-    return hashTab
-  }
-  return 'platform'
-}
-
-function isValidSettingsTabName(tabName) {
-  if (typeof tabName !== 'string') return false
-  return MAIN_SETTINGS_TABS.has(tabName) || PLUGIN_TAB_NAME_PATTERN.test(tabName)
-}
-
-function extractSceneIdFromTabName(tabName) {
-  if (!PLUGIN_TAB_NAME_PATTERN.test(tabName)) {
-    return ''
-  }
-  return tabName.slice('plugin-'.length)
-}
-
-/**
- * Keep the selected Settings tab valid after asynchronous scene loading.
- * 保证异步加载场景后当前设置分页仍然有效。
- *
- * A valid tab is either the platform tab or a plugin tab whose scene ID exists
- * in the `/api/scenes` response. If an invalid hash was supplied, reset to the
- * platform tab instead of rendering an empty pane.
- * 有效分页必须是平台分页，或 `/api/scenes` 返回场景对应的插件分页。
- * 如果 URL hash 无效，则回退到平台设置，避免显示空白分页。
- */
-function resetInvalidSettingsTab() {
-  if (activeSettingsTab.value === 'users' && !authStore.canManageUsers) {
-    activeSettingsTab.value = 'platform'
-    return
-  }
-  if (MAIN_SETTINGS_TABS.has(activeSettingsTab.value)) return
-  if (!sceneDefinitions.value.length) {
-    activeSettingsTab.value = 'platform'
-    return
-  }
-  const activeSceneId = extractSceneIdFromTabName(activeSettingsTab.value)
-  if (!activeSceneId || !sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
-    activeSettingsTab.value = 'platform'
-  }
-}
-
 function pluginSettingKeys(sceneId) {
   return sceneId === SMOKE_SCENE_ID ? SMOKE_PLUGIN_SETTING_KEYS : []
 }
@@ -974,14 +970,45 @@ function applyFormValues(data, keys) {
   })
 }
 
-function onSettingsTabChange(tabName) {
-  if (typeof window === 'undefined') return
-  if (!isValidSettingsTabName(tabName)) return
-  if (window.location.hash.slice(1) !== tabName) {
-    const url = new URL(window.location.href)
-    url.hash = tabName
-    window.history.replaceState(null, '', url)
+function firstAllowedSettingsRoute() {
+  if (canManageSettings.value) {
+    return { name: 'SettingsSection', params: { section: 'platform' } }
   }
+  if (authStore.canManageUsers) {
+    return { name: 'SettingsSection', params: { section: 'users' } }
+  }
+  return null
+}
+
+function navigateToSettingsPage(pageKey) {
+  router.push({ name: 'SettingsSection', params: { section: pageKey } })
+}
+
+function navigateToPluginScene(sceneId) {
+  router.push({ name: 'SettingsPlugin', params: { sceneId } })
+}
+
+function ensureValidSettingsRoute() {
+  const fallback = firstAllowedSettingsRoute()
+  if (!fallback) {
+    return
+  }
+
+  if (route.name === 'SettingsPlugin') {
+    if (!canManageSettings.value || !currentPluginScene.value) {
+      router.replace(fallback)
+    }
+    return
+  }
+
+  const section = String(route.params.section || '')
+  if ((section === 'platform' || section === 'notifications') && canManageSettings.value) {
+    return
+  }
+  if (section === 'users' && authStore.canManageUsers) {
+    return
+  }
+  router.replace(fallback)
 }
 
 async function reload() {
@@ -995,7 +1022,7 @@ async function reload() {
     sceneDefinitions.value = Array.isArray(scenes)
       ? scenes
       : DEFAULT_SCENE_DEFINITIONS
-    resetInvalidSettingsTab()
+    ensureValidSettingsRoute()
     expertMode.value = [
       data.max_pull_workers,
       data.max_push_workers,
@@ -1181,8 +1208,23 @@ function resetSmokeAdvancedThresholds() {
   Object.assign(form.value, SMOKE_ADVANCED_DEFAULTS)
 }
 
+watch(
+  [
+    () => route.name,
+    () => route.params.section,
+    () => route.params.sceneId,
+    canManageSettings,
+    () => authStore.canManageUsers,
+    sceneDefinitions,
+  ],
+  () => {
+    ensureValidSettingsRoute()
+  }
+)
+
 onMounted(async () => {
   await reload()
+  ensureValidSettingsRoute()
 })
 </script>
 
@@ -1234,6 +1276,46 @@ onMounted(async () => {
   padding: 18px;
 }
 
+.settings-page-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.settings-page-nav,
+.settings-scene-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-page-nav__button,
+.settings-scene-nav__button {
+  border-radius: 12px;
+}
+
+.settings-page-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-page-panel__head {
+  padding: 4px 4px 0;
+}
+
+.settings-page-panel__head h2 {
+  margin-bottom: 6px;
+  color: #eef4ff;
+  font-size: 18px;
+}
+
+.settings-page-panel__head p {
+  color: #93a3bf;
+  font-size: 13px;
+}
+
 .settings-section {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid #30364d;
@@ -1260,70 +1342,25 @@ onMounted(async () => {
   background-color: #30364d;
 }
 
-.settings-main-tabs {
-  min-height: 720px;
+.settings-top-tabs :deep(.el-tabs__header) {
+  margin-bottom: 18px;
 }
 
-.settings-main-tabs :deep(.el-tabs__header) {
-  min-width: 196px;
-  padding-right: 18px;
+.settings-top-tabs :deep(.el-tabs__nav-wrap::after) {
+  background-color: #2d3853;
 }
 
-.settings-main-tabs :deep(.el-tabs__item) {
-  justify-content: flex-start;
-  color: #b6c5e4;
-  border-radius: 14px;
-  margin-bottom: 8px;
-  padding: 0 16px;
+.settings-top-tabs :deep(.el-tabs__item) {
+  color: #aebbd7;
+  padding: 0 18px;
 }
 
-.settings-main-tabs :deep(.el-tabs__item.is-active) {
+.settings-top-tabs :deep(.el-tabs__item.is-active) {
   color: #eef4ff;
-  background: rgba(64, 158, 255, 0.16);
 }
 
-.settings-main-tabs :deep(.el-tabs__content) {
-  min-width: 0;
-}
-
-.platform-settings-tabs {
-  min-height: 640px;
-}
-
-.platform-settings-tabs :deep(.el-tabs__header) {
-  min-width: 182px;
-  padding-right: 14px;
-}
-
-.platform-settings-tabs :deep(.el-tabs__item) {
-  justify-content: flex-start;
-  color: #aab7d2;
-  border-radius: 12px;
-  margin-bottom: 8px;
-}
-
-.platform-settings-tabs :deep(.el-tabs__item.is-active) {
-  color: #e8f2ff;
-  background: rgba(64, 158, 255, 0.16);
-}
-
-.settings-subtabs {
-  min-height: 560px;
-}
-
-.settings-subtabs :deep(.el-tabs__header) {
-  min-width: 168px;
-  padding-right: 14px;
-}
-
-.settings-subtabs :deep(.el-tabs__item) {
-  justify-content: flex-start;
-  border-radius: 12px;
-  margin-bottom: 8px;
-}
-
-.settings-subtabs :deep(.el-tabs__item.is-active) {
-  background: rgba(64, 158, 255, 0.14);
+.settings-top-tabs :deep(.el-tabs__active-bar) {
+  background-color: #409eff;
 }
 
 .settings-form-grid {
