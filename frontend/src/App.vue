@@ -2,7 +2,7 @@
   <el-config-provider>
     <router-view v-if="isAuthRoute" />
     <el-container v-else class="app-container">
-      <el-header class="app-header">
+      <el-header v-if="!isManagementRoute" class="app-header">
         <div class="header-brand">
           <el-avatar :size="22" shape="square" :src="appSettingsStore.siteIconUrl" class="site-icon">
             <el-icon><VideoCamera /></el-icon>
@@ -68,7 +68,7 @@
           </el-dropdown>
         </div>
       </el-header>
-      <el-main class="app-main">
+      <el-main :class="['app-main', { 'app-main--management': isManagementRoute }]">
         <router-view />
       </el-main>
     </el-container>
@@ -389,6 +389,10 @@ body {
   flex: 1;
   overflow: hidden;
   padding: 0;
+}
+
+.app-main--management {
+  height: 100vh;
 }
 
 @media (max-width: 960px) {
