@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const users = ref([])
   const loading = ref(false)
   const usersLoading = ref(false)
+  let restorePromise = null
 
   const isAuthenticated = computed(() => Boolean(token.value && user.value))
   const role = computed(() => user.value?.role || '')
@@ -44,6 +45,16 @@ export const useAuthStore = defineStore('auth', () => {
       logout()
       return null
     }
+  }
+
+  async function ensureRestored() {
+    if (isAuthenticated.value) return user.value
+    if (!restorePromise) {
+      restorePromise = restore().finally(() => {
+        restorePromise = null
+      })
+    }
+    return restorePromise
   }
 
   async function login(credentials) {
@@ -129,6 +140,7 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     isBootstrapRegistrationOpen,
     canManageUsers,
+    ensureRestored,
     restore,
     login,
     register,

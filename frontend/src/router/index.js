@@ -41,25 +41,13 @@ const router = createRouter({
   routes,
 })
 
-let restorePromise = null
-
-async function ensureSession(authStore) {
-  if (authStore.isAuthenticated) return authStore.user
-  if (!restorePromise) {
-    restorePromise = authStore.restore().finally(() => {
-      restorePromise = null
-    })
-  }
-  return restorePromise
-}
-
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia)
 
   await authStore.fetchBootstrap()
 
   if (to.path === '/auth') {
-    await ensureSession(authStore)
+    await authStore.ensureRestored()
     if (authStore.isAuthenticated) {
       const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : '/'
       return redirect && redirect !== '/auth' ? redirect : '/'
@@ -86,7 +74,7 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  await ensureSession(authStore)
+  await authStore.ensureRestored()
   if (authStore.isAuthenticated) {
     return true
   }

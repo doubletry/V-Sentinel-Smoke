@@ -4,7 +4,7 @@
       <section class="auth-hero">
         <p class="auth-brand">{{ appSettingsStore.siteTitle }}</p>
         <h1>{{ pageTitle }}</h1>
-        <p>{{ appSettingsStore.siteDescription }}</p>
+        <p v-if="heroDescription">{{ heroDescription }}</p>
       </section>
 
       <section class="auth-card">
@@ -135,6 +135,7 @@ const isRegisterMode = computed(() => {
   if (route.query.mode === 'login') return false
   return authStore.isBootstrapRegistrationOpen
 })
+const heroDescription = computed(() => appSettingsStore.siteDescription || '')
 const pageTitle = computed(() => (
   isRegisterMode.value
     ? t('auth.registerPageTitle', { title: appSettingsStore.siteTitle })
