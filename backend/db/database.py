@@ -726,7 +726,11 @@ async def _get_shared_mediamtx_credentials_from_db(
         "mediamtx_webrtc_password",
         DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
     )
-    resolved_username = username if str(username).strip() else (legacy_rtsp_username or legacy_webrtc_username)
+    resolved_username = (
+        username
+        if str(username).strip()
+        else (legacy_rtsp_username or legacy_webrtc_username)
+    )
     resolved_password = (
         password
         if str(password).strip()
@@ -1408,31 +1412,46 @@ async def get_setting(key: str) -> str | None:
     async with _db_session() as db:
         async with db.execute(
             "SELECT value FROM app_settings WHERE key = ?", (key,)
-        ) as cursor:
+    ) as cursor:
             row = await cursor.fetchone()
     return row[0] if row else None
+
+
+def _normalize_shared_mediamtx_credential_update(
+    normalized_data: dict[str, str],
+    *,
+    shared_key: str,
+    rtsp_key: str,
+    webrtc_key: str,
+) -> None:
+    """Normalize shared MediaMTX credential updates and keep legacy aliases synced.
+    规范化共享 MediaMTX 凭据更新，并同步旧别名字段。"""
+    if shared_key not in normalized_data:
+        if rtsp_key in normalized_data:
+            normalized_data[shared_key] = normalized_data[rtsp_key]
+        elif webrtc_key in normalized_data:
+            normalized_data[shared_key] = normalized_data[webrtc_key]
+    if shared_key in normalized_data:
+        normalized_data[rtsp_key] = normalized_data[shared_key]
+        normalized_data[webrtc_key] = normalized_data[shared_key]
 
 
 async def update_settings(data: dict[str, str]) -> dict[str, str]:
     """Update multiple settings at once. Returns all settings after update.
     批量更新设置。返回更新后的所有设置。"""
     normalized_data = dict(data)
-    if "mediamtx_username" not in normalized_data:
-        if "mediamtx_rtsp_username" in normalized_data:
-            normalized_data["mediamtx_username"] = normalized_data["mediamtx_rtsp_username"]
-        elif "mediamtx_webrtc_username" in normalized_data:
-            normalized_data["mediamtx_username"] = normalized_data["mediamtx_webrtc_username"]
-    if "mediamtx_password" not in normalized_data:
-        if "mediamtx_rtsp_password" in normalized_data:
-            normalized_data["mediamtx_password"] = normalized_data["mediamtx_rtsp_password"]
-        elif "mediamtx_webrtc_password" in normalized_data:
-            normalized_data["mediamtx_password"] = normalized_data["mediamtx_webrtc_password"]
-    if "mediamtx_username" in normalized_data:
-        normalized_data["mediamtx_rtsp_username"] = normalized_data["mediamtx_username"]
-        normalized_data["mediamtx_webrtc_username"] = normalized_data["mediamtx_username"]
-    if "mediamtx_password" in normalized_data:
-        normalized_data["mediamtx_rtsp_password"] = normalized_data["mediamtx_password"]
-        normalized_data["mediamtx_webrtc_password"] = normalized_data["mediamtx_password"]
+    _normalize_shared_mediamtx_credential_update(
+        normalized_data,
+        shared_key="mediamtx_username",
+        rtsp_key="mediamtx_rtsp_username",
+        webrtc_key="mediamtx_webrtc_username",
+    )
+    _normalize_shared_mediamtx_credential_update(
+        normalized_data,
+        shared_key="mediamtx_password",
+        rtsp_key="mediamtx_rtsp_password",
+        webrtc_key="mediamtx_webrtc_password",
+    )
 
     async with _db_session() as db:
         for key, value in normalized_data.items():
