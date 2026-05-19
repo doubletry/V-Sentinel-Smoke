@@ -88,11 +88,15 @@ router.beforeEach(async (to) => {
   await authStore.ensureRestored()
   if (authStore.isAuthenticated) {
     if (to.path === '/settings') {
+      const defaultSettingsPath = getDefaultSettingsPath(
+        authStore.hasPermission('settings:*'),
+        authStore.canManageUsers,
+      )
+      if (!defaultSettingsPath) {
+        return true
+      }
       return {
-        path: getDefaultSettingsPath(
-          authStore.hasPermission('settings:*'),
-          authStore.canManageUsers,
-        ),
+        path: defaultSettingsPath,
         replace: true,
       }
     }
