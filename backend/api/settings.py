@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
 from backend.auth.dependencies import require_permission
@@ -10,6 +10,24 @@ from core.notification_client import NotificationPayload, SmtpNotificationProvid
 from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+
+def _ensure_legacy_mediamtx_credentials_are_consistent(updates: dict[str, str]) -> None:
+    """Reject conflicting legacy RTSP/WebRTC MediaMTX credentials in one request.
+    拒绝单次请求里彼此冲突的旧 RTSP/WebRTC MediaMTX 凭据。"""
+    legacy_pairs = [
+        ("mediamtx_rtsp_username", "mediamtx_webrtc_username", "username"),
+        ("mediamtx_rtsp_password", "mediamtx_webrtc_password", "password"),
+    ]
+    for left_key, right_key, label in legacy_pairs:
+        if left_key not in updates or right_key not in updates:
+            continue
+        if str(updates[left_key]) == str(updates[right_key]):
+            continue
+        raise HTTPException(
+            status_code=422,
+            detail=f"Legacy MediaMTX {label} fields must match when both RTSP and WebRTC values are provided",
+        )
 
 
 @router.get("")
@@ -37,6 +55,7 @@ async def update_settings(
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
     if not updates:
         return await db.get_all_settings()
+    _ensure_legacy_mediamtx_credentials_are_consistent(updates)
 
     previous_settings = await db.get_all_settings()
     result = await db.update_settings(updates)

@@ -241,6 +241,21 @@ class TestSettingsAPI:
         assert data["mediamtx_username"] == "legacy-user"
         assert data["mediamtx_password"] == "legacy-pass"
 
+    async def test_conflicting_legacy_mediamtx_credentials_are_rejected(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_username": "legacy-rtsp",
+                "mediamtx_webrtc_username": "legacy-webrtc",
+            },
+        )
+
+        assert resp.status_code == 422
+        assert "must match" in resp.json()["detail"]
+
 
 class TestVEngineClientAddresses:
     def test_build_addresses(self):

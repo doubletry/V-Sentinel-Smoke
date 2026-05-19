@@ -729,7 +729,7 @@ async def _get_shared_mediamtx_credentials_from_db(
     resolved_username = username if str(username).strip() else (legacy_rtsp_username or legacy_webrtc_username)
     resolved_password = (
         password
-        if str(password).strip() or str(username).strip()
+        if str(password).strip()
         else (legacy_rtsp_password or legacy_webrtc_password)
     )
     return resolved_username, resolved_password
