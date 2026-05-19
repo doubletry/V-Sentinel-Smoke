@@ -26,6 +26,7 @@ export default {
     featurePermissionUi: '菜单和操作按权限精确展示',
     hasAccountLogin: '已有账号，去登录',
     switchToRegisterHint: '当前系统还没有管理员账号，请先完成首个管理员注册。',
+    accountUnavailable: '账号入口不可用',
     username: '用户名',
     password: '密码',
     confirmPassword: '确认密码',

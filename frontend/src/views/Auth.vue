@@ -161,7 +161,15 @@ function redirectTarget() {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
   try {
     const decoded = decodeURIComponent(value)
-    if (decoded.startsWith('//') || decoded.includes('://')) return '/'
+    const normalized = decoded.trim().toLowerCase()
+    const normalizedWithoutLeadingSlash = normalized.replace(/^\/+/, '')
+    if (
+      decoded.startsWith('//')
+      || decoded.includes('://')
+      || /^(javascript|data|vbscript):/.test(normalizedWithoutLeadingSlash)
+    ) {
+      return '/'
+    }
     const resolved = router.resolve(decoded)
     return resolved.matched.length && resolved.path !== '/auth' ? resolved.fullPath : '/'
   } catch (_) {
@@ -270,6 +278,7 @@ onMounted(async () => {
 }
 
 .auth-hero::after {
+  /* Keep the glow partially outside the card to create a soft overflow halo. */
   --decorative-orb-right: -60px;
   --decorative-orb-bottom: -100px;
 

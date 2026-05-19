@@ -78,27 +78,27 @@
                         :placeholder="t('settings.siteDescription')"
                       />
                     </el-form-item>
+                    <el-form-item :label="t('settings.faviconUrl')">
+                      <div class="icon-upload-group">
+                        <el-avatar :size="28" shape="square" :src="form.favicon_url">
+                          <el-icon><VideoCamera /></el-icon>
+                        </el-avatar>
+                        <el-upload
+                          class="site-icon-upload"
+                          :show-file-list="false"
+                          :auto-upload="false"
+                          accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
+                          :on-change="onSiteIconChange"
+                        >
+                          <el-button size="small">{{ t('settings.uploadSiteIcon') }}</el-button>
+                        </el-upload>
+                        <el-button size="small" @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.iconPath')">
+                      <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
+                    </el-form-item>
                   </div>
-                  <el-form-item :label="t('settings.faviconUrl')">
-                    <div class="icon-upload-group">
-                      <el-avatar :size="28" shape="square" :src="form.favicon_url">
-                        <el-icon><VideoCamera /></el-icon>
-                      </el-avatar>
-                      <el-upload
-                        class="site-icon-upload"
-                        :show-file-list="false"
-                        :auto-upload="false"
-                        accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
-                        :on-change="onSiteIconChange"
-                      >
-                        <el-button size="small">{{ t('settings.uploadSiteIcon') }}</el-button>
-                      </el-upload>
-                      <el-button size="small" @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.iconPath')">
-                    <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
-                  </el-form-item>
                 </section>
               </el-tab-pane>
 

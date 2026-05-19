@@ -47,7 +47,7 @@
               {{ t('auth.registerFirstAdmin') }}
             </el-button>
             <el-button
-              v-else
+              v-else-if="authStore.bootstrap.has_users"
               size="small"
               type="primary"
               plain
@@ -55,6 +55,7 @@
             >
               {{ t('auth.login') }}
             </el-button>
+            <el-tag v-else type="warning" effect="dark">{{ t('auth.accountUnavailable') }}</el-tag>
           </template>
           <el-dropdown v-else trigger="click" @command="onAuthCommand">
             <el-button size="small" plain>
