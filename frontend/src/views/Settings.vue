@@ -1404,18 +1404,6 @@ onMounted(async () => {
   margin-bottom: 6px;
 }
 
-.settings-tabs :deep(.el-tabs__item) {
-  color: #aab7d2;
-}
-
-.settings-tabs :deep(.el-tabs__item.is-active) {
-  color: #79bbff;
-}
-
-.settings-tabs :deep(.el-tabs__nav-wrap::after) {
-  background-color: #30364d;
-}
-
 .settings-top-tabs :deep(.el-tabs__header) {
   margin-bottom: 18px;
 }
@@ -1685,11 +1673,6 @@ onMounted(async () => {
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 12px;
-  }
-
-  .platform-settings-tabs :deep(.el-tabs__header) {
-    min-width: 126px;
-    padding-right: 10px;
   }
 
   .title-line h1 {

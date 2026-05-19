@@ -181,7 +181,7 @@ export default {
     processingLogs: '处理日志',
     vengineSettings: 'V-Engine 设置',
     notificationSettings: '通知设置',
-    pluginSettings: '插件相关设置',
+    pluginSettings: '插件设置',
   },
   messageList: {
     summary: '汇总',
