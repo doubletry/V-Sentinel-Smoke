@@ -886,7 +886,7 @@ const form = ref({
 const firstAllowedSectionKey = computed(() => {
   if (canManageSettings.value) return 'platform'
   if (authStore.canManageUsers) return 'users'
-  return 'platform'
+  return ''
 })
 const currentSettingsPage = computed(() => (
   route.name === 'SettingsPlugin'
@@ -1013,7 +1013,7 @@ function ensureValidSettingsRoute() {
     return
   }
 
-  const section = String(route.params.section || '')
+  const section = route.params.section || ''
   if ((section === 'platform' || section === 'notifications') && canManageSettings.value) {
     return
   }
