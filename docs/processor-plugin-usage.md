@@ -74,6 +74,14 @@ export V_SENTINEL_USER_PASSWORD='<user-password>'
 The frontend only forwards `localStorage.v_sentinel_token` as a bearer token; it
 does not accept a client-controlled role header.
 
+## Bootstrap account registration
+
+When the database contains no users, public registration is temporarily open.
+Create the first account from `/auth` or `POST /api/auth/register`; the backend
+automatically promotes that first account to `admin`. After the first account is
+created, public registration closes and only existing administrators can add
+more accounts through the user-management APIs or the Settings page.
+
 ## Frontend expert mode
 
 The Settings page exposes a user-friendly mode switch. Advanced smoke/fire

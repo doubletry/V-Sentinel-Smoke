@@ -44,7 +44,7 @@
               type="primary"
               @click="goAuth('register')"
             >
-              {{ t('auth.registerFirstAdmin') }}
+              {{ t('auth.register') }}
             </el-button>
             <el-button
               v-else-if="authStore.bootstrap.has_users"

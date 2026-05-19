@@ -8,11 +8,11 @@
         <div class="auth-feature-list">
           <div class="auth-feature-item">
             <span class="auth-feature-dot" />
-            {{ t('auth.featureBootstrap') }}
+            {{ t('auth.featureSecureAuth') }}
           </div>
           <div class="auth-feature-item">
             <span class="auth-feature-dot" />
-            {{ t('auth.featureAdminUsers') }}
+            {{ t('auth.featureRoleAccess') }}
           </div>
           <div class="auth-feature-item">
             <span class="auth-feature-dot" />
@@ -23,7 +23,7 @@
 
       <section class="auth-card">
         <div class="auth-card-header">
-          <h2>{{ isRegisterMode ? t('auth.registerFirstAdmin') : t('auth.login') }}</h2>
+          <h2>{{ isRegisterMode ? t('auth.register') : t('auth.login') }}</h2>
           <p>{{ isRegisterMode ? t('auth.registerHint') : t('auth.loginHint') }}</p>
         </div>
 
@@ -63,7 +63,7 @@
             :loading="authStore.loading"
             @click="submitRegister"
           >
-            {{ t('auth.registerFirstAdmin') }}
+            {{ t('auth.register') }}
           </el-button>
         </el-form>
 
@@ -98,13 +98,6 @@
           </el-button>
         </el-form>
 
-        <el-alert
-          v-if="!isRegisterMode && !authStore.bootstrap.has_users"
-          type="info"
-          :closable="false"
-          show-icon
-          :title="t('auth.switchToRegisterHint')"
-        />
         <el-button
           v-if="!isRegisterMode && authStore.isBootstrapRegistrationOpen"
           link
@@ -112,7 +105,7 @@
           class="auth-switch"
           @click="switchMode('register')"
         >
-          {{ t('auth.registerFirstAdmin') }}
+          {{ t('auth.register') }}
         </el-button>
         <el-button
           v-if="isRegisterMode && authStore.bootstrap.has_users"
