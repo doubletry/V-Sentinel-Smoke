@@ -633,7 +633,11 @@ class TestCoreBaseVideoProcessorPipeline:
             source_id="s1",
             source_name="cam",
             rtsp_url="rtsp://localhost:8554/cam1",
-            app_settings={"mediamtx_rtsp_addr": "rtsp://localhost:8554"},
+            app_settings={
+                "mediamtx_rtsp_addr": "rtsp://localhost:8554",
+                "mediamtx_username": "shared-user",
+                "mediamtx_password": "shared-pass",
+            },
         )
         proc._update_publish_fps(30.0)
         frame = np.zeros((64, 64, 3), dtype=np.uint8)
@@ -642,6 +646,7 @@ class TestCoreBaseVideoProcessorPipeline:
         class _FakeProc:
             def __init__(self):
                 self.stdin = MagicMock()
+                self.stderr = None
 
             def poll(self):
                 return None
@@ -663,16 +668,20 @@ class TestCoreBaseVideoProcessorPipeline:
             return proc
 
         monkeypatch.setattr("core.base_processor.subprocess.Popen", _fake_popen)
+        monkeypatch.setattr("core.base_processor.time.sleep", lambda *_args, **_kwargs: None)
+        proc._start_push_stderr_drain = lambda: None
 
         proc._push_frame(frame, "cam1_processed")
 
         cmd = captured["cmd"]
         assert cmd[0] == "ffmpeg"
         assert "-f" in cmd and "rawvideo" in cmd
-        assert "-pix_fmt" in cmd and "rgb24" in cmd
+        assert "-pixel_format" in cmd and "rgb24" in cmd
+        assert "-video_size" in cmd and "64x64" in cmd
+        assert "-framerate" in cmd
         assert "-rtsp_transport" in cmd and "tcp" in cmd
         assert "libx264" in cmd
-        assert "rtsp://localhost:8554/cam1_processed" == cmd[-1]
+        assert "rtsp://shared-user:shared-pass@localhost:8554/cam1_processed" == cmd[-1]
         assert f"{proc._current_publish_fps():.3f}" in cmd
         captured["proc"].stdin.write.assert_called_once_with(frame.tobytes())
         captured["proc"].stdin.flush.assert_called_once()
@@ -686,6 +695,18 @@ class TestCoreBaseVideoProcessorPipeline:
             codec_context = _CodecContext()
             # base_rate / guessed_rate simulate inflated values sometimes seen
             # under low-delay PyAV input options.
+            base_rate = 50
+            guessed_rate = 50
+
+        assert BaseVideoProcessor._stream_fps(_Stream()) == 25.0
+
+    def test_stream_fps_prefers_codec_framerate_when_average_rate_is_inflated(self):
+        class _CodecContext:
+            framerate = 25
+
+        class _Stream:
+            average_rate = 50
+            codec_context = _CodecContext()
             base_rate = 50
             guessed_rate = 50
 
@@ -723,3 +744,23 @@ class TestCoreBaseVideoProcessorPipeline:
             guessed_rate = None
 
         assert BaseVideoProcessor._stream_fps(_Stream()) is None
+
+    def test_observed_fps_estimates_from_decoded_frames(self):
+        assert BaseVideoProcessor._observed_fps(26, 1.0) == 25.0
+
+    def test_build_push_rtsp_url_injects_shared_credentials(self):
+        proc = DummyCoreProcessor(
+            source_id="s1",
+            source_name="cam",
+            rtsp_url="rtsp://localhost:8554/cam1",
+            app_settings={
+                "mediamtx_rtsp_addr": "rtsp://localhost:8554/live",
+                "mediamtx_username": "shared-user",
+                "mediamtx_password": "shared-pass",
+            },
+        )
+
+        assert (
+            proc._build_push_rtsp_url("zone/cam1_processed")
+            == "rtsp://shared-user:shared-pass@localhost:8554/live/zone/cam1_processed"
+        )

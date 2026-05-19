@@ -78,3 +78,20 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 18080
 - 使用 `POST http://127.0.0.1:8889/cam1/whep` 验证无认证访问返回 `401 Unauthorized`。
 - 使用同一组 Basic Auth 凭据再次请求 WHEP，MediaMTX 返回 `400 Bad Request` 且报 `invalid SDP`，说明请求已通过认证并进入真实 WHEP SDP 校验阶段。
 - 将应用设置更新为上述共享凭据后，`POST /api/sources` 创建 `route_path=cam1` 的视频源，服务端实际保存的地址为 `rtsp://shared-user:shared-pass@127.0.0.1:8554/cam1`。
+
+## MediaMTX 结果流与 FPS 真实验证（2026-05-19）
+
+本轮又补充了真实 25fps 输入源与结果流推送验证：
+
+- 使用真实 MediaMTX 1.18.2 和 `ffmpeg testsrc=size=640x360:rate=25` 发布 `cam25` 输入流。
+- 使用最小透传处理器读取 `cam25` 并持续输出 `cam25_processed` 结果流。
+- 处理器日志确认 `source FPS 25.000`，并按 `publish FPS 25.000` 推流。
+- MediaMTX 日志确认后台处理器已成功向 `cam25_processed` 发布 H.264 结果流。
+- 使用 `ffprobe` 读取 `rtsp://shared-user:shared-pass@127.0.0.1:8554/cam25_processed`，返回：
+  - `codec_name = h264`
+  - `width = 640`
+  - `height = 360`
+  - `avg_frame_rate = 25/1`
+  - `r_frame_rate = 25/1`
+
+这说明结果画面已经实际推送到 MediaMTX，同时 25fps 输入不会再被错误推成 50fps 结果流。
