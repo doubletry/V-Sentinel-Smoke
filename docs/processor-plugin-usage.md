@@ -7,23 +7,131 @@ The default scene plugin is `smoke`, which detects `smoke` and `fire` labels.
 
 - `core/base_processor.py`: shared RTSP, ROI, drawing, inference helper, and result-push lifecycle.
 - `core/analysis_agent.py`: generic aggregation/agent template.
+- `core/notification_client.py`: direct SMTP and reserved Webhook notification providers.
 - `core/smoke/`: smoke/fire constants, post-processing, processor, and event-email helpers.
 - `backend/processing/`: backend adapters and plugin registry.
-- `frontend/src/views/Settings.vue`: configurable model, post-processing, email cooldown, and email template settings.
+- `backend/api/scenes.py`: scene catalog API. A video source is designed to bind to exactly one scene.
+- `backend/api/video_gateways.py`: video gateway API. MediaMTX RTSP and WebRTC use the same stored username/password while applying protocol-specific authentication at the client side.
+- `backend/api/notifications.py`: notification provider/template/policy APIs. Email and Webhook are the first two reserved channel types.
+- `backend/api/access.py`: built-in user/operator/admin role catalog for the three-level RBAC model.
+- `backend/processing/template/`: runnable backend scene template; see `docs/scene-template-development.md`.
+- `frontend/src/views/Settings.vue`: platform settings plus per-scene plugin tabs. Platform fields are plugin-agnostic; plugin tabs hold scene-specific model/post-processing and ROI tag guidance.
 
-## Smoke plugin
+## Template foundation APIs
 
-Set the DB-backed setting below to enable the smoke/fire scene:
+Blank databases are seeded with:
+
+- `smoke` scene metadata.
+- `default-mediamtx` video gateway.
+- disabled `default-email` SMTP provider.
+- disabled `default-webhook` provider.
+- `default-event-email` template.
+- `default-alert-policy` policy.
+
+The foundation endpoints are:
+
+```text
+GET  /api/scenes
+GET  /api/scenes/{scene_id}
+GET  /api/video-gateways
+POST /api/video-gateways
+PUT  /api/video-gateways/{gateway_id}
+GET  /api/notifications/providers
+POST /api/notifications/providers
+PUT  /api/notifications/providers/{provider_id}
+GET  /api/notifications/templates
+POST /api/notifications/templates
+PUT  /api/notifications/templates/{template_id}
+GET  /api/notifications/policies
+POST /api/notifications/policies
+PUT  /api/notifications/policies/{policy_id}
+GET  /api/access/roles
+```
+
+RBAC roles are intentionally simple at this stage:
+
+- `user`: view video, sources, and messages.
+- `operator`: user permissions plus source operation and message annotation.
+- `admin`: full platform configuration and user-management permissions.
+
+The next implementation phases should wire these definitions into request-time
+authorization and frontend route/action guards.
+
+Role enforcement is activated for mutating management/operation APIs. Clients
+must first call `POST /api/auth/login` with a configured role password and then
+send `Authorization: Bearer <token>`. Tokens are HMAC-signed and expire after
+eight hours.
+
+Production deployments must configure:
+
+```bash
+export V_SENTINEL_AUTH_SECRET='<long-random-secret>'
+export V_SENTINEL_ADMIN_PASSWORD='<admin-password>'
+export V_SENTINEL_OPERATOR_PASSWORD='<operator-password>'
+export V_SENTINEL_USER_PASSWORD='<user-password>'
+```
+
+The frontend only forwards `localStorage.v_sentinel_token` as a bearer token; it
+does not accept a client-controlled role header.
+
+## Bootstrap account registration
+
+When the database contains no users, public registration is temporarily open.
+Create the first account from `/auth` or `POST /api/auth/register`; the backend
+automatically promotes that first account to `admin`. After the first account is
+created, public registration closes and only existing administrators can add
+more accounts through the user-management APIs or the Settings page.
+
+## Frontend expert mode
+
+The Settings page exposes a user-friendly mode switch. Advanced smoke/fire
+thresholds and thread-pool controls are hidden until expert mode is enabled, so
+regular operators can configure common fields without navigating low-frequency
+tuning options.
+
+## Scene-bound plugins
+
+Processor selection is source-scoped. Each source carries a `scene_id`, and the
+processor manager loads the matching plugin for that source. This allows one
+deployment to run smoke/fire, template, and future scene plugins concurrently.
+
+Example source payload:
 
 ```json
 {
-  "processor_plugin": "smoke"
+  "name": "Factory Camera 1",
+  "route_path": "factory/cam-1",
+  "scene_id": "smoke",
+  "notification_policy_ids": ["default-alert-policy"]
 }
 ```
 
-The smoke plugin only requires the detection service. It forwards `model_name`, optional `model_version`, confidence, NMS, and ROI to V-Engine detection, then applies the temporal smoke/fire post-processor.
+ROI tags are also scene-scoped. Frontend ROI drawing reads the bound scene's
+`default_roi_tags`, and backend YAML import validates against that same scene
+tag set. When a source changes scene, existing ROIs are cleared unless the
+request explicitly provides a replacement ROI list.
 
-## Event email templates
+## Smoke plugin
+
+The smoke plugin only requires the detection service. It forwards `model_name`,
+optional `model_version`, confidence, NMS, and ROI to V-Engine detection, then
+applies the temporal smoke/fire post-processor.
+
+## Notifications and SMTP email
+
+Runtime event notifications are now routed through
+`backend.notifications.dispatcher.NotificationDispatcher`.
+
+- Email uses direct SMTP through `core.notification_client.SmtpNotificationProvider`.
+- Webhook is reserved through `core.notification_client.WebhookNotificationProvider`.
+- Sources can bind notification policies through `notification_policy_ids`.
+- If a source has no policy binding, the dispatcher falls back to `default-alert-policy`.
+- Cooldown is enforced per policy/source/event type.
+
+The previous email gRPC client and proto files have been removed. Event and
+test email delivery both use SMTP notification providers directly.
+
+## Event template placeholders
 
 Event email subject/body templates support `{element}` placeholders. The backend exposes the supported placeholder list through:
 

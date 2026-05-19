@@ -37,7 +37,7 @@
       </div>
       <div class="msg-actions">
         <el-button
-          v-if="msg.id && !msg.false_positive"
+          v-if="canAnnotateMessages && msg.id && !msg.false_positive"
           size="small"
           type="warning"
           plain
@@ -46,7 +46,7 @@
           {{ t('messageList.markFalsePositive') }}
         </el-button>
         <el-button
-          v-if="msg.id && msg.false_positive"
+          v-if="canAnnotateMessages && msg.id && msg.false_positive"
           size="small"
           type="info"
           plain
@@ -69,9 +69,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { useAuthStore } from '../stores/auth.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
 
 defineProps({
@@ -84,8 +85,10 @@ const emit = defineEmits(['mark-false-positive', 'unmark-false-positive'])
 
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
+const authStore = useAuthStore()
 const previewVisible = ref(false)
 const previewImage = ref('')
+const canAnnotateMessages = computed(() => authStore.hasPermission('messages:annotate'))
 
 function levelType(level) {
   const map = { info: '', warning: 'warning', alert: 'danger' }

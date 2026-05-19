@@ -1,5 +1,6 @@
 import axios from 'axios'
 import config from '../config.js'
+import { AUTH_TOKEN_STORAGE_KEY } from '../utils/authStorage.js'
 
 const api = axios.create({
   baseURL: config.apiBaseUrl,
@@ -8,7 +9,14 @@ const api = axios.create({
 
 // Request interceptor
 api.interceptors.request.use(
-  (cfg) => cfg,
+  (cfg) => {
+    const token = window.localStorage?.getItem(AUTH_TOKEN_STORAGE_KEY)
+    cfg.headers = cfg.headers || {}
+    if (token) {
+      cfg.headers.Authorization = `Bearer ${token}`
+    }
+    return cfg
+  },
   (error) => Promise.reject(error)
 )
 
@@ -44,9 +52,6 @@ export const sourcesApi = {
 export const processorApi = {
   start: (sourceId) => api.post('/api/processor/start', { source_id: sourceId }),
   stop: (sourceId) => api.post('/api/processor/stop', { source_id: sourceId }),
-  startAll: () => api.post('/api/processor/start-all'),
-  stopAll: () => api.post('/api/processor/stop-all'),
-  plugins: () => api.get('/api/processor/plugins'),
   logs: (page = 1, pageSize = 20) => api.get('/api/processor/logs', {
     params: { page, page_size: pageSize },
   }),
@@ -66,6 +71,42 @@ export const settingsApi = {
   update: (data) => api.put('/api/settings', data),
   testEmail: (data) => api.post('/api/settings/email/test', data),
   emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),
+}
+
+export const authApi = {
+  bootstrap: () => api.get('/api/auth/bootstrap'),
+  login: (data) => api.post('/api/auth/login', data),
+  register: (data) => api.post('/api/auth/register', data),
+  me: () => api.get('/api/auth/me'),
+  changePassword: (data) => api.post('/api/auth/password', data),
+}
+
+export const usersApi = {
+  list: () => api.get('/api/users'),
+  create: (data) => api.post('/api/users', data),
+}
+
+export const scenesApi = {
+  list: () => api.get('/api/scenes'),
+  get: (id) => api.get(`/api/scenes/${id}`),
+}
+
+export const videoGatewaysApi = {
+  list: () => api.get('/api/video-gateways'),
+  create: (data) => api.post('/api/video-gateways', data),
+  update: (id, data) => api.put(`/api/video-gateways/${id}`, data),
+}
+
+export const notificationsApi = {
+  providers: () => api.get('/api/notifications/providers'),
+  createProvider: (data) => api.post('/api/notifications/providers', data),
+  updateProvider: (id, data) => api.put(`/api/notifications/providers/${id}`, data),
+  templates: () => api.get('/api/notifications/templates'),
+  createTemplate: (data) => api.post('/api/notifications/templates', data),
+  updateTemplate: (id, data) => api.put(`/api/notifications/templates/${id}`, data),
+  policies: () => api.get('/api/notifications/policies'),
+  createPolicy: (data) => api.post('/api/notifications/policies', data),
+  updatePolicy: (id, data) => api.put(`/api/notifications/policies/${id}`, data),
 }
 
 export default api

@@ -18,22 +18,20 @@ const DEFAULT_EVENT_EMAIL_BODY_TEMPLATE = [
 const DEFAULT_UI_SETTINGS = {
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
-  processor_plugin: 'smoke',
   site_title: config.siteName,
   site_description: config.siteDescription,
   favicon_url: '/favicon.ico',
-  roi_tag_options: '["person","vehicle","intrusion"]',
   mediamtx_rtsp_addr: 'rtsp://localhost:8554',
-  mediamtx_rtsp_username: '',
-  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: config.mediamtxWebrtcUrl || 'http://localhost:8889',
-  mediamtx_webrtc_username: '',
-  mediamtx_webrtc_password: '',
+  mediamtx_username: '',
+  mediamtx_password: '',
   email_from_address: '',
-  email_from_auth_code: '',
+  email_smtp_password: '',
   email_to_addresses: '',
   email_cc_addresses: '',
-  email_port: '50055',
+  email_smtp_host: '',
+  email_smtp_port: '587',
+  email_smtp_use_tls: 'true',
   email_event_enabled: 'true',
   email_timed_enabled: 'false',
   email_event_subject_template: '[{site_title}] {event_label} alert from {source_name}',
@@ -43,32 +41,6 @@ const DEFAULT_UI_SETTINGS = {
   smoke_temporal_confirm_frames: '3',
   smoke_email_cooldown_seconds: '300',
   message_retention_days: '7',
-}
-
-function parseRoiTagOptions(raw) {
-  if (Array.isArray(raw)) {
-    return Array.from(
-      new Set(raw.map((item) => String(item || '').trim()).filter(Boolean))
-    )
-  }
-
-  const text = String(raw || '').trim()
-  if (!text) return []
-
-  try {
-    const parsed = JSON.parse(text)
-    if (Array.isArray(parsed)) {
-      return Array.from(
-        new Set(parsed.map((item) => String(item || '').trim()).filter(Boolean))
-      )
-    }
-  } catch (_) {
-    // Fallback to comma-separated parsing for backward compatibility.
-  }
-
-  return Array.from(
-    new Set(text.split(',').map((item) => item.trim()).filter(Boolean))
-  )
 }
 
 function withDefaults(data = {}) {
@@ -89,26 +61,17 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const timeZone = computed(() => settings.value.timezone || DEFAULT_UI_SETTINGS.timezone)
   const faviconUrl = computed(() => settings.value.favicon_url || DEFAULT_UI_SETTINGS.favicon_url)
   const siteIconUrl = computed(() => faviconUrl.value)
-  const roiTagOptions = computed(
-    () => parseRoiTagOptions(settings.value.roi_tag_options || DEFAULT_UI_SETTINGS.roi_tag_options)
-  )
   const mediamtxRtspAddr = computed(
     () => settings.value.mediamtx_rtsp_addr || DEFAULT_UI_SETTINGS.mediamtx_rtsp_addr
   )
   const mediamtxWebrtcAddr = computed(
     () => settings.value.mediamtx_webrtc_addr || DEFAULT_UI_SETTINGS.mediamtx_webrtc_addr
   )
-  const mediamtxRtspUsername = computed(
-    () => settings.value.mediamtx_rtsp_username || DEFAULT_UI_SETTINGS.mediamtx_rtsp_username
+  const mediamtxUsername = computed(
+    () => settings.value.mediamtx_username || DEFAULT_UI_SETTINGS.mediamtx_username
   )
-  const mediamtxRtspPassword = computed(
-    () => settings.value.mediamtx_rtsp_password || DEFAULT_UI_SETTINGS.mediamtx_rtsp_password
-  )
-  const mediamtxWebrtcUsername = computed(
-    () => settings.value.mediamtx_webrtc_username || DEFAULT_UI_SETTINGS.mediamtx_webrtc_username
-  )
-  const mediamtxWebrtcPassword = computed(
-    () => settings.value.mediamtx_webrtc_password || DEFAULT_UI_SETTINGS.mediamtx_webrtc_password
+  const mediamtxPassword = computed(
+    () => settings.value.mediamtx_password || DEFAULT_UI_SETTINGS.mediamtx_password
   )
 
   async function fetchSettings(force = false) {
@@ -160,13 +123,10 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     timeZone,
     faviconUrl,
     siteIconUrl,
-    roiTagOptions,
     mediamtxRtspAddr,
     mediamtxWebrtcAddr,
-    mediamtxRtspUsername,
-    mediamtxRtspPassword,
-    mediamtxWebrtcUsername,
-    mediamtxWebrtcPassword,
+    mediamtxUsername,
+    mediamtxPassword,
     fetchSettings,
     updateSettings,
     testEmail,

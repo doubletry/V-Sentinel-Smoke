@@ -4,6 +4,13 @@ import { sourcesApi, processorApi } from '../api/index.js'
 import ElMessage from 'element-plus/es/components/message/index'
 import { i18n } from '../i18n/index.js'
 
+function friendlyOperationError(message) {
+  if (String(message || '').toLowerCase().includes('missing bearer token')) {
+    return i18n.global.t('auth.loginRequired')
+  }
+  return message
+}
+
 export const useSourceStore = defineStore('source', () => {
   const sources = ref([])
   const loading = ref(false)
@@ -13,7 +20,6 @@ export const useSourceStore = defineStore('source', () => {
   const gridAssignments = ref({})
 
   const isRunning = computed(() => (sourceId) => runningSourceIds.value.has(sourceId))
-  const runningCount = computed(() => runningSourceIds.value.size)
 
   function syncAssignedSourceReferences() {
     const latestById = new Map(sources.value.map((source) => [source.id, source]))
@@ -71,7 +77,7 @@ export const useSourceStore = defineStore('source', () => {
       runningSourceIds.value.add(sourceId)
       ElMessage.success(i18n.global.t('sourceList.analysisStarted'))
     } catch (err) {
-      ElMessage.error(i18n.global.t('sourceList.failedToStart', { message: err.message }))
+      ElMessage.error(i18n.global.t('sourceList.failedToStart', { message: friendlyOperationError(err.message) }))
     }
   }
 
@@ -81,47 +87,7 @@ export const useSourceStore = defineStore('source', () => {
       runningSourceIds.value.delete(sourceId)
       ElMessage.success(i18n.global.t('sourceList.analysisStopped'))
     } catch (err) {
-      ElMessage.error(i18n.global.t('sourceList.failedToStop', { message: err.message }))
-    }
-  }
-
-  async function startAllProcessing() {
-    try {
-      const result = await processorApi.startAll()
-      await syncProcessorStatus()
-
-      if (result.status === 'no_sources') {
-        ElMessage.warning(i18n.global.t('service.noSources'))
-      } else if (result.status === 'partial') {
-        ElMessage.warning(i18n.global.t('service.partialStarted', { started: result.started }))
-      } else {
-        ElMessage.success(i18n.global.t('service.startedAll', { started: result.started }))
-      }
-
-      return result
-    } catch (err) {
-      ElMessage.error(i18n.global.t('service.startAllFailed', { message: err.message }))
-      throw err
-    }
-  }
-
-  async function stopAllProcessing() {
-    try {
-      const result = await processorApi.stopAll()
-      await syncProcessorStatus()
-
-      if (result.status === 'not_running') {
-        ElMessage.info(i18n.global.t('service.notRunning'))
-      } else if (result.status === 'partial') {
-        ElMessage.warning(i18n.global.t('service.partialStopped', { stopped: result.stopped }))
-      } else {
-        ElMessage.success(i18n.global.t('service.stoppedAll', { stopped: result.stopped }))
-      }
-
-      return result
-    } catch (err) {
-      ElMessage.error(i18n.global.t('service.stopAllFailed', { message: err.message }))
-      throw err
+      ElMessage.error(i18n.global.t('sourceList.failedToStop', { message: friendlyOperationError(err.message) }))
     }
   }
 
@@ -217,7 +183,6 @@ export const useSourceStore = defineStore('source', () => {
     sources,
     loading,
     runningSourceIds,
-    runningCount,
     gridAssignments,
     isRunning,
     fetchSources,
@@ -227,8 +192,6 @@ export const useSourceStore = defineStore('source', () => {
     syncAssignedSourceReferences,
     startProcessing,
     stopProcessing,
-    startAllProcessing,
-    stopAllProcessing,
     syncProcessorStatus,
     getRunningSourceIdsSnapshot,
     restartProcessing,

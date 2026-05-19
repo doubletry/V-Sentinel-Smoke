@@ -151,10 +151,10 @@ DB_PATH=./v_sentinel.db
 大部分业务配置会保存在数据库中，并在系统启动后通过**设置**页面维护，包括：
 
 - V-Engine 主机、端口和服务开关
-- MediaMTX 的 RTSP / WebRTC 基地址
-- MediaMTX 的 RTSP / WebRTC 用户名和密码
+- 视频网关（默认兼容 MediaMTX）的 RTSP / WebRTC 基地址
+- 视频网关共享用户名和密码（RTSP 与 WebRTC 永远使用同一套凭据，但认证方式按协议分别处理）
 - 烟火检测阈值
-- 邮件通知模板和收件人
+- 通知服务、通知模板和通知策略
 
 运行时消息缩略图会保存在数据库同级目录下的 `message_thumbnails/` 中，标记为误报后导出的原图与检测图会保存在 `false_positives/` 中。
 
@@ -189,6 +189,23 @@ DB_PATH=./v_sentinel.db
 `{site_title}`、`{local_time}`、`{timezone}`、`{source_name}`、`{source_id}`、
 `{event_type}`、`{event_label}`、`{labels}`、`{confidence_percent}`、
 `{detection_count}`、`{frame_id}`、`{active_tracks}`。
+
+### 模板化扩展基础
+
+系统正在从“烟火检测应用”扩展为“通用视频 AI 模板 + 场景插件”架构：
+
+- 一个视频源只绑定一个场景，当前内置场景为 `smoke`。
+- 新增 `/api/scenes` 暴露场景元数据，后续前端可按场景动态渲染普通配置与专家模式配置。
+- 新增 `/api/video-gateways` 管理视频网关。默认网关为 MediaMTX，RTSP 后端拉流和 WebRTC 前端播放共享同一套账号密码。
+- 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；运行时事件通知已通过通知调度器投递，邮件通知直接使用 SMTP。
+- 新增 `/api/access/roles` 暴露三级权限模型：用户、操作员、管理员。
+- 设置页面增加“专家模式”，默认隐藏烟火高级阈值与线程池等低频配置，降低普通用户配置成本。
+- 管理和操作类接口已接入角色权限校验；客户端需要通过 `/api/auth/login` 获取 HMAC 签名 Bearer token。生产部署必须配置 `V_SENTINEL_AUTH_SECRET` 以及三类角色密码环境变量。
+
+当前阶段优先面向空白数据库，不处理旧数据库迁移。
+
+真实运行截图和接口冒烟验证记录见
+[`docs/runtime-verification.md`](docs/runtime-verification.md)。
 
 ### 前端代理端口
 
@@ -238,9 +255,9 @@ run_processor(
 )
 ```
 
-开发完成后，在 `backend/processing/` 中增加一个薄适配层，
-并在 `backend/processing/registry.py` 中注册，再通过 `processor_plugin`
-设置切换即可。
+开发完成后，在 `backend/processing/` 中增加一个薄适配层，在
+`backend/processing/registry.py` 中注册，并增加场景定义。每个视频源通过
+`scene_id` 绑定自己的场景插件。
 
 详见 [`core/README.md`](core/README.md)。
 插件化接入方式详见 [`docs/processor-plugin-usage.md`](docs/processor-plugin-usage.md)。
@@ -288,11 +305,13 @@ class MyProcessor(BaseVideoProcessor):
         return result
 ```
 
-在 `backend/processing/registry.py` 中注册，然后设置：
+在 `backend/processing/registry.py` 中注册，然后把视频源绑定到该场景：
 
 ```json
 {
-    "processor_plugin": "my_scene"
+    "name": "Factory Camera 1",
+    "route_path": "factory/cam-1",
+    "scene_id": "my_scene"
 }
 ```
 

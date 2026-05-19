@@ -47,6 +47,7 @@
                 {{ roiPreviewCellIndex === cellIdx ? t('videoGrid.hideRoi') : t('videoGrid.showRoi') }}
               </el-button>
               <el-button
+                v-if="canOperateSources"
                 size="small"
                 :type="roiCellIndex === cellIdx ? 'warning' : 'default'"
                 @click="toggleRoiEditor(cellIdx)"
@@ -68,7 +69,7 @@
           <RoiDrawer
             v-if="roiCellIndex === cellIdx && !assignments[cellIdx].isResult"
             :source="assignments[cellIdx]"
-            :read-only="false"
+            :read-only="!canOperateSources"
             @close="roiCellIndex = null"
           />
 
@@ -96,6 +97,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSourceStore } from '../stores/source.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { useAuthStore } from '../stores/auth.js'
 import VideoPlayer from './VideoPlayer.vue'
 import RoiDrawer from './RoiDrawer.vue'
 import { extractRoutePath } from '../utils/sourceAddress.js'
@@ -114,6 +116,7 @@ function loadInitialLayout() {
 
 const store = useSourceStore()
 const appSettingsStore = useAppSettingsStore()
+const authStore = useAuthStore()
 const { t } = useI18n()
 const currentCols = ref(loadInitialLayout())
 const roiCellIndex = ref(null)
@@ -139,6 +142,7 @@ const gridStyle = computed(() => ({
 }))
 
 const assignments = computed(() => store.gridAssignments)
+const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
 
 function setLayout(cols) {
   if (!ALLOWED_LAYOUTS.includes(cols)) return

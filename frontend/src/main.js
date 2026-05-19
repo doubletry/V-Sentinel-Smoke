@@ -1,5 +1,4 @@
 import { createApp } from 'vue'
-import { createPinia } from 'pinia'
 import ElAvatar from 'element-plus/es/components/avatar/index'
 import ElBadge from 'element-plus/es/components/badge/index'
 import ElButton, { ElButtonGroup } from 'element-plus/es/components/button/index'
@@ -42,6 +41,7 @@ import 'element-plus/dist/index.css'
 import App from './App.vue'
 import { i18n } from './i18n/index.js'
 import router from './router/index.js'
+import pinia from './stores/pinia.js'
 import config from './config.js'
 
 const app = createApp(App)
@@ -105,7 +105,7 @@ elementPlusIcons.forEach(([name, component]) => {
   app.component(name, component)
 })
 
-app.use(createPinia())
+app.use(pinia)
 app.use(router)
 app.use(i18n)
 

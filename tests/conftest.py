@@ -25,6 +25,10 @@ def _tmp_db(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> Generator[str,
     fd, db_path = _tf.mkstemp(suffix=".db")
     os.close(fd)
     monkeypatch.setenv("DB_PATH", db_path)
+    monkeypatch.setenv("V_SENTINEL_AUTH_SECRET", "test-auth-secret")
+    monkeypatch.setenv("V_SENTINEL_ADMIN_PASSWORD", "admin-secret")
+    monkeypatch.setenv("V_SENTINEL_OPERATOR_PASSWORD", "operator-secret")
+    monkeypatch.setenv("V_SENTINEL_USER_PASSWORD", "user-secret")
 
     # Patch the module-level _DB_PATH in database.py / 修补 database.py 中的模块级 _DB_PATH
     import backend.db.database as db_mod
@@ -67,10 +71,16 @@ async def async_client(init_db: None) -> AsyncGenerator[AsyncClient, None]:
     （ws_manager、processor_manager、vengine_client）。
     """
     from backend.main import app
+    from backend.auth.security import create_access_token
 
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        token = create_access_token(username="test-admin", role="admin")["access_token"]
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
             yield client
 
 

@@ -27,6 +27,7 @@
           <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
           <el-switch
             v-model="store.falsePositiveOnly"
+            :aria-label="t('messages.falsePositiveOnlyHint')"
             @change="handleFalsePositiveFilterChange"
           />
         </div>
@@ -173,14 +174,10 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 10px;
-  border: 1px solid #39476b;
-  border-radius: 999px;
-  background: rgba(245, 108, 108, 0.1);
 }
 
 .false-positive-filter__label {
-  color: #ffd3d3;
+  color: #c8d5f0;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;

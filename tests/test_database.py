@@ -67,8 +67,8 @@ class TestCreateSource:
     async def test_creates_from_route_path_using_current_settings(self):
         await update_settings({
             "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
-            "mediamtx_rtsp_username": "stream-user",
-            "mediamtx_rtsp_password": "stream-pass",
+            "mediamtx_username": "stream-user",
+            "mediamtx_password": "stream-pass",
         })
         src = await create_source(
             VideoSourceCreate(name="Cam3", route_path="cam3")
@@ -146,8 +146,8 @@ class TestUpdateSource:
         )
         await update_settings({
             "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/base",
-            "mediamtx_rtsp_username": "stream-user",
-            "mediamtx_rtsp_password": "stream-pass",
+            "mediamtx_username": "stream-user",
+            "mediamtx_password": "stream-pass",
         })
         updated = await update_source(
             src.id,
@@ -177,6 +177,52 @@ class TestUpdateSource:
         assert len(updated.rois) == 1
         assert updated.rois[0].tag == "zone"
         assert updated.rois[0].type == "rectangle"
+
+    async def test_scene_change_clears_existing_rois(self):
+        src = await create_source(
+            VideoSourceCreate(name="Scene ROI", rtsp_url="rtsp://scene-roi", scene_id="smoke")
+        )
+        await update_source(
+            src.id,
+            VideoSourceUpdate(
+                rois=[
+                    ROICreate(
+                        type="rectangle",
+                        points=[ROIPoint(x=0.1, y=0.2), ROIPoint(x=0.8, y=0.9)],
+                        tag="smoke_zone",
+                    )
+                ]
+            ),
+        )
+
+        updated = await update_source(src.id, VideoSourceUpdate(scene_id="template"))
+
+        assert updated is not None
+        assert updated.scene_id == "template"
+        assert updated.rois == []
+
+    async def test_empty_roi_list_explicitly_clears_rois(self):
+        src = await create_source(
+            VideoSourceCreate(name="Clear ROI", rtsp_url="rtsp://clear-roi", scene_id="smoke")
+        )
+        await update_source(
+            src.id,
+            VideoSourceUpdate(
+                rois=[
+                    ROICreate(
+                        type="rectangle",
+                        points=[ROIPoint(x=0.1, y=0.2), ROIPoint(x=0.8, y=0.9)],
+                        tag="smoke_zone",
+                    )
+                ]
+            ),
+        )
+
+        updated = await update_source(src.id, VideoSourceUpdate(rois=[]))
+
+        assert updated is not None
+        assert updated.scene_id == "smoke"
+        assert updated.rois == []
 
     async def test_not_found(self):
         result = await update_source("bad", VideoSourceUpdate(name="X"))

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import json
 import re
 from urllib.parse import quote
 
 import yaml
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 
+from backend.auth.dependencies import require_permission
 from backend.db import database as db
 from backend.models.schemas import (
     VideoSource,
@@ -19,7 +19,10 @@ router = APIRouter(prefix="/api/sources", tags=["sources"])
 
 
 @router.post("", response_model=VideoSource, status_code=201)
-async def create_source(source: VideoSourceCreate) -> VideoSource:
+async def create_source(
+    source: VideoSourceCreate,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> VideoSource:
     """Create a new video source.
     创建新的视频源。"""
     try:
@@ -62,7 +65,11 @@ async def get_source(source_id: str) -> VideoSource:
 
 
 @router.put("/{source_id}", response_model=VideoSource)
-async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource:
+async def update_source(
+    source_id: str,
+    data: VideoSourceUpdate,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> VideoSource:
     """Update a video source (name, rtsp_url, and/or ROIs).
     更新视频源（名称、RTSP URL 和/或 ROI）。"""
     try:
@@ -75,7 +82,10 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource:
 
 
 @router.delete("/{source_id}", status_code=204)
-async def delete_source(source_id: str) -> None:
+async def delete_source(
+    source_id: str,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> None:
     """Delete a video source.
     删除视频源。"""
     deleted = await db.delete_source(source_id)
@@ -126,14 +136,18 @@ async def export_rois_yaml(source_id: str) -> Response:
 
 
 @router.post("/{source_id}/rois/import")
-async def import_rois_yaml(source_id: str, file: UploadFile = File(...)) -> VideoSource:
+async def import_rois_yaml(
+    source_id: str,
+    file: UploadFile = File(...),
+    _role: str = Depends(require_permission("sources:operate")),
+) -> VideoSource:
     """Import ROIs from a YAML file into a video source.
     从 YAML 文件导入 ROI 到视频源。
 
-    Validates that every ``tag`` in the YAML is present in the current
-    system ``roi_tag_options``.  Rejects the import if any tag is unknown.
-    验证 YAML 中的每个标签是否存在于当前系统 ``roi_tag_options`` 中，
-    如有未知标签则拒绝导入。
+    Validates that every ``tag`` in the YAML is present in the source scene's
+    plugin-owned ``default_roi_tags``. Rejects the import if any tag is unknown.
+    验证 YAML 中的每个标签是否存在于视频源场景插件自己的
+    ``default_roi_tags`` 中，如有未知标签则拒绝导入。
     """
     source = await db.get_source(source_id)
     if source is None:
@@ -156,17 +170,10 @@ async def import_rois_yaml(source_id: str, file: UploadFile = File(...)) -> Vide
     if not isinstance(rois_raw, list):
         raise HTTPException(status_code=400, detail='"rois" must be a list')
 
-    # Load current tag options from DB settings / 从数据库设置加载当前标签选项
-    app_settings = await db.get_all_settings()
-    tag_options_str = app_settings.get("roi_tag_options", "[]")
-    try:
-        parsed = json.loads(tag_options_str)
-        if isinstance(parsed, list):
-            valid_tags = set(str(t).strip() for t in parsed if t)
-        else:
-            valid_tags = set()
-    except (json.JSONDecodeError, TypeError):
-        valid_tags = set(tag_options_str.split(",")) if tag_options_str else set()
+    # ROI tags are owned by the bound scene/plugin, not global platform settings.
+    # ROI 标签由当前绑定的场景/插件拥有，而不是平台全局设置。
+    scene = await db.get_scene(source.scene_id)
+    valid_tags = set(scene.default_roi_tags if scene else [])
 
     # Validate each ROI entry / 验证每个 ROI 条目
     validated_rois: list[dict] = []
@@ -193,7 +200,7 @@ async def import_rois_yaml(source_id: str, file: UploadFile = File(...)) -> Vide
                 status_code=400,
                 detail=(
                     f'ROI at index {idx}: tag "{tag}" is not in the '
-                    f"system's configured tag options: {sorted(valid_tags)}"
+                    f"scene '{source.scene_id}' ROI tag options: {sorted(valid_tags)}"
                 ),
             )
         points = roi.get("points", [])

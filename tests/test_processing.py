@@ -198,12 +198,15 @@ class TestProcessorManager:
         with pytest.raises(ValueError, match="Source not found"):
             await mgr.start_processor("nonexistent")
 
-    async def test_start_processor_uses_configured_plugin(self, init_db):
+    async def test_start_processor_uses_source_scene(self, init_db):
         source = await create_source(
-            VideoSourceCreate(name="cam-1", rtsp_url="rtsp://localhost:8554/cam1")
+            VideoSourceCreate(
+                name="cam-1",
+                rtsp_url="rtsp://localhost:8554/cam1",
+                scene_id="example",
+            )
         )
         mgr = self._make_manager()
-        mgr._app_settings["processor_plugin"] = "example"
 
         processor = MagicMock(status="stopped")
         processor.start = AsyncMock()
@@ -218,7 +221,7 @@ class TestProcessorManager:
         processor_cls.assert_called_once()
         processor.start.assert_awaited_once()
         assert mgr._processors[source.id] is processor
-        assert result["processor_plugin"] == "example"
+        assert result["scene_id"] == "example"
 
     async def test_stop_all_empty(self):
         mgr = self._make_manager()
@@ -239,6 +242,32 @@ class TestProcessorManager:
 
         assert processor._post_processor is not None
         assert processor.agent is None
+
+    async def test_template_processor_returns_message_event_and_annotation(self):
+        from backend.processing.template import TemplateSceneProcessor
+
+        processor = TemplateSceneProcessor(
+            source_id="s-template",
+            source_name="template-cam",
+            rtsp_url="rtsp://localhost:8554/template",
+            rois=[],
+            vengine_client=MagicMock(),
+            ws_manager=WSManager(),
+            app_settings=dict(DEFAULT_APP_SETTINGS),
+        )
+        frame = np.full((80, 120, 3), 230, dtype=np.uint8)
+
+        result = await processor.process_frame(
+            frame,
+            encoded=b"fake-jpeg",
+            shape=frame.shape,
+            roi_pixel_points=[],
+        )
+
+        assert result.annotated_frame is not None
+        assert result.messages[0]["source_id"] == "s-template"
+        assert result.extra["event"]["event_type"] == "bright_area"
+        assert result.detections[0]["label"] == "bright_area"
 
 
 class TestExampleProcessorBatchClassification:

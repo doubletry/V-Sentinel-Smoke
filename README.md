@@ -249,8 +249,8 @@ run_processor(
 ```
 
 Once ready, add a thin backend adapter in `backend/processing/`, register it in
-`backend/processing/registry.py`, and select it with the `processor_plugin`
-setting.
+`backend/processing/registry.py`, add a scene definition, and bind each video
+source to that scene with `scene_id`.
 
 See [`core/README.md`](core/README.md) for full details.
 See [`docs/processor-plugin-usage.md`](docs/processor-plugin-usage.md) for the
@@ -308,11 +308,14 @@ class MyProcessor(BaseVideoProcessor):
         return result
 ```
 
-Register it in `backend/processing/registry.py`, then set:
+Register it in `backend/processing/registry.py`, then bind a video source to
+the scene:
 
 ```json
 {
-    "processor_plugin": "my_scene"
+    "name": "Factory Camera 1",
+    "route_path": "factory/cam-1",
+    "scene_id": "my_scene"
 }
 ```
 

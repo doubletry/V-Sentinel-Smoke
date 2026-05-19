@@ -12,13 +12,15 @@ import asyncio
 import base64
 import math
 import queue
+import re
 import subprocess
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse, urlunparse
 
 import cv2
 import numpy as np
@@ -37,14 +39,20 @@ from core.constants import (
 )
 
 FALLBACK_PUBLISH_FPS = 1
+DEFAULT_OUTPUT_BITRATE = "2500k"
 INPUT_RTSP_TRANSPORT = "tcp"
 LOW_LATENCY_PROBESIZE = "32"
 LOW_LATENCY_ANALYZEDURATION = "0"
 STREAM_TIMEOUT_MICROSECONDS = "5000000"
 OUTPUT_QUEUE_TIMEOUT_SEC = 0.2
 MAX_REASONABLE_SOURCE_FPS = 120.0
+OBSERVED_FPS_ESTIMATE_WINDOW_SEC = 1.0
 FPS_CHANGE_THRESHOLD = 0.01
 GOP_DIVISOR = 2
+PUSH_STARTUP_CHECK_DELAY = 0.3
+PUSH_RETRY_BASE_COOLDOWN = 2.0
+PUSH_RETRY_MAX_COOLDOWN = 30.0
+MAX_STDERR_LOG_CHARS = 500
 
 try:
     from turbojpeg import TurboJPEG, TJPF_RGB
@@ -138,6 +146,12 @@ class BaseVideoProcessor(ABC):
         self._push_width: int = 0
         self._push_height: int = 0
         self._push_fps: float = 0.0
+        self._push_bitrate: str | None = None
+        self._push_retry_after: float = 0.0
+        self._push_consecutive_failures: int = 0
+        self._push_stderr_lines: deque[str] = deque(maxlen=32)
+        self._push_stderr_thread: threading.Thread | None = None
+        self._push_stderr_lock = threading.Lock()
         self._output_queue: queue.Queue[
             tuple[np.ndarray, AnalysisResult, str] | None
         ] = queue.Queue(maxsize=2)
@@ -156,6 +170,8 @@ class BaseVideoProcessor(ABC):
             return
         self._stop_event.clear()
         self._output_stop.clear()
+        self._push_consecutive_failures = 0
+        self._push_retry_after = 0.0
         self._start_output_worker()
         self.status = "running"
         self._task = asyncio.create_task(
@@ -231,8 +247,6 @@ class BaseVideoProcessor(ABC):
     def _frame_reader(self, loop: asyncio.AbstractEventLoop) -> None:
         """Read frames from RTSP using PyAV with low-latency options.
         使用 PyAV 和低延迟参数从 RTSP 读取帧。"""
-        import time as _time
-
         logger.info("Frame reader started for {}", self.rtsp_url)
         reconnect_attempts = 0
         max_attempts = RTSP_MAX_RECONNECT_ATTEMPTS  # 0 = unlimited
@@ -267,13 +281,30 @@ class BaseVideoProcessor(ABC):
                         f"No video track found in stream {self.rtsp_url}"
                     )
                 video_stream.thread_type = "AUTO"
-                self._update_publish_fps(self._stream_fps(video_stream))
+                source_fps = self._stream_fps(video_stream)
+                self._update_publish_fps(source_fps)
+                observed_first_frame_at: float | None = None
+                observed_frame_count = 0
 
                 for frame in container.decode(video=0):
                     if self._stop_event.is_set():
                         break
                     stream_ok = True
                     reconnect_attempts = 0
+                    if source_fps is None:
+                        now = time.monotonic()
+                        if observed_first_frame_at is None:
+                            observed_first_frame_at = now
+                            observed_frame_count = 1
+                        else:
+                            observed_frame_count += 1
+                            observed_fps = self._observed_fps(
+                                observed_frame_count,
+                                now - observed_first_frame_at,
+                            )
+                            if observed_fps is not None:
+                                source_fps = observed_fps
+                                self._update_publish_fps(source_fps)
                     frame_counter += 1
                     if (
                         FRAME_SAMPLE_INTERVAL > 1
@@ -323,7 +354,7 @@ class BaseVideoProcessor(ABC):
                 reconnect_attempts,
                 f"/{max_attempts}" if max_attempts > 0 else "",
             )
-            _time.sleep(RTSP_RECONNECT_DELAY)
+            time.sleep(RTSP_RECONNECT_DELAY)
 
         # Send sentinel when reader fully exits
         try:
@@ -346,20 +377,61 @@ class BaseVideoProcessor(ABC):
         # encoder-declared cadence (for example 25 instead of a guessed 50).
         # 在低延迟模式下 average_rate 可能为空，而 guessed/base rate 可能偏大；
         # codec_context.framerate 通常更接近编码器声明的真实帧率。
-        for rate in (
-            getattr(video_stream, "average_rate", None),
-            getattr(codec_context, "framerate", None) if codec_context else None,
-            getattr(video_stream, "base_rate", None),
-            getattr(video_stream, "guessed_rate", None),
-        ):
-            if rate is None:
-                continue
+        def _safe_rate(value: Any) -> float | None:
+            if value is None:
+                return None
             try:
-                value = float(rate)
+                rate_value = float(value)
             except (TypeError, ValueError, ZeroDivisionError):
-                continue
-            if math.isfinite(value) and 0 < value <= MAX_REASONABLE_SOURCE_FPS:
+                return None
+            if math.isfinite(rate_value) and 0 < rate_value <= MAX_REASONABLE_SOURCE_FPS:
+                return rate_value
+            return None
+
+        average_rate = _safe_rate(getattr(video_stream, "average_rate", None))
+        codec_framerate = _safe_rate(
+            getattr(codec_context, "framerate", None) if codec_context else None
+        )
+        base_rate = _safe_rate(getattr(video_stream, "base_rate", None))
+        guessed_rate = _safe_rate(getattr(video_stream, "guessed_rate", None))
+
+        if (
+            average_rate is not None
+            and codec_framerate is not None
+            and average_rate > (codec_framerate * 1.5)
+            and (
+                (base_rate is not None and abs(base_rate - average_rate) <= FPS_CHANGE_THRESHOLD)
+                or (
+                    guessed_rate is not None
+                    and abs(guessed_rate - average_rate) <= FPS_CHANGE_THRESHOLD
+                )
+            )
+        ):
+            return codec_framerate
+
+        for value in (
+            average_rate,
+            codec_framerate,
+            base_rate,
+            guessed_rate,
+        ):
+            if value is not None:
                 return value
+        return None
+
+    @staticmethod
+    def _observed_fps(frame_count: int, elapsed_seconds: float) -> float | None:
+        """Estimate rounded FPS from observed decoded frames over time.
+        基于一段时间内观察到的解码帧估算取整后的 FPS。"""
+        if (
+            frame_count < 2
+            or not math.isfinite(elapsed_seconds)
+            or elapsed_seconds < OBSERVED_FPS_ESTIMATE_WINDOW_SEC
+        ):
+            return None
+        estimated_fps = round((frame_count - 1) / elapsed_seconds)
+        if 0 < estimated_fps <= MAX_REASONABLE_SOURCE_FPS:
+            return float(estimated_fps)
         return None
 
     # ── Abstract method ───────────────────────────────────────────────────
@@ -746,6 +818,73 @@ class BaseVideoProcessor(ABC):
             return float(FALLBACK_PUBLISH_FPS)
         return target_fps
 
+    def _build_push_rtsp_url(self, output_rtsp_path: str) -> str:
+        """Build RTSP push URL with optional shared MediaMTX credentials.
+        构造 RTSP 推流 URL，并在需要时注入共享的 MediaMTX 凭据。"""
+        base = str(
+            self.app_settings.get("mediamtx_rtsp_addr", "rtsp://localhost:8554")
+        ).rstrip("/")
+        username = str(self.app_settings.get("mediamtx_username", "") or "")
+        password = str(self.app_settings.get("mediamtx_password", "") or "")
+        if username:
+            parsed = urlparse(base)
+            host = parsed.hostname or ""
+            if host:
+                userinfo = quote(username, safe="")
+                if password:
+                    userinfo += ":" + quote(password, safe="")
+                netloc = userinfo + "@" + host
+                if parsed.port is not None:
+                    netloc += f":{parsed.port}"
+                base = urlunparse(
+                    (
+                        parsed.scheme,
+                        netloc,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                ).rstrip("/")
+        return f"{base}/{output_rtsp_path}"
+
+    @staticmethod
+    def _normalize_video_bitrate(value: Any) -> str | None:
+        """Normalize ffmpeg bitrate values such as 2500k or 4M.
+        标准化 ffmpeg 码率值，例如 2500k 或 4M。"""
+        text = str(value or "").strip().lower()
+        if not text:
+            return None
+        match = re.fullmatch(r"(\d+(?:\.\d+)?|\.\d+)([km]?)", text)
+        if match is None:
+            return None
+        amount = float(match.group(1))
+        if amount <= 0:
+            return None
+        return f"{amount:g}{match.group(2)}"
+
+    @staticmethod
+    def _double_video_bitrate(bitrate: str) -> str:
+        bitrate = bitrate.lower()
+        suffix = bitrate[-1:] if bitrate[-1:] in {"k", "m"} else ""
+        number = bitrate[:-1] if suffix else bitrate
+        return f"{float(number) * 2:g}{suffix}"
+
+    @staticmethod
+    def _format_ffmpeg_fps(value: float) -> str:
+        rounded = round(float(value))
+        if abs(float(value) - rounded) <= FPS_CHANGE_THRESHOLD:
+            return f"{int(rounded)}/1"
+        return f"{float(value):g}"
+
+    def _output_video_bitrate(self) -> str:
+        configured = self._normalize_video_bitrate(
+            self.app_settings.get("mediamtx_output_bitrate")
+        )
+        if configured is not None:
+            return configured
+        return DEFAULT_OUTPUT_BITRATE
+
     @staticmethod
     def _force_enqueue(
         target_queue: "queue.Queue[Any]",
@@ -869,48 +1008,41 @@ class BaseVideoProcessor(ABC):
         if h == 0 or w == 0:
             return
 
+        rtsp_url = self._build_push_rtsp_url(output_rtsp_path)
+
         with self._push_lock:
+            if time.monotonic() < self._push_retry_after:
+                return
             try:
                 target_fps = self._current_publish_fps()
-                # Keep keyframes about twice per second so new RTSP readers can
-                # lock onto the stream faster under low-latency UDP delivery.
-                # GOP_DIVISOR = 2 means ~0.5s keyframe spacing.
-                # 约每 0.5 秒一个关键帧，帮助低延迟 UDP 读者更快起播。
-                gop = max(1, int(round(target_fps / GOP_DIVISOR)))
-                # Re-create ffmpeg process when path or dimensions change.
-                # 当路径或尺寸变化时重建 ffmpeg 进程。
-                if (
+                video_bitrate = self._output_video_bitrate()
+                need_new_proc = (
                     self._push_proc is None
                     or self._push_proc.poll() is not None
                     or self._push_path != output_rtsp_path
                     or self._push_width != w
                     or self._push_height != h
                     or abs(self._push_fps - target_fps) > FPS_CHANGE_THRESHOLD
-                ):
+                    or self._push_bitrate != video_bitrate
+                )
+                if need_new_proc:
                     self._close_push_process()
-                    rtsp_url = (
-                        f"{self.app_settings.get('mediamtx_rtsp_addr', 'rtsp://localhost:8554')}"
-                        f"/{output_rtsp_path}"
-                    )
                     cmd = [
                         "ffmpeg",
                         "-y",
-                        "-fflags", "nobuffer",
-                        "-flags", "low_delay",
-                        "-flush_packets", "1",
                         "-f", "rawvideo",
-                        "-pix_fmt", "rgb24",
-                        "-s", f"{w}x{h}",
-                        "-r", f"{target_fps:.3f}",
+                        "-pixel_format", "rgb24",
+                        "-video_size", f"{w}x{h}",
+                        "-framerate", self._format_ffmpeg_fps(target_fps),
+                        "-use_wallclock_as_timestamps", "1",
                         "-i", "pipe:0",
                         "-c:v", "libx264",
                         "-pix_fmt", "yuv420p",
                         "-preset", PUSH_PRESET,
                         "-tune", "zerolatency",
-                        "-g", str(gop),
-                        "-bf", "0",
-                        "-muxdelay", "0",
-                        "-muxpreload", "0",
+                        "-b:v", video_bitrate,
+                        "-maxrate", video_bitrate,
+                        "-bufsize", self._double_video_bitrate(video_bitrate),
                         "-f", "rtsp",
                         "-rtsp_transport", "tcp",
                         rtsp_url,
@@ -919,22 +1051,134 @@ class BaseVideoProcessor(ABC):
                         cmd,
                         stdin=subprocess.PIPE,
                         stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
                     )
+                    self._start_push_stderr_drain()
                     self._push_path = output_rtsp_path
                     self._push_width = w
                     self._push_height = h
                     self._push_fps = target_fps
+                    self._push_bitrate = video_bitrate
+
+                    time.sleep(PUSH_STARTUP_CHECK_DELAY)
+                    if self._push_proc.poll() is not None:
+                        stderr_text = self._read_push_stderr()
+                        logger.warning(
+                            "ffmpeg exited immediately for {} (code {}): {}",
+                            rtsp_url,
+                            self._push_proc.returncode,
+                            stderr_text,
+                        )
+                        self._close_push_process()
+                        self._record_push_failure()
+                        return
 
                 if self._push_proc is not None and self._push_proc.stdin is not None:
                     self._push_proc.stdin.write(frame.tobytes())
                     self._push_proc.stdin.flush()
+                    self._push_consecutive_failures = 0
+                    self._push_retry_after = 0.0
             except (BrokenPipeError, OSError) as exc:
-                logger.warning("Push error for {}: {}", rtsp_url, exc)
+                stderr_text = self._read_push_stderr()
+                logger.warning(
+                    "Push error for {}: {} | stderr: {}",
+                    rtsp_url,
+                    exc,
+                    stderr_text,
+                )
                 self._close_push_process()
+                self._record_push_failure()
             except Exception as exc:
                 logger.warning("Push error for {}: {}", rtsp_url, exc)
                 self._close_push_process()
+                self._record_push_failure()
+
+    def _record_push_failure(self) -> None:
+        self._push_consecutive_failures += 1
+        cooldown = min(
+            PUSH_RETRY_BASE_COOLDOWN * self._push_consecutive_failures,
+            PUSH_RETRY_MAX_COOLDOWN,
+        )
+        self._push_retry_after = time.monotonic() + cooldown
+        logger.info(
+            "Push retry cooldown {:.1f}s (attempt {}) for {}",
+            cooldown,
+            self._push_consecutive_failures,
+            self.source_id,
+        )
+
+    @staticmethod
+    def _truncate_stderr(text: str) -> str:
+        normalized = str(text or "").strip()
+        if len(normalized) <= MAX_STDERR_LOG_CHARS:
+            return normalized
+        return "..." + normalized[-MAX_STDERR_LOG_CHARS:]
+
+    def _read_push_stderr(self) -> str:
+        with self._push_stderr_lock:
+            buffered = "\n".join(self._push_stderr_lines).strip()
+        if buffered:
+            return self._truncate_stderr(buffered)
+        stderr = (
+            getattr(self._push_proc, "stderr", None)
+            if self._push_proc is not None
+            else None
+        )
+        if stderr is None:
+            return ""
+        try:
+            if self._push_proc.poll() is None:
+                return "(process still running)"
+            data = stderr.read()
+            if data:
+                return self._truncate_stderr(
+                    data.decode("utf-8", errors="replace")
+                )
+            return ""
+        except Exception:
+            return ""
+
+    def _start_push_stderr_drain(self) -> None:
+        stderr = (
+            getattr(self._push_proc, "stderr", None)
+            if self._push_proc is not None
+            else None
+        )
+        if stderr is None:
+            return
+
+        with self._push_stderr_lock:
+            self._push_stderr_lines.clear()
+
+        def _drain() -> None:
+            stderr_stream = (
+                getattr(self._push_proc, "stderr", None)
+                if self._push_proc is not None
+                else None
+            )
+            if stderr_stream is None:
+                return
+            try:
+                while True:
+                    raw = stderr_stream.readline()
+                    if not raw:
+                        break
+                    if not isinstance(raw, (bytes, bytearray)):
+                        break
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if not line:
+                        continue
+                    with self._push_stderr_lock:
+                        self._push_stderr_lines.append(line)
+            except Exception:
+                return
+
+        self._push_stderr_thread = threading.Thread(
+            target=_drain,
+            name=f"ffmpeg-stderr-{self.source_id}",
+            daemon=True,
+        )
+        self._push_stderr_thread.start()
 
     def _close_push_process(self) -> None:
         """Terminate the persistent ffmpeg push subprocess.
@@ -943,6 +1187,9 @@ class BaseVideoProcessor(ABC):
             try:
                 if self._push_proc.stdin is not None:
                     self._push_proc.stdin.close()
+                stderr = getattr(self._push_proc, "stderr", None)
+                if stderr is not None:
+                    stderr.close()
                 self._push_proc.terminate()
                 self._push_proc.wait(timeout=3.0)
             except Exception:
@@ -950,11 +1197,17 @@ class BaseVideoProcessor(ABC):
                     self._push_proc.kill()
                 except Exception:
                     pass
+            if self._push_stderr_thread is not None:
+                self._push_stderr_thread.join(timeout=0.2)
+            self._push_stderr_thread = None
             self._push_proc = None
             self._push_path = None
             self._push_width = 0
             self._push_height = 0
             self._push_fps = 0.0
+            self._push_bitrate = None
+            with self._push_stderr_lock:
+                self._push_stderr_lines.clear()
 
     # ── Utility ───────────────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
@@ -26,22 +27,20 @@ class TestSettingsDB:
         assert all_settings["timezone"] == "Asia/Shanghai"
         assert all_settings["site_title"] == "V-Sentinel"
         assert all_settings["favicon_url"] == "/favicon.ico"
-        assert all_settings["processor_plugin"] == "smoke"
-        assert "roi_tag_options" in all_settings
         assert all_settings["vengine_host"] == "localhost"
         assert all_settings["detection_port"] == "50051"
         assert all_settings["ocr_port"] == "50054"
         assert all_settings["email_from_address"] == ""
         assert all_settings["email_to_addresses"] == ""
-        assert all_settings["email_port"] == "50055"
+        assert all_settings["email_smtp_port"] == "587"
         assert all_settings["email_event_enabled"] == "true"
         assert all_settings["smoke_temporal_confirm_frames"] == "3"
         assert all_settings["smoke_email_cooldown_seconds"] == "300"
         assert "email_event_body_template" in all_settings
         assert "{event_label}" in all_settings["email_event_body_template"]
         assert all_settings["message_retention_days"] == "7"
-        assert all_settings["mediamtx_rtsp_username"] == ""
-        assert all_settings["mediamtx_webrtc_username"] == ""
+        assert all_settings["mediamtx_username"] == ""
+        assert all_settings["mediamtx_password"] == ""
 
     async def test_get_setting(self, init_db):
         val = await get_setting("vengine_host")
@@ -107,24 +106,22 @@ class TestSettingsAPI:
                 "timezone": "UTC",
                 "detection_port": "9999",
                 "site_title": "My Sentinel",
-                "processor_plugin": "example",
-                "roi_tag_options": "[\"person\",\"vehicle\"]",
                 "email_from_address": "sender@example.com",
-                "email_from_auth_code": "secret",
+                "email_smtp_password": "secret",
                 "email_to_addresses": "to1@example.com,to2@example.com",
                 "email_cc_addresses": "cc@example.com",
-                "email_port": "50060",
+                "email_smtp_host": "smtp.example.com",
+                "email_smtp_port": "587",
+                "email_smtp_use_tls": "true",
                 "email_event_enabled": "true",
                 "email_event_subject_template": "Alert {event_label}",
                 "smoke_temporal_confirm_frames": "5",
                 "smoke_email_cooldown_seconds": "60",
                 "message_retention_days": "14",
                 "mediamtx_rtsp_addr": "rtsp://stream.example.com:8554/live",
-                "mediamtx_rtsp_username": "stream-user",
-                "mediamtx_rtsp_password": "stream-pass",
                 "mediamtx_webrtc_addr": "https://stream.example.com:8889/whep",
-                "mediamtx_webrtc_username": "viewer",
-                "mediamtx_webrtc_password": "viewer-pass",
+                "mediamtx_username": "shared-user",
+                "mediamtx_password": "shared-pass",
             },
         )
         assert resp.status_code == 200
@@ -133,24 +130,22 @@ class TestSettingsAPI:
         assert data["timezone"] == "UTC"
         assert data["detection_port"] == "9999"
         assert data["site_title"] == "My Sentinel"
-        assert data["processor_plugin"] == "example"
-        assert data["roi_tag_options"] == "[\"person\",\"vehicle\"]"
         assert data["email_from_address"] == "sender@example.com"
-        assert data["email_from_auth_code"] == "secret"
+        assert data["email_smtp_password"] == "secret"
         assert data["email_to_addresses"] == "to1@example.com,to2@example.com"
         assert data["email_cc_addresses"] == "cc@example.com"
-        assert data["email_port"] == "50060"
+        assert data["email_smtp_host"] == "smtp.example.com"
+        assert data["email_smtp_port"] == "587"
+        assert data["email_smtp_use_tls"] == "true"
         assert data["email_event_enabled"] == "true"
         assert data["email_event_subject_template"] == "Alert {event_label}"
         assert data["smoke_temporal_confirm_frames"] == "5"
         assert data["smoke_email_cooldown_seconds"] == "60"
         assert data["message_retention_days"] == "14"
         assert data["mediamtx_rtsp_addr"] == "rtsp://stream.example.com:8554/live"
-        assert data["mediamtx_rtsp_username"] == "stream-user"
-        assert data["mediamtx_rtsp_password"] == "stream-pass"
         assert data["mediamtx_webrtc_addr"] == "https://stream.example.com:8889/whep"
-        assert data["mediamtx_webrtc_username"] == "viewer"
-        assert data["mediamtx_webrtc_password"] == "viewer-pass"
+        assert data["mediamtx_username"] == "shared-user"
+        assert data["mediamtx_password"] == "shared-pass"
 
     async def test_update_empty(self, async_client: AsyncClient):
         """Empty update should return current settings."""
@@ -160,30 +155,26 @@ class TestSettingsAPI:
         assert "vengine_host" in data
 
     async def test_email_test_endpoint(self, async_client: AsyncClient):
-        from backend.main import app
-
-        app.state.email_client.send_test_email = AsyncMock(
-            return_value={"status": "SUCCESS", "message": "ok", "email_id": "1"}
-        )
-        app.state.email_client.reconnect_from_settings = AsyncMock()
-
-        resp = await async_client.post(
-            "/api/settings/email/test",
-            json={
-                "vengine_host": "127.0.0.1",
-                "email_port": "50055",
-                "email_from_address": "sender@example.com",
-                "email_from_auth_code": "secret",
-                "email_to_addresses": "to@example.com",
-                "email_cc_addresses": "cc@example.com",
-            },
-        )
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "ok"}),
+        ) as send:
+            resp = await async_client.post(
+                "/api/settings/email/test",
+                json={
+                    "email_smtp_host": "smtp.example.com",
+                    "email_smtp_port": "587",
+                    "email_from_address": "sender@example.com",
+                    "email_smtp_password": "secret",
+                    "email_to_addresses": "to@example.com",
+                    "email_cc_addresses": "cc@example.com",
+                },
+            )
 
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "SUCCESS"
-        app.state.email_client.reconnect_from_settings.assert_awaited_once()
-        app.state.email_client.send_test_email.assert_awaited_once()
+        send.assert_awaited_once()
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,
@@ -197,8 +188,8 @@ class TestSettingsAPI:
             "/api/settings",
             json={
                 "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
-                "mediamtx_rtsp_username": "stream-user",
-                "mediamtx_rtsp_password": "stream-pass",
+                "mediamtx_username": "stream-user",
+                "mediamtx_password": "stream-pass",
             },
         )
 
@@ -209,6 +200,61 @@ class TestSettingsAPI:
             updated_source.rtsp_url
             == "rtsp://stream-user:stream-pass@gateway.example.com:9554/live/cam1"
         )
+
+    async def test_update_shared_mediamtx_settings_syncs_default_gateway(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
+                "mediamtx_webrtc_addr": "https://gateway.example.com:8889/live",
+                "mediamtx_username": "shared-user",
+                "mediamtx_password": "shared-pass",
+            },
+        )
+
+        assert resp.status_code == 200
+        gateways_resp = await async_client.get("/api/video-gateways")
+        assert gateways_resp.status_code == 200
+        default_gateway = next(item for item in gateways_resp.json() if item["id"] == "default-mediamtx")
+        assert default_gateway["rtsp_base_url"] == "rtsp://gateway.example.com:9554/live"
+        assert default_gateway["webrtc_base_url"] == "https://gateway.example.com:8889/live"
+        assert default_gateway["username"] == "shared-user"
+        assert default_gateway["password"] == "shared-pass"
+
+    async def test_legacy_mediamtx_protocol_credentials_are_mapped_to_shared_fields(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_username": "legacy-user",
+                "mediamtx_rtsp_password": "legacy-pass",
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["mediamtx_username"] == "legacy-user"
+        assert data["mediamtx_password"] == "legacy-pass"
+
+    async def test_conflicting_legacy_mediamtx_credentials_are_rejected(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_username": "legacy-rtsp",
+                "mediamtx_webrtc_username": "legacy-webrtc",
+            },
+        )
+
+        assert resp.status_code == 422
+        assert "must match" in resp.json()["detail"]
 
 
 class TestVEngineClientAddresses:
