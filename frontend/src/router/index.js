@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import pinia from '../stores/pinia.js'
 import { useAuthStore } from '../stores/auth.js'
+import { getDefaultSettingsPath } from '../utils/settingsRoutes.js'
 
 const VideoWall = () => import('../views/VideoWall.vue')
 const Messages = () => import('../views/Messages.vue')
@@ -88,7 +89,10 @@ router.beforeEach(async (to) => {
   if (authStore.isAuthenticated) {
     if (to.path === '/settings') {
       return {
-        path: authStore.hasPermission('settings:*') ? '/settings/platform' : '/settings/users',
+        path: getDefaultSettingsPath(
+          authStore.hasPermission('settings:*'),
+          authStore.canManageUsers,
+        ),
         replace: true,
       }
     }

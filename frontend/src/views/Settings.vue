@@ -9,7 +9,7 @@
         <p>{{ t('settings.subtitle') }}</p>
       </div>
 
-      <div v-if="!canAccessSettings" class="settings-section section-card">
+      <div v-if="!hasSettingsAccess" class="settings-section section-card">
         <h2>{{ t('settings.title') }}</h2>
         <p class="info-tip">{{ t('settings.noPermission') }}</p>
       </div>
@@ -656,6 +656,7 @@ import { scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
+import { getDefaultSettingsSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
 
@@ -815,7 +816,7 @@ const userForm = ref({
   role: 'operator',
 })
 const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
-const canAccessSettings = computed(() => canManageSettings.value || authStore.canManageUsers)
+const hasSettingsAccess = computed(() => canManageSettings.value || authStore.canManageUsers)
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -884,9 +885,7 @@ const form = ref({
   max_cpu_workers: '',
 })
 const firstAllowedSectionKey = computed(() => {
-  if (canManageSettings.value) return 'platform'
-  if (authStore.canManageUsers) return 'users'
-  return null
+  return getDefaultSettingsSection(canManageSettings.value, authStore.canManageUsers)
 })
 const currentSettingsPage = computed(() => (
   route.name === 'SettingsPlugin'
@@ -1221,7 +1220,7 @@ watch(
     () => route.fullPath,
     canManageSettings,
     () => authStore.canManageUsers,
-    () => sceneDefinitions.value.map((scene) => scene.id).join(','),
+    () => sceneDefinitions.value.length,
   ],
   () => {
     ensureValidSettingsRoute()
