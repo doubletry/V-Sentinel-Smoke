@@ -247,8 +247,6 @@ class BaseVideoProcessor(ABC):
     def _frame_reader(self, loop: asyncio.AbstractEventLoop) -> None:
         """Read frames from RTSP using PyAV with low-latency options.
         使用 PyAV 和低延迟参数从 RTSP 读取帧。"""
-        import time as _time
-
         logger.info("Frame reader started for {}", self.rtsp_url)
         reconnect_attempts = 0
         max_attempts = RTSP_MAX_RECONNECT_ATTEMPTS  # 0 = unlimited
@@ -294,7 +292,7 @@ class BaseVideoProcessor(ABC):
                     stream_ok = True
                     reconnect_attempts = 0
                     if source_fps is None:
-                        now = _time.monotonic()
+                        now = time.monotonic()
                         if observed_first_frame_at is None:
                             observed_first_frame_at = now
                             observed_frame_count = 1
@@ -356,7 +354,7 @@ class BaseVideoProcessor(ABC):
                 reconnect_attempts,
                 f"/{max_attempts}" if max_attempts > 0 else "",
             )
-            _time.sleep(RTSP_RECONNECT_DELAY)
+            time.sleep(RTSP_RECONNECT_DELAY)
 
         # Send sentinel when reader fully exits
         try:
@@ -1055,7 +1053,7 @@ class BaseVideoProcessor(ABC):
                     self._push_fps = target_fps
                     self._push_bitrate = video_bitrate
 
-                    time.sleep(PUSH_STARTUP_CHECK_DELAY)
+                    self._output_stop.wait(PUSH_STARTUP_CHECK_DELAY)
                     if self._push_proc.poll() is not None:
                         stderr_text = self._read_push_stderr()
                         logger.warning(
@@ -1102,11 +1100,15 @@ class BaseVideoProcessor(ABC):
             self.source_id,
         )
 
+    @staticmethod
+    def _truncate_stderr(text: str) -> str:
+        return str(text or "").strip()[-MAX_STDERR_LOG_CHARS:]
+
     def _read_push_stderr(self) -> str:
         with self._push_stderr_lock:
             buffered = "\n".join(self._push_stderr_lines).strip()
         if buffered:
-            return buffered[-MAX_STDERR_LOG_CHARS:]
+            return self._truncate_stderr(buffered)
         stderr = (
             getattr(self._push_proc, "stderr", None)
             if self._push_proc is not None
@@ -1119,9 +1121,9 @@ class BaseVideoProcessor(ABC):
                 return "(process still running)"
             data = stderr.read()
             if data:
-                return data.decode("utf-8", errors="replace").strip()[
-                    -MAX_STDERR_LOG_CHARS:
-                ]
+                return self._truncate_stderr(
+                    data.decode("utf-8", errors="replace")
+                )
             return ""
         except Exception:
             return ""
