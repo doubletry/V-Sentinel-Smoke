@@ -24,7 +24,6 @@ export default {
     featureSecureAuth: 'Secure sign-in and bearer tokens',
     featurePermissionUi: 'Menus and actions follow permissions',
     hasAccountLogin: 'Already have an account? Sign in',
-    switchToRegisterHint: 'No administrator account exists yet. Please register the first administrator first.',
     accountUnavailable: 'Account entry unavailable',
     username: 'Username',
     password: 'Password',
