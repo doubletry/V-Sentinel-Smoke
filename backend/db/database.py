@@ -706,7 +706,7 @@ async def _get_shared_mediamtx_credentials_from_db(
         "mediamtx_password",
         DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
     )
-    if str(username).strip() or str(password).strip():
+    if str(username).strip():
         return username, password
     return (
         await _get_setting_from_db(
@@ -1394,10 +1394,8 @@ async def get_all_settings() -> dict[str, str]:
             rows = await cursor.fetchall()
     settings = {row[0]: row[1] for row in rows}
     username, password = _shared_mediamtx_credentials_from_settings(settings)
-    if not str(settings.get("mediamtx_username", "")).strip():
-        settings["mediamtx_username"] = username
-    if not str(settings.get("mediamtx_password", "")).strip():
-        settings["mediamtx_password"] = password
+    settings["mediamtx_username"] = username
+    settings["mediamtx_password"] = password
     return settings
 
 
