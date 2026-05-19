@@ -15,7 +15,7 @@ import aiosqlite
 from loguru import logger
 
 from backend.config import DEFAULT_APP_SETTINGS, settings
-from backend.models.schemas import ROI, ROICreate, VideoSource, VideoSourceCreate, VideoSourceUpdate
+from backend.models.schemas import ROI, ROICreate, UserAccount, UserAccountCreate, VideoSource, VideoSourceCreate, VideoSourceUpdate
 from backend.models.schemas import (
     NotificationPolicy,
     NotificationPolicyCreate,
@@ -145,6 +145,15 @@ CREATE TABLE IF NOT EXISTS notification_policies (
 );
 """
 
+CREATE_USERS_TABLE = """
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('user', 'operator', 'admin')),
+    created_at TEXT NOT NULL
+);
+"""
+
 MESSAGE_IMAGE_URL_PREFIX = "/api/messages"
 MESSAGE_IMAGE_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MESSAGE_IMAGE_FILENAME_RE = re.compile(r"^[0-9a-f]{32}\.jpg$")
@@ -258,6 +267,7 @@ async def init_db() -> None:
         await db.execute(CREATE_NOTIFICATION_PROVIDERS_TABLE)
         await db.execute(CREATE_NOTIFICATION_TEMPLATES_TABLE)
         await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
+        await db.execute(CREATE_USERS_TABLE)
         await _ensure_column_exists(db, "video_sources", "route_path", "TEXT NOT NULL DEFAULT ''")
         await _ensure_column_exists(db, "video_sources", "scene_id", "TEXT NOT NULL DEFAULT 'smoke'")
         await _ensure_column_exists(
@@ -1401,6 +1411,57 @@ async def update_notification_policy(
         ) as cursor:
             row = await cursor.fetchone()
     return _row_to_notification_policy(row) if row else None
+
+
+def _row_to_user_account(row: tuple) -> UserAccount:
+    return UserAccount(username=row[0], role=row[1], created_at=row[2])
+
+
+async def count_users() -> int:
+    """Return the number of registered platform accounts.
+    返回已注册的平台账号数量。"""
+    async with _db_session() as db:
+        async with db.execute("SELECT COUNT(*) FROM users") as cursor:
+            row = await cursor.fetchone()
+    return int(row[0] if row else 0)
+
+
+async def list_users() -> list[UserAccount]:
+    """List registered accounts ordered by creation time.
+    按创建时间列出已注册账号。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT username, role, created_at FROM users ORDER BY created_at, username"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_user_account(row) for row in rows]
+
+
+async def get_user_auth_record(username: str) -> tuple[str, str, str] | None:
+    """Return ``(username, password_hash, role)`` for authentication.
+    返回认证所需的 ``(username, password_hash, role)``。"""
+    normalized_username = str(username or "").strip()
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT username, password_hash, role FROM users WHERE username = ?",
+            (normalized_username,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return (str(row[0]), str(row[1]), str(row[2])) if row else None
+
+
+async def create_user_account(data: UserAccountCreate, *, password_hash: str) -> UserAccount:
+    """Persist a new user account with a precomputed password hash.
+    使用预先计算的密码哈希持久化新用户账号。"""
+    username = str(data.username or "").strip()
+    created_at = _now_iso()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            (username, password_hash, data.role, created_at),
+        )
+        await db.commit()
+    return UserAccount(username=username, role=data.role, created_at=created_at)
 
 
 async def get_all_settings() -> dict[str, str]:

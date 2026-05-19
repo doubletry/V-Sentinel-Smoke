@@ -12,9 +12,11 @@ from typing import Any
 from fastapi import HTTPException
 
 from backend.auth.roles import ROLE_PERMISSIONS
+from backend.db import database as db
 
 _PROCESS_SECRET = secrets.token_urlsafe(32)
 _TOKEN_TTL_HOURS = 8
+_PASSWORD_ITERATIONS = 600_000
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -42,6 +44,43 @@ def _auth_secret() -> str:
 def _role_password(role: str) -> str:
     env_name = f"V_SENTINEL_{role.upper()}_PASSWORD"
     return os.getenv(env_name, "")
+
+
+def hash_password(password: str) -> str:
+    """Hash a plaintext password using PBKDF2-SHA256.
+    使用 PBKDF2-SHA256 哈希明文密码。"""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        _PASSWORD_ITERATIONS,
+    )
+    return (
+        f"pbkdf2_sha256${_PASSWORD_ITERATIONS}$"
+        f"{base64.b64encode(salt).decode('ascii')}$"
+        f"{base64.b64encode(digest).decode('ascii')}"
+    )
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify a plaintext password against a stored PBKDF2 hash.
+    校验明文密码是否匹配已存储 PBKDF2 哈希。"""
+    try:
+        algorithm, iterations, salt_b64, digest_b64 = str(password_hash or "").split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = base64.b64decode(salt_b64.encode("ascii"))
+        expected = base64.b64decode(digest_b64.encode("ascii"))
+        actual = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt,
+            int(iterations),
+        )
+    except Exception:
+        return False
+    return hmac.compare_digest(actual, expected)
 
 
 def _sign(payload_b64: str) -> str:
@@ -83,6 +122,26 @@ def authenticate_role(username: str, password: str, role: str) -> dict[str, str]
     if not hmac.compare_digest(password, expected_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return create_access_token(username=username.strip() or normalized_role, role=normalized_role)
+
+
+async def authenticate_user(username: str, password: str, role: str) -> dict[str, str]:
+    """Authenticate against registered users first, then legacy env passwords.
+    优先使用已注册用户认证，其次回退到旧环境变量密码认证。"""
+    normalized_username = str(username or "").strip()
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role not in ROLE_PERMISSIONS:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    record = await db.get_user_auth_record(normalized_username)
+    if record is not None:
+        record_username, password_hash, stored_role = record
+        if stored_role != normalized_role:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not verify_password(password, password_hash):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return create_access_token(username=record_username, role=stored_role)
+
+    return authenticate_role(normalized_username, password, normalized_role)
 
 
 def verify_access_token(token: str) -> dict[str, Any]:

@@ -19,6 +19,7 @@ from backend.api import messages as messages_router
 from backend.api import scenes as scenes_router
 from backend.api import settings as settings_router
 from backend.api import sources as sources_router
+from backend.api import users as users_router
 from backend.api import video_gateways as video_gateways_router
 from backend.api import ws as ws_module
 from backend.config import settings
@@ -188,6 +189,7 @@ app.include_router(video_gateways_router.router)
 app.include_router(notifications_router.router)
 app.include_router(access_router.router)
 app.include_router(auth_router.router)
+app.include_router(users_router.router)
 app.include_router(processor_router.router)
 app.include_router(messages_router.router)
 app.include_router(settings_router.router)

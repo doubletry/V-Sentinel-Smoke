@@ -18,19 +18,19 @@
           active-text-color="#409EFF"
           class="header-nav"
         >
-          <el-menu-item index="/">
+          <el-menu-item v-if="canSeeVideoWall" index="/">
             <el-icon><Monitor /></el-icon>
             {{ t('nav.videoWall') }}
           </el-menu-item>
-          <el-menu-item index="/messages">
+          <el-menu-item v-if="canSeeMessages" index="/messages">
             <el-icon><Bell /></el-icon>
             {{ t('nav.messages') }}
           </el-menu-item>
-          <el-menu-item index="/processing-logs">
+          <el-menu-item v-if="canSeeProcessingLogs" index="/processing-logs">
             <el-icon><Document /></el-icon>
             {{ t('nav.processingLogs') }}
           </el-menu-item>
-          <el-menu-item index="/settings">
+          <el-menu-item v-if="canSeeSettings" index="/settings">
             <el-icon><Setting /></el-icon>
             {{ t('nav.settings') }}
           </el-menu-item>
@@ -38,7 +38,15 @@
 
         <div class="header-tools">
           <el-button
-            v-if="!authStore.isAuthenticated"
+            v-if="!authStore.isAuthenticated && authStore.isBootstrapRegistrationOpen"
+            size="small"
+            type="primary"
+            @click="showRegisterDialog = true"
+          >
+            {{ t('auth.registerFirstAdmin') }}
+          </el-button>
+          <el-button
+            v-if="!authStore.isAuthenticated && authStore.bootstrap.has_users"
             size="small"
             type="primary"
             plain
@@ -107,6 +115,43 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="showRegisterDialog"
+      :title="t('auth.registerTitle')"
+      width="380px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="registerForm" label-width="110px" @submit.prevent="submitRegister">
+        <el-form-item :label="t('auth.username')" required>
+          <el-input v-model="registerForm.username" autocomplete="username" />
+        </el-form-item>
+        <el-form-item :label="t('auth.password')" required>
+          <el-input
+            v-model="registerForm.password"
+            type="password"
+            show-password
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <el-form-item :label="t('auth.confirmPassword')" required>
+          <el-input
+            v-model="registerForm.confirmPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            @keyup.enter="submitRegister"
+          />
+        </el-form-item>
+        <p class="auth-hint">{{ t('auth.registerHint') }}</p>
+      </el-form>
+      <template #footer>
+        <el-button @click="showRegisterDialog = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="authStore.loading" @click="submitRegister">
+          {{ t('auth.registerFirstAdmin') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </el-config-provider>
 </template>
 
@@ -122,11 +167,26 @@ const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const showLoginDialog = ref(false)
+const showRegisterDialog = ref(false)
 const loginForm = reactive({
   username: 'operator',
   role: 'operator',
   password: '',
 })
+const registerForm = reactive({
+  username: '',
+  password: '',
+  confirmPassword: '',
+})
+
+const canSeeVideoWall = computed(() => !authStore.isAuthenticated || authStore.hasPermission('video:watch'))
+const canSeeMessages = computed(() => !authStore.isAuthenticated || authStore.hasPermission('messages:read'))
+const canSeeProcessingLogs = computed(() =>
+  !authStore.isAuthenticated
+  || authStore.hasPermission('sources:operate')
+  || authStore.hasPermission('settings:*')
+)
+const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
 
 const localeModel = computed({
   get: () => locale.value,
@@ -169,6 +229,30 @@ async function submitLogin() {
   }
 }
 
+async function submitRegister() {
+  if (!registerForm.username || !registerForm.password) {
+    ElMessage.warning(t('auth.registerMissingFields'))
+    return
+  }
+  if (registerForm.password !== registerForm.confirmPassword) {
+    ElMessage.warning(t('auth.passwordMismatch'))
+    return
+  }
+  try {
+    await authStore.register({
+      username: registerForm.username,
+      password: registerForm.password,
+    })
+    showRegisterDialog.value = false
+    registerForm.username = ''
+    registerForm.password = ''
+    registerForm.confirmPassword = ''
+    ElMessage.success(t('auth.registerSuccess'))
+  } catch (err) {
+    ElMessage.error(t('auth.registerFailed', { message: err.message }))
+  }
+}
+
 function onAuthCommand(command) {
   if (command === 'logout') {
     authStore.logout()
@@ -189,6 +273,10 @@ onMounted(async () => {
     }
   } catch (_) {
     // Keep local defaults when settings API is unavailable.
+  }
+
+  if (authStore.isBootstrapRegistrationOpen && !authStore.isAuthenticated) {
+    showRegisterDialog.value = true
   }
 })
 </script>

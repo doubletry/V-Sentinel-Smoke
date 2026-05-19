@@ -177,7 +177,17 @@ class TestRbacFoundation:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert me_resp.status_code == 200
-        assert me_resp.json() == {"username": "operator1", "role": "operator"}
+        assert me_resp.json() == {
+            "username": "operator1",
+            "role": "operator",
+            "permissions": [
+                "sources:read",
+                "sources:operate",
+                "video:watch",
+                "messages:read",
+                "messages:annotate",
+            ],
+        }
 
     async def test_mutation_requires_bearer_token(self, async_client: AsyncClient):
         resp = await async_client.put(

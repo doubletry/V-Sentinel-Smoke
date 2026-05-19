@@ -249,6 +249,14 @@ class AuthLoginRequest(BaseModel):
     role: UserRole
 
 
+class AuthRegisterRequest(BaseModel):
+    """Public bootstrap registration payload for the very first admin.
+    首个管理员的公开初始化注册载荷。"""
+
+    username: str
+    password: str
+
+
 class AuthTokenResponse(BaseModel):
     """Signed bearer token returned after login.
     登录后返回的签名 Bearer token。"""
@@ -265,6 +273,33 @@ class CurrentUser(BaseModel):
 
     username: str
     role: UserRole
+    permissions: list[str] = []
+
+
+class AuthBootstrapStatus(BaseModel):
+    """Expose whether public bootstrap registration is still available.
+    暴露公开初始化注册是否仍可用。"""
+
+    has_users: bool
+    registration_open: bool
+
+
+class UserAccountCreate(BaseModel):
+    """Admin-created user account payload.
+    管理员创建用户账号的载荷。"""
+
+    username: str
+    password: str
+    role: UserRole
+
+
+class UserAccount(BaseModel):
+    """Persisted user account metadata returned to the frontend.
+    返回给前端的已持久化用户账号元数据。"""
+
+    username: str
+    role: UserRole
+    created_at: str
 
 
 class ProcessorStartRequest(BaseModel):

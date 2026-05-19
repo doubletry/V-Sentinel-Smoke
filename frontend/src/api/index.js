@@ -74,8 +74,15 @@ export const settingsApi = {
 }
 
 export const authApi = {
+  bootstrap: () => api.get('/api/auth/bootstrap'),
   login: (data) => api.post('/api/auth/login', data),
+  register: (data) => api.post('/api/auth/register', data),
   me: () => api.get('/api/auth/me'),
+}
+
+export const usersApi = {
+  list: () => api.get('/api/users'),
+  create: (data) => api.post('/api/users', data),
 }
 
 export const scenesApi = {

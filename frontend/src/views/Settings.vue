@@ -9,7 +9,13 @@
         <p>{{ t('settings.subtitle') }}</p>
       </div>
 
+      <div v-if="!canAccessSettings" class="settings-section">
+        <h2>{{ t('settings.userManagement') }}</h2>
+        <p class="info-tip">{{ t('settings.noPermission') }}</p>
+      </div>
+
       <el-form
+        v-else
         ref="formRef"
         :model="form"
         class="settings-form"
@@ -247,6 +253,49 @@
           </el-form-item>
         </section>
 
+        <section v-if="authStore.canManageUsers" class="settings-section">
+          <h2>{{ t('settings.userManagement') }}</h2>
+          <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
+          <div class="user-management-grid">
+            <div class="field-stack">
+              <h3>{{ t('settings.accountList') }}</h3>
+              <div class="user-list">
+                <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
+                  <span>{{ item.username }}</span>
+                  <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
+                  <span class="user-created-at">{{ item.created_at }}</span>
+                </div>
+                <span v-if="!authStore.users.length" class="roi-tag-empty">{{ t('settings.noUsers') }}</span>
+              </div>
+            </div>
+            <div class="field-stack">
+              <h3>{{ t('settings.createUser') }}</h3>
+              <el-form-item :label="t('settings.username')">
+                <el-input v-model="userForm.username" autocomplete="username" />
+              </el-form-item>
+              <el-form-item :label="t('settings.userRole')">
+                <el-select v-model="userForm.role" style="width: 100%">
+                  <el-option value="user" :label="t('auth.roles.user')" />
+                  <el-option value="operator" :label="t('auth.roles.operator')" />
+                  <el-option value="admin" :label="t('auth.roles.admin')" />
+                </el-select>
+              </el-form-item>
+              <el-form-item :label="t('settings.temporaryPassword')">
+                <div class="field-stack">
+                  <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
+                  <p class="form-hint">{{ t('settings.temporaryPasswordHint') }}</p>
+                </div>
+              </el-form-item>
+              <div class="settings-inline-actions">
+                <span />
+                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                  {{ t('settings.createUser') }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </section>
+
           </el-tab-pane>
 
           <el-tab-pane
@@ -383,11 +432,13 @@ import ElMessage from 'element-plus/es/components/message/index'
 import { localeOptions } from '../i18n/index.js'
 import { scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 
 const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
+const authStore = useAuthStore()
 const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
@@ -488,7 +539,14 @@ const smokeAdvancedFields = [
 const loading = ref(false)
 const saving = ref(false)
 const testingEmail = ref(false)
+const creatingUser = ref(false)
 const expertMode = ref(false)
+const userForm = ref({
+  username: '',
+  password: '',
+  role: 'operator',
+})
+const canAccessSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -667,10 +725,34 @@ async function reload() {
     } catch (_) {
       // Keep built-in placeholder list when the backend endpoint is unavailable.
     }
+    if (authStore.canManageUsers) {
+      await authStore.fetchUsers()
+    }
   } catch (err) {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))
   } finally {
     loading.value = false
+  }
+}
+
+async function createUserAccount() {
+  if (!userForm.value.username || !userForm.value.password) {
+    ElMessage.warning(t('auth.registerMissingFields'))
+    return
+  }
+  creatingUser.value = true
+  try {
+    await authStore.createUser(userForm.value)
+    userForm.value = {
+      username: '',
+      password: '',
+      role: 'operator',
+    }
+    ElMessage.success(t('settings.createUserSuccess'))
+  } catch (err) {
+    ElMessage.error(t('settings.createUserFailed', { message: err.message }))
+  } finally {
+    creatingUser.value = false
   }
 }
 
@@ -920,6 +1002,36 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 8px;
   min-height: 24px;
+}
+
+.user-management-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #30364d;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #d7e3ff;
+  font-size: 13px;
+}
+
+.user-created-at {
+  margin-left: auto;
+  color: #8aa6d9;
+  font-size: 12px;
 }
 
 .settings-inline-actions {

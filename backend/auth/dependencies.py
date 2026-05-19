@@ -41,4 +41,9 @@ async def current_user(authorization: str | None = Header(default=None, alias="A
     """Resolve the current authenticated user from a Bearer token.
     从 Bearer token 解析当前已认证用户。"""
     payload = verify_access_token(_extract_bearer_token(authorization))
-    return CurrentUser(username=str(payload.get("sub") or ""), role=str(payload["role"]))
+    role = str(payload["role"])
+    return CurrentUser(
+        username=str(payload.get("sub") or ""),
+        role=role,
+        permissions=list(ROLE_PERMISSIONS.get(role, [])),
+    )

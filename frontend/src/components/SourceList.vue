@@ -4,7 +4,7 @@
     <div class="section sources-section">
       <div class="list-header">
         <span class="list-title">{{ t('sourceList.title') }}</span>
-        <el-button type="primary" size="small" @click="showAddDialog = true">
+        <el-button v-if="canOperateSources" type="primary" size="small" @click="showAddDialog = true">
           <el-icon><Plus /></el-icon>
           {{ t('common.add') }}
         </el-button>
@@ -32,6 +32,7 @@
           </div>
           <div class="source-actions">
             <el-button
+              v-if="canOperateSources"
               size="small"
               :type="store.isRunning(source.id) ? 'warning' : 'success'"
               :loading="actionLoading[source.id]"
@@ -40,6 +41,7 @@
               {{ store.isRunning(source.id) ? t('sourceList.stop') : t('sourceList.analyze') }}
             </el-button>
             <el-button
+              v-if="canOperateSources"
               size="small"
               :title="t('common.edit')"
               @click="openEditDialog(source)"
@@ -47,6 +49,7 @@
               <el-icon><EditPen /></el-icon>
             </el-button>
             <el-button
+              v-if="canOperateSources"
               size="small"
               type="danger"
               :title="t('common.delete')"
@@ -179,11 +182,13 @@ import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useSourceStore } from '../stores/source.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { useAuthStore } from '../stores/auth.js'
 import { extractRoutePath, normalizeRoutePath } from '../utils/sourceAddress.js'
 import { scenesApi } from '../api/index.js'
 
 const store = useSourceStore()
 const appSettingsStore = useAppSettingsStore()
+const authStore = useAuthStore()
 const { t, locale } = useI18n()
 const showAddDialog = ref(false)
 const showEditDialog = ref(false)
@@ -204,6 +209,7 @@ const localizedScenes = computed(() =>
   }))
 )
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
+const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
 
 function defaultSceneId() {
   return sceneById.value.has(DEFAULT_SCENE_ID)
