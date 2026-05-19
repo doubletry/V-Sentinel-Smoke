@@ -248,6 +248,7 @@ export default {
     createUser: '创建账号',
     createUserSuccess: '账号创建成功',
     createUserFailed: '创建账号失败：{message}',
+    missingFields: '请完整填写必填项',
     noUsers: '暂无账号',
     noPermission: '当前账号没有进入设置页的权限。请使用管理员账号登录。',
     username: '用户名',

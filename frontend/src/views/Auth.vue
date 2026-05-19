@@ -164,8 +164,8 @@ function redirectTarget() {
     const normalized = decoded.trim().toLowerCase()
     const normalizedWithoutLeadingSlash = normalized.replace(/^\/+/, '')
     if (
-      decoded.startsWith('//')
-      || decoded.includes('://')
+      normalized.startsWith('//')
+      || normalized.includes('://')
       || /^(javascript|data|vbscript):/.test(normalizedWithoutLeadingSlash)
     ) {
       return '/'
@@ -279,7 +279,9 @@ onMounted(async () => {
 
 .auth-hero::after {
   /* Keep the glow partially outside the card to create a soft overflow halo. */
+  /* A slight right overflow keeps the orb visible without covering form content. */
   --decorative-orb-right: -60px;
+  /* A larger bottom overflow makes the halo fade out below the hero card. */
   --decorative-orb-bottom: -100px;
 
   content: '';

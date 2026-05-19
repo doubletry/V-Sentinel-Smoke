@@ -248,6 +248,7 @@ export default {
     createUser: 'Create Account',
     createUserSuccess: 'Account created',
     createUserFailed: 'Failed to create account: {message}',
+    missingFields: 'Please fill in all required fields',
     noUsers: 'No accounts yet',
     noPermission: 'The current account is not allowed to access Settings. Please sign in as administrator.',
     username: 'Username',

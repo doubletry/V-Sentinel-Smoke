@@ -48,6 +48,7 @@
 
                 <section class="settings-section">
                   <h2>{{ t('settings.interface') }}</h2>
+                  <!-- Compact two-column grid keeps dense platform fields scannable without a long single column. -->
                   <div class="settings-form-grid">
                     <el-form-item :label="t('settings.systemLanguage')">
                       <el-select v-model="form.ui_language" style="width: 100%">
@@ -769,7 +770,7 @@ async function reload() {
 
 async function createUserAccount() {
   if (!userForm.value.username || !userForm.value.password) {
-    ElMessage.warning(t('auth.missingFields'))
+    ElMessage.warning(t('settings.missingFields'))
     return
   }
   creatingUser.value = true
