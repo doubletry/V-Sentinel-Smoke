@@ -1412,7 +1412,7 @@ async def get_setting(key: str) -> str | None:
     async with _db_session() as db:
         async with db.execute(
             "SELECT value FROM app_settings WHERE key = ?", (key,)
-    ) as cursor:
+        ) as cursor:
             row = await cursor.fetchone()
     return row[0] if row else None
 

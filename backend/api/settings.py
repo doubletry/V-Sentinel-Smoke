@@ -15,6 +15,14 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 def _ensure_legacy_mediamtx_credentials_are_consistent(updates: dict[str, str]) -> None:
     """Reject conflicting legacy RTSP/WebRTC MediaMTX credentials in one request.
     拒绝单次请求里彼此冲突的旧 RTSP/WebRTC MediaMTX 凭据。"""
+    legacy_keys = {
+        "mediamtx_rtsp_username",
+        "mediamtx_rtsp_password",
+        "mediamtx_webrtc_username",
+        "mediamtx_webrtc_password",
+    }
+    if not legacy_keys.intersection(updates):
+        return
     legacy_pairs = [
         ("mediamtx_rtsp_username", "mediamtx_webrtc_username", "username"),
         ("mediamtx_rtsp_password", "mediamtx_webrtc_password", "password"),
