@@ -4,6 +4,7 @@ export default {
     messages: 'Messages',
     processingLogs: 'Processing Logs',
     settings: 'Settings',
+    management: 'Management',
   },
   language: {
     label: 'Language',
@@ -171,6 +172,16 @@ export default {
     logModule: 'Module',
     logMessage: 'Message',
     failedLoad: 'Failed to load logs: {message}',
+  },
+  management: {
+    title: 'Management Center',
+    subtitle: 'Manage site, users, processing logs, V-Engine, notifications, and plugin settings in one place.',
+    siteSettings: 'Site Settings',
+    siteSettingsHint: 'Maintain site presentation, interface preferences, and MediaMTX streaming service connectivity.',
+    processingLogs: 'Processing Logs',
+    vengineSettings: 'V-Engine Settings',
+    notificationSettings: 'Notification Settings',
+    pluginSettings: 'Plugin Settings',
   },
   messageList: {
     summary: 'Summary',

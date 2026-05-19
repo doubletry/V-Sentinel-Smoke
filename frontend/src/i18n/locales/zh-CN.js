@@ -4,6 +4,7 @@ export default {
     messages: '消息',
     processingLogs: '处理日志',
     settings: '设置',
+    management: '管理',
   },
   language: {
     label: '语言',
@@ -171,6 +172,16 @@ export default {
     logModule: '模块',
     logMessage: '日志内容',
     failedLoad: '加载日志失败：{message}',
+  },
+  management: {
+    title: '管理中心',
+    subtitle: '集中管理站点、用户、处理日志、V-Engine、通知和插件配置。',
+    siteSettings: '站点设置',
+    siteSettingsHint: '维护站点展示信息、界面偏好和 MediaMTX 流媒体服务连接。',
+    processingLogs: '处理日志',
+    vengineSettings: 'V-Engine 设置',
+    notificationSettings: '通知设置',
+    pluginSettings: '插件相关设置',
   },
   messageList: {
     summary: '汇总',

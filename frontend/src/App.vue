@@ -27,17 +27,20 @@
             <el-icon><Bell /></el-icon>
             {{ t('nav.messages') }}
           </el-menu-item>
-          <el-menu-item v-if="canSeeProcessingLogs" index="/processing-logs">
-            <el-icon><Document /></el-icon>
-            {{ t('nav.processingLogs') }}
-          </el-menu-item>
-          <el-menu-item v-if="canSeeSettings" :index="settingsEntryPath">
-            <el-icon><Setting /></el-icon>
-            {{ t('nav.settings') }}
-          </el-menu-item>
         </el-menu>
 
         <div class="header-tools">
+          <el-button
+            v-if="canSeeManagement"
+            size="small"
+            :type="isManagementRoute ? 'primary' : 'default'"
+            plain
+            class="management-button"
+            @click="goToManagement"
+          >
+            <el-icon><Setting /></el-icon>
+            <span>{{ t('nav.management') }}</span>
+          </el-button>
           <el-dropdown trigger="click" @command="onAuthCommand">
             <el-button size="small" plain class="account-button">
               <span class="account-name">{{ authStore.user?.username }}</span>
@@ -117,13 +120,15 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
+import { canViewProcessingLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const passwordDialogVisible = ref(false)
@@ -138,17 +143,23 @@ const canSeeVideoWall = computed(() =>
   authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')
 )
 const canSeeMessages = computed(() => authStore.hasPermission('messages:read'))
-const canSeeProcessingLogs = computed(() =>
-  authStore.hasPermission('sources:operate') || authStore.hasPermission('settings:*')
-)
-const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
+const canSeeProcessingLogs = computed(() => canViewProcessingLogs(
+  authStore.hasPermission('sources:operate'),
+  authStore.hasPermission('settings:*'),
+))
+const canSeeManagement = computed(() => (
+  authStore.hasPermission('settings:*') || authStore.hasPermission('users:*') || canSeeProcessingLogs.value
+))
 const isAuthRoute = computed(() => route.path === '/auth')
-const settingsEntryPath = computed(() => (
-  authStore.hasPermission('settings:*') ? '/settings/platform' : '/settings/users'
+const managementEntryPath = computed(() => getDefaultManagementPath(
+  authStore.hasPermission('settings:*'),
+  authStore.hasPermission('users:*'),
+  canSeeProcessingLogs.value,
 ))
 const activeHeaderPath = computed(() => (
-  route.path.startsWith('/settings') ? settingsEntryPath.value : route.path
+  route.path === '/' || route.path === '/messages' ? route.path : ''
 ))
+const isManagementRoute = computed(() => route.path.startsWith('/management'))
 
 function applyLocale(value) {
   setI18nLocale(value)
@@ -224,6 +235,12 @@ function onAuthCommand(command) {
   }
   if (typeof command === 'string' && command.startsWith('locale:')) {
     applyLocale(command.slice('locale:'.length))
+  }
+}
+
+function goToManagement() {
+  if (managementEntryPath.value) {
+    router.push(managementEntryPath.value)
   }
 }
 
@@ -328,6 +345,22 @@ body {
   min-width: 112px;
   max-width: 180px;
   padding: 0 14px;
+}
+
+.management-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: #3b4d7a;
+  background: rgba(64, 158, 255, 0.08);
+  color: #dce7ff;
+}
+
+.management-button.is-plain:hover,
+.management-button.is-plain:focus {
+  border-color: #409eff;
+  color: #79bbff;
+  background: rgba(64, 158, 255, 0.16);
 }
 
 .account-name {

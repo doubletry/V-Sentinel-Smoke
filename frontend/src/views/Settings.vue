@@ -4,13 +4,16 @@
       <div class="settings-head">
         <div class="title-line">
           <el-icon :size="20"><Setting /></el-icon>
-          <h1>{{ t('settings.title') }}</h1>
+          <h1>{{ t('management.title') }}</h1>
         </div>
-        <p>{{ t('settings.subtitle') }}</p>
+        <p>{{ t('management.subtitle') }}</p>
+        <el-tag v-if="authStore.role" size="small" effect="dark" class="management-role-tag">
+          {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+        </el-tag>
       </div>
 
       <div v-if="!hasSettingsAccess" class="settings-section section-card">
-        <h2>{{ t('settings.title') }}</h2>
+        <h2>{{ t('management.title') }}</h2>
         <p class="info-tip">{{ t('settings.noPermission') }}</p>
       </div>
 
@@ -49,11 +52,11 @@
           </div>
         </div>
 
-        <section v-if="isPlatformPage" class="settings-page-panel">
+        <section v-if="isSitePage" class="settings-page-panel">
           <div class="settings-page-panel__head">
             <div>
-              <h2>{{ t('settings.platformSettings') }}</h2>
-              <p>{{ t('settings.subtitle') }}</p>
+              <h2>{{ t('management.siteSettings') }}</h2>
+              <p>{{ t('management.siteSettingsHint') }}</p>
             </div>
           </div>
           <el-tabs v-model="activePlatformTab" class="settings-top-tabs">
@@ -141,83 +144,6 @@
               </section>
             </el-tab-pane>
 
-            <el-tab-pane :label="t('settings.platformSectionVengine')" name="video">
-              <section class="settings-section section-card">
-                <div class="section-card__head">
-                  <div>
-                    <h2>{{ t('settings.platformSectionVengine') }}</h2>
-                    <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
-                  </div>
-                  <div class="section-card__actions">
-                    <el-button
-                      :loading="activeRestoreSection === 'platform-vengine'"
-                      @click="restoreSection('platform-vengine', VENGINE_SETTING_KEYS)"
-                    >
-                      {{ t('settings.restoreSection') }}
-                    </el-button>
-                    <el-button
-                      type="primary"
-                      :loading="activeSaveSection === 'platform-vengine'"
-                      @click="saveSection('platform-vengine', VENGINE_SETTING_KEYS)"
-                    >
-                      {{ t('settings.saveSection') }}
-                    </el-button>
-                  </div>
-                </div>
-
-                <div class="settings-form-grid wide-grid">
-                  <el-form-item :label="t('settings.vengineHost')">
-                    <el-input v-model="form.vengine_host" placeholder="localhost" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.detectionPort')">
-                    <div class="port-switch-row">
-                      <el-input v-model="form.detection_port" placeholder="50051" :disabled="form.detection_enabled !== 'true'" />
-                      <el-switch v-model="form.detection_enabled" active-value="true" inactive-value="false" />
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.classificationPort')">
-                    <div class="port-switch-row">
-                      <el-input v-model="form.classification_port" placeholder="50052" :disabled="form.classification_enabled !== 'true'" />
-                      <el-switch v-model="form.classification_enabled" active-value="true" inactive-value="false" />
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.actionPort')">
-                    <div class="port-switch-row">
-                      <el-input v-model="form.action_port" placeholder="50053" :disabled="form.action_enabled !== 'true'" />
-                      <el-switch v-model="form.action_enabled" active-value="true" inactive-value="false" />
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.ocrPort')">
-                    <div class="port-switch-row">
-                      <el-input v-model="form.ocr_port" placeholder="50054" :disabled="form.ocr_enabled !== 'true'" />
-                      <el-switch v-model="form.ocr_enabled" active-value="true" inactive-value="false" />
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.uploadPort')">
-                    <div class="port-switch-row">
-                      <el-input v-model="form.upload_port" placeholder="50050" :disabled="form.upload_enabled !== 'true'" />
-                      <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
-                    </div>
-                  </el-form-item>
-                </div>
-
-                <section v-if="expertMode" class="expert-card">
-                  <h3>{{ t('settings.threadPools') }}</h3>
-                  <div class="settings-form-grid compact-grid">
-                    <el-form-item :label="t('settings.maxPullWorkers')">
-                      <el-input v-model="form.max_pull_workers" placeholder="20" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.maxPushWorkers')">
-                      <el-input v-model="form.max_push_workers" placeholder="10" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.maxCpuWorkers')">
-                      <el-input v-model="form.max_cpu_workers" placeholder="16" />
-                    </el-form-item>
-                  </div>
-                </section>
-              </section>
-            </el-tab-pane>
-
             <el-tab-pane :label="t('settings.platformSectionMediaMtx')" name="mediamtx">
               <section class="settings-section section-card">
                 <div class="section-card__head">
@@ -264,6 +190,107 @@
               </section>
             </el-tab-pane>
           </el-tabs>
+        </section>
+
+        <section v-else-if="isVenginePage" class="settings-page-panel">
+          <div class="settings-page-panel__head">
+            <div>
+              <h2>{{ t('management.vengineSettings') }}</h2>
+              <p>{{ t('settings.serviceToggleTip') }}</p>
+            </div>
+          </div>
+          <section class="settings-section section-card">
+            <div class="section-card__head">
+              <div>
+                <h2>{{ t('settings.platformSectionVengine') }}</h2>
+                <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
+              </div>
+              <div class="section-card__actions">
+                <el-button
+                  :loading="activeRestoreSection === 'platform-vengine'"
+                  @click="restoreSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                >
+                  {{ t('settings.restoreSection') }}
+                </el-button>
+                <el-button
+                  type="primary"
+                  :loading="activeSaveSection === 'platform-vengine'"
+                  @click="saveSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                >
+                  {{ t('settings.saveSection') }}
+                </el-button>
+              </div>
+            </div>
+
+            <div class="inline-setting-block">
+              <div>
+                <h3>{{ t('settings.configurationMode') }}</h3>
+                <p class="info-tip">{{ t('settings.expertModeHint') }}</p>
+              </div>
+              <el-switch v-model="expertMode" />
+            </div>
+
+            <div class="settings-form-grid wide-grid">
+              <el-form-item :label="t('settings.vengineHost')">
+                <el-input v-model="form.vengine_host" placeholder="localhost" />
+              </el-form-item>
+              <el-form-item :label="t('settings.detectionPort')">
+                <div class="port-switch-row">
+                  <el-input v-model="form.detection_port" placeholder="50051" :disabled="form.detection_enabled !== 'true'" />
+                  <el-switch v-model="form.detection_enabled" active-value="true" inactive-value="false" />
+                </div>
+              </el-form-item>
+              <el-form-item :label="t('settings.classificationPort')">
+                <div class="port-switch-row">
+                  <el-input v-model="form.classification_port" placeholder="50052" :disabled="form.classification_enabled !== 'true'" />
+                  <el-switch v-model="form.classification_enabled" active-value="true" inactive-value="false" />
+                </div>
+              </el-form-item>
+              <el-form-item :label="t('settings.actionPort')">
+                <div class="port-switch-row">
+                  <el-input v-model="form.action_port" placeholder="50053" :disabled="form.action_enabled !== 'true'" />
+                  <el-switch v-model="form.action_enabled" active-value="true" inactive-value="false" />
+                </div>
+              </el-form-item>
+              <el-form-item :label="t('settings.ocrPort')">
+                <div class="port-switch-row">
+                  <el-input v-model="form.ocr_port" placeholder="50054" :disabled="form.ocr_enabled !== 'true'" />
+                  <el-switch v-model="form.ocr_enabled" active-value="true" inactive-value="false" />
+                </div>
+              </el-form-item>
+              <el-form-item :label="t('settings.uploadPort')">
+                <div class="port-switch-row">
+                  <el-input v-model="form.upload_port" placeholder="50050" :disabled="form.upload_enabled !== 'true'" />
+                  <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
+                </div>
+              </el-form-item>
+            </div>
+
+            <section v-if="expertMode" class="expert-card">
+              <h3>{{ t('settings.threadPools') }}</h3>
+              <div class="settings-form-grid compact-grid">
+                <el-form-item :label="t('settings.maxPullWorkers')">
+                  <el-input v-model="form.max_pull_workers" placeholder="20" />
+                </el-form-item>
+                <el-form-item :label="t('settings.maxPushWorkers')">
+                  <el-input v-model="form.max_push_workers" placeholder="10" />
+                </el-form-item>
+                <el-form-item :label="t('settings.maxCpuWorkers')">
+                  <el-input v-model="form.max_cpu_workers" placeholder="16" />
+                </el-form-item>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section v-else-if="isLogsPage" class="settings-page-panel management-logs-panel">
+          <div class="settings-page-panel__head">
+            <div>
+              <h2>{{ t('management.processingLogs') }}</h2>
+              <p>{{ t('processingLogs.subtitle') }}</p>
+            </div>
+          </div>
+          <ProcessingLogs embedded />
         </section>
 
         <section v-else-if="isNotificationsPage" class="settings-page-panel">
@@ -656,9 +683,10 @@ import { scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
-import { getDefaultSettingsSection } from '../utils/settingsRoutes.js'
+import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
+import ProcessingLogs from './ProcessingLogs.vue'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -816,7 +844,11 @@ const userForm = ref({
   role: 'operator',
 })
 const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
-const hasSettingsAccess = computed(() => canManageSettings.value || authStore.canManageUsers)
+const canViewLogs = computed(() => canViewProcessingLogs(
+  authStore.hasPermission('sources:operate'),
+  canManageSettings.value,
+))
+const hasSettingsAccess = computed(() => canManageSettings.value || authStore.canManageUsers || canViewLogs.value)
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -885,34 +917,45 @@ const form = ref({
   max_cpu_workers: '',
 })
 const firstAllowedSectionKey = computed(() => {
-  return getDefaultSettingsSection(canManageSettings.value, authStore.canManageUsers)
+  return getDefaultManagementSection(canManageSettings.value, authStore.canManageUsers, canViewLogs.value)
 })
 const currentSettingsPage = computed(() => (
-  route.name === 'SettingsPlugin'
-    ? 'plugin'
+  route.name === 'ManagementPlugin'
+    ? 'plugins'
     : (route.params.section || '')
 ))
 const currentPluginSceneId = computed(() => (
-  route.name === 'SettingsPlugin' ? String(route.params.sceneId || '') : ''
+  route.name === 'ManagementPlugin' ? String(route.params.sceneId || '') : ''
 ))
 const currentPluginScene = computed(() => sceneById(currentPluginSceneId.value))
 const currentPluginSceneLabel = computed(() => (
   currentPluginScene.value ? sceneTabLabel(currentPluginScene.value.id) : ''
 ))
-const isPlatformPage = computed(() => currentSettingsPage.value === 'platform')
+const isSitePage = computed(() => currentSettingsPage.value === 'site')
+const isVenginePage = computed(() => currentSettingsPage.value === 'vengine')
 const isNotificationsPage = computed(() => currentSettingsPage.value === 'notifications')
 const isUsersPage = computed(() => currentSettingsPage.value === 'users')
-const isPluginPage = computed(() => currentSettingsPage.value === 'plugin')
+const isLogsPage = computed(() => currentSettingsPage.value === 'logs')
+const isPluginPage = computed(() => currentSettingsPage.value === 'plugins')
 const settingsNavItems = computed(() => {
   const items = []
   if (canManageSettings.value) {
     items.push(
-      { key: 'platform', label: t('settings.platformSettings') },
-      { key: 'notifications', label: t('settings.notificationManagement') },
+      { key: 'site', label: t('management.siteSettings') },
     )
   }
   if (authStore.canManageUsers) {
     items.push({ key: 'users', label: t('settings.userManagement') })
+  }
+  if (canViewLogs.value) {
+    items.push({ key: 'logs', label: t('management.processingLogs') })
+  }
+  if (canManageSettings.value) {
+    items.push(
+      { key: 'vengine', label: t('management.vengineSettings') },
+      { key: 'notifications', label: t('management.notificationSettings') },
+      { key: 'plugins', label: t('management.pluginSettings') },
+    )
   }
   return items
 })
@@ -976,7 +1019,7 @@ function applyFormValues(data, keys) {
 
 function firstAllowedSettingsRoute() {
   return firstAllowedSectionKey.value
-    ? { name: 'SettingsSection', params: { section: firstAllowedSectionKey.value } }
+    ? { name: 'ManagementSection', params: { section: firstAllowedSectionKey.value } }
     : null
 }
 
@@ -988,11 +1031,11 @@ function replaceSettingsRoute(location) {
 }
 
 function navigateToSettingsPage(pageKey) {
-  router.push({ name: 'SettingsSection', params: { section: pageKey } })
+  router.push({ name: 'ManagementSection', params: { section: pageKey } })
 }
 
 function navigateToPluginScene(sceneId) {
-  router.push({ name: 'SettingsPlugin', params: { sceneId } })
+  router.push({ name: 'ManagementPlugin', params: { sceneId } })
 }
 
 function ensureValidSettingsRoute() {
@@ -1001,7 +1044,7 @@ function ensureValidSettingsRoute() {
     return
   }
 
-  if (route.name === 'SettingsPlugin') {
+  if (route.name === 'ManagementPlugin') {
     if (!canManageSettings.value || !currentPluginScene.value) {
       replaceSettingsRoute(fallback)
     }
@@ -1009,10 +1052,19 @@ function ensureValidSettingsRoute() {
   }
 
   const section = route.params.section || ''
-  if ((section === 'platform' || section === 'notifications') && canManageSettings.value) {
+  if ((section === 'site' || section === 'vengine' || section === 'notifications') && canManageSettings.value) {
     return
   }
   if (section === 'users' && authStore.canManageUsers) {
+    return
+  }
+  if (section === 'logs' && canViewLogs.value) {
+    return
+  }
+  if (section === 'plugins' && canManageSettings.value) {
+    if (sceneDefinitions.value.length) {
+      navigateToPluginScene(sceneDefinitions.value[0].id)
+    }
     return
   }
   replaceSettingsRoute(fallback)
@@ -1021,28 +1073,30 @@ function ensureValidSettingsRoute() {
 async function reload() {
   loading.value = true
   try {
-    const [data, scenes] = await Promise.all([
-      appSettingsStore.fetchSettings(true),
-      scenesApi.list(),
-    ])
-    Object.assign(form.value, data)
-    sceneDefinitions.value = Array.isArray(scenes)
-      ? scenes
-      : DEFAULT_SCENE_DEFINITIONS
-    ensureValidSettingsRoute()
-    expertMode.value = [
-      data.max_pull_workers,
-      data.max_push_workers,
-      data.max_cpu_workers,
-    ].some((value) => String(value ?? '').trim() !== '')
-    try {
-      const placeholderData = await settingsApi.emailTemplatePlaceholders()
-      if (Array.isArray(placeholderData?.placeholders)) {
-        emailTemplatePlaceholders.value = placeholderData.placeholders
+    if (canManageSettings.value) {
+      const [data, scenes] = await Promise.all([
+        appSettingsStore.fetchSettings(true),
+        scenesApi.list(),
+      ])
+      Object.assign(form.value, data)
+      sceneDefinitions.value = Array.isArray(scenes)
+        ? scenes
+        : DEFAULT_SCENE_DEFINITIONS
+      expertMode.value = [
+        data.max_pull_workers,
+        data.max_push_workers,
+        data.max_cpu_workers,
+      ].some((value) => String(value ?? '').trim() !== '')
+      try {
+        const placeholderData = await settingsApi.emailTemplatePlaceholders()
+        if (Array.isArray(placeholderData?.placeholders)) {
+          emailTemplatePlaceholders.value = placeholderData.placeholders
+        }
+      } catch (_) {
+        // Keep built-in placeholder list when the backend endpoint is unavailable.
       }
-    } catch (_) {
-      // Keep built-in placeholder list when the backend endpoint is unavailable.
     }
+    ensureValidSettingsRoute()
     if (authStore.canManageUsers) {
       await authStore.fetchUsers()
     }
@@ -1274,6 +1328,10 @@ onMounted(async () => {
   font-size: 13px;
 }
 
+.management-role-tag {
+  margin-top: 10px;
+}
+
 .settings-form {
   background: rgba(16, 21, 37, 0.92);
   border: 1px solid #26314d;
@@ -1295,6 +1353,13 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.settings-page-nav {
+  padding: 10px;
+  border: 1px solid #2b3550;
+  border-radius: 16px;
+  background: rgba(5, 10, 24, 0.36);
+}
+
 .settings-page-nav__button,
 .settings-scene-nav__button {
   border-radius: 12px;
@@ -1304,6 +1369,10 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.management-logs-panel {
+  min-height: 720px;
 }
 
 .settings-page-panel__head {
@@ -1610,6 +1679,12 @@ onMounted(async () => {
 
   .settings-form {
     padding: 14px;
+  }
+
+  .settings-page-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 12px;
   }
 
   .platform-settings-tabs :deep(.el-tabs__header) {
