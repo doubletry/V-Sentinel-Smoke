@@ -2,15 +2,14 @@
   <div class="auth-page">
     <div class="auth-shell">
       <section class="auth-hero">
-        <el-tag effect="dark" class="auth-badge">{{ t('auth.platformAccount') }}</el-tag>
-        <h1>{{ isRegisterMode ? t('auth.registerPageTitle') : t('auth.loginPageTitle') }}</h1>
-        <p>{{ isRegisterMode ? t('auth.registerPageSubtitle') : t('auth.loginPageSubtitle') }}</p>
+        <p class="auth-brand">{{ appSettingsStore.siteTitle }}</p>
+        <h1>{{ pageTitle }}</h1>
+        <p>{{ appSettingsStore.siteDescription }}</p>
       </section>
 
       <section class="auth-card">
         <div class="auth-card-header">
           <h2>{{ isRegisterMode ? t('auth.register') : t('auth.login') }}</h2>
-          <p>{{ isRegisterMode ? t('auth.registerHint') : t('auth.loginHint') }}</p>
         </div>
 
         <el-form
@@ -113,11 +112,13 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useAuthStore } from '../stores/auth.js'
+import { useAppSettingsStore } from '../stores/appSettings.js'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const appSettingsStore = useAppSettingsStore()
 
 const loginForm = reactive({
   username: '',
@@ -134,6 +135,11 @@ const isRegisterMode = computed(() => {
   if (route.query.mode === 'login') return false
   return authStore.isBootstrapRegistrationOpen
 })
+const pageTitle = computed(() => (
+  isRegisterMode.value
+    ? t('auth.registerPageTitle', { title: appSettingsStore.siteTitle })
+    : t('auth.loginPageTitle', { title: appSettingsStore.siteTitle })
+))
 
 function redirectTarget() {
   const value = String(route.query.redirect || '')
@@ -212,7 +218,10 @@ watch(
 )
 
 onMounted(async () => {
-  await authStore.fetchBootstrap()
+  await Promise.all([
+    authStore.fetchBootstrap(),
+    appSettingsStore.fetchSettings().catch(() => null),
+  ])
   if (authStore.isAuthenticated) {
     await router.replace(redirectTarget())
   }
@@ -231,8 +240,8 @@ onMounted(async () => {
 }
 
 .auth-shell {
-  max-width: 1120px;
-  min-height: min(720px, calc(100vh - 152px));
+  max-width: 1100px;
+  min-height: min(700px, calc(100vh - 152px));
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.8fr);
@@ -257,6 +266,15 @@ onMounted(async () => {
   background:
     linear-gradient(145deg, rgba(33, 78, 141, 0.72), rgba(17, 25, 45, 0.92)),
     radial-gradient(circle at 72% 22%, rgba(255, 255, 255, 0.12), transparent 30%);
+}
+
+.auth-brand {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fb6ff;
+  margin-bottom: 18px;
 }
 
 .auth-hero::after {

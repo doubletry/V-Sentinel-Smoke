@@ -23,7 +23,8 @@
       >
         <el-tabs
           v-model="activeSettingsTab"
-          class="settings-tabs"
+          tab-position="left"
+          class="settings-tabs settings-main-tabs"
           @tab-change="onSettingsTabChange"
         >
           <el-tab-pane :label="t('settings.platformSettings')" name="platform">
@@ -242,8 +243,9 @@
           </el-tab-pane>
 
           <el-tab-pane :label="t('settings.notificationManagement')" name="notifications">
-            <div class="settings-stack">
-              <section class="settings-section section-card">
+            <el-tabs v-model="activeNotificationTab" tab-position="left" class="settings-subtabs">
+              <el-tab-pane :label="t('settings.notificationEmailSection')" name="email">
+                <section class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.notificationEmailSection') }}</h2>
@@ -340,9 +342,11 @@
                     </div>
                   </el-form-item>
                 </div>
-              </section>
+                </section>
+              </el-tab-pane>
 
-              <section class="settings-section section-card compact-section">
+              <el-tab-pane :label="t('settings.notificationRetentionSection')" name="retention">
+                <section class="settings-section section-card compact-section">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.notificationRetentionSection') }}</h2>
@@ -379,8 +383,9 @@
                     <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
                   </el-form-item>
                 </div>
-              </section>
-            </div>
+                </section>
+              </el-tab-pane>
+            </el-tabs>
           </el-tab-pane>
 
           <el-tab-pane
@@ -441,31 +446,33 @@
             :label="sceneTabLabel(scene.id)"
             :name="`plugin-${scene.id}`"
           >
-            <template v-if="scene.id === SMOKE_SCENE_ID">
-              <section class="settings-section section-card">
-                <div class="section-card__head">
-                  <div>
-                    <h2>{{ t('settings.smokeScene') }}</h2>
-                    <p class="info-tip">{{ scene.description }}</p>
-                  </div>
-                  <div class="section-card__actions">
-                    <el-button
-                      :loading="activeRestoreSection === `plugin-${scene.id}`"
-                      @click="restoreSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
-                    >
-                      {{ t('settings.restoreSection') }}
-                    </el-button>
-                    <el-button
-                      type="primary"
-                      :loading="activeSaveSection === `plugin-${scene.id}`"
-                      @click="saveSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
-                    >
-                      {{ t('settings.savePluginSection') }}
-                    </el-button>
-                  </div>
-                </div>
+            <el-tabs v-model="activePluginTab" tab-position="left" class="settings-subtabs">
+              <el-tab-pane :label="t('settings.saveSection')" name="config">
+                <template v-if="scene.id === SMOKE_SCENE_ID">
+                  <section class="settings-section section-card">
+                    <div class="section-card__head">
+                      <div>
+                        <h2>{{ t('settings.smokeScene') }}</h2>
+                        <p class="info-tip">{{ scene.description }}</p>
+                      </div>
+                      <div class="section-card__actions">
+                        <el-button
+                          :loading="activeRestoreSection === `plugin-${scene.id}`"
+                          @click="restoreSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                        >
+                          {{ t('settings.restoreSection') }}
+                        </el-button>
+                        <el-button
+                          type="primary"
+                          :loading="activeSaveSection === `plugin-${scene.id}`"
+                          @click="saveSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                        >
+                          {{ t('settings.savePluginSection') }}
+                        </el-button>
+                      </div>
+                    </div>
 
-                <div class="settings-form-grid wide-grid">
+                    <div class="settings-form-grid wide-grid">
                   <el-form-item :label="t('settings.smokeDetectionModelName')">
                     <div class="field-stack">
                       <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
@@ -522,9 +529,9 @@
                   </el-form-item>
                 </div>
 
-                <section v-if="expertMode" class="expert-card plugin-advanced-card">
-                  <div class="section-card__head threshold-head">
-                    <div>
+                  <section v-if="expertMode" class="expert-card plugin-advanced-card">
+                    <div class="section-card__head threshold-head">
+                      <div>
                       <h3>{{ t('settings.smokeAdvancedThresholds') }}</h3>
                       <p class="info-tip">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
                     </div>
@@ -538,48 +545,77 @@
                       <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
                       <p class="form-hint">{{ t(item.hintKey) }}</p>
                     </div>
+                    </div>
+                  </section>
+                  </section>
+                </template>
+                <section v-else class="settings-section section-card">
+                  <div class="section-card__head">
+                    <div>
+                      <h2>{{ sceneTabLabel(scene.id) }}</h2>
+                      <p class="info-tip">{{ scene.description || t('settings.templateSceneHint') }}</p>
+                    </div>
+                    <div class="section-card__actions">
+                      <el-button
+                        :loading="activeRestoreSection === `plugin-${scene.id}`"
+                        @click="restoreSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                      >
+                        {{ t('settings.restoreSection') }}
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        :loading="activeSaveSection === `plugin-${scene.id}`"
+                        @click="saveSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                      >
+                        {{ t('settings.savePluginSection') }}
+                      </el-button>
+                    </div>
                   </div>
                 </section>
-              </section>
-            </template>
+              </el-tab-pane>
 
-            <section class="settings-section section-card">
-              <div class="section-card__head">
-                <div>
-                  <h2>{{ t('settings.pluginRoiTags') }}</h2>
-                  <p class="scene-scope-line">
-                    {{ t('settings.pluginRoiTagsScene', { scene: sceneTabLabel(scene.id), id: scene.id }) }}
-                  </p>
-                </div>
-              </div>
-              <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
-                {{ scene.description || t('settings.templateSceneHint') }}
-              </p>
-              <div class="plugin-tag-list">
-                <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark" :title="tag">
-                  {{ roiTagLabel(scene, tag) }}
-                </el-tag>
-                <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
-              </div>
-              <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
-            </section>
-
-            <section class="settings-section section-card">
-              <div class="section-card__head">
-                <div>
-                  <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
+              <el-tab-pane :label="t('settings.pluginRoiTags')" name="roi-tags">
+                <section class="settings-section section-card">
+                  <div class="section-card__head">
+                    <div>
+                      <h2>{{ t('settings.pluginRoiTags') }}</h2>
+                      <p class="scene-scope-line">
+                        {{ t('settings.pluginRoiTagsScene', { scene: sceneTabLabel(scene.id), id: scene.id }) }}
+                      </p>
+                    </div>
+                  </div>
                   <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
                     {{ scene.description || t('settings.templateSceneHint') }}
                   </p>
-                </div>
-              </div>
-              <div class="plugin-config-list">
-                <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item.key" type="info">
-                  {{ item.key }}: {{ item.value }}
-                </el-tag>
-                <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
-              </div>
-            </section>
+                  <div class="plugin-tag-list">
+                    <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark" :title="tag">
+                      {{ roiTagLabel(scene, tag) }}
+                    </el-tag>
+                    <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
+                  </div>
+                  <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane :label="t('settings.pluginDefaultConfig')" name="defaults">
+                <section class="settings-section section-card">
+                  <div class="section-card__head">
+                    <div>
+                      <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
+                      <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
+                        {{ scene.description || t('settings.templateSceneHint') }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="plugin-config-list">
+                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item.key" type="info">
+                      {{ item.key }}: {{ item.value }}
+                    </el-tag>
+                    <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
+                  </div>
+                </section>
+              </el-tab-pane>
+            </el-tabs>
           </el-tab-pane>
         </el-tabs>
       </el-form>
@@ -622,6 +658,8 @@ const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 const SMOKE_SCENE_ID = 'smoke'
 const activeSettingsTab = ref(readInitialSettingsTab())
 const activePlatformTab = ref('overview')
+const activeNotificationTab = ref('email')
+const activePluginTab = ref('config')
 const DEFAULT_SCENE_DEFINITIONS = [
   {
     id: 'smoke',
@@ -1222,6 +1260,32 @@ onMounted(async () => {
   background-color: #30364d;
 }
 
+.settings-main-tabs {
+  min-height: 720px;
+}
+
+.settings-main-tabs :deep(.el-tabs__header) {
+  min-width: 196px;
+  padding-right: 18px;
+}
+
+.settings-main-tabs :deep(.el-tabs__item) {
+  justify-content: flex-start;
+  color: #b6c5e4;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  padding: 0 16px;
+}
+
+.settings-main-tabs :deep(.el-tabs__item.is-active) {
+  color: #eef4ff;
+  background: rgba(64, 158, 255, 0.16);
+}
+
+.settings-main-tabs :deep(.el-tabs__content) {
+  min-width: 0;
+}
+
 .platform-settings-tabs {
   min-height: 640px;
 }
@@ -1241,6 +1305,25 @@ onMounted(async () => {
 .platform-settings-tabs :deep(.el-tabs__item.is-active) {
   color: #e8f2ff;
   background: rgba(64, 158, 255, 0.16);
+}
+
+.settings-subtabs {
+  min-height: 560px;
+}
+
+.settings-subtabs :deep(.el-tabs__header) {
+  min-width: 168px;
+  padding-right: 14px;
+}
+
+.settings-subtabs :deep(.el-tabs__item) {
+  justify-content: flex-start;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.settings-subtabs :deep(.el-tabs__item.is-active) {
+  background: rgba(64, 158, 255, 0.14);
 }
 
 .settings-form-grid {

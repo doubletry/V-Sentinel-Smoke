@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import html
 from datetime import datetime, timezone
 from typing import Any
 
@@ -53,11 +54,13 @@ class NotificationDispatcher:
             context = build_template_context(app_settings, event)
             subject_template = template.subject_template if template else "{event_label} alert from {source_name}"
             body_template = template.body_template if template else "{local_time} {event_label} {source_name}"
+            rendered_body = render_template(body_template, context)
             payload = NotificationPayload(
                 subject=render_template(subject_template, context),
-                body=render_template(body_template, context),
+                body=rendered_body,
                 html_body="<br>".join(
-                    render_template(body_template, context).splitlines()
+                    html.escape(line)
+                    for line in rendered_body.splitlines()
                 ),
                 context=context,
                 attachments=self._build_attachments(event),

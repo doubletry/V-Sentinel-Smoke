@@ -1,6 +1,7 @@
 <template>
   <el-config-provider>
-    <el-container class="app-container">
+    <router-view v-if="isAuthRoute" />
+    <el-container v-else class="app-container">
       <el-header class="app-header">
         <div class="header-brand">
           <el-avatar :size="22" shape="square" :src="appSettingsStore.siteIconUrl" class="site-icon">
@@ -37,52 +38,24 @@
         </el-menu>
 
         <div class="header-tools">
-          <template v-if="!authStore.isAuthenticated">
-            <el-button
-              v-if="authStore.isBootstrapRegistrationOpen"
-              size="small"
-              type="primary"
-              @click="goAuth('register')"
-            >
-              {{ t('auth.register') }}
-            </el-button>
-            <el-button
-              v-else-if="authStore.bootstrap.has_users"
-              size="small"
-              type="primary"
-              plain
-              @click="goAuth('login')"
-            >
-              {{ t('auth.login') }}
-            </el-button>
-            <el-tag v-else type="warning" effect="dark">{{ t('auth.accountUnavailable') }}</el-tag>
-            <span class="lang-label">{{ t('language.label') }}</span>
-            <el-select v-model="localeModel" size="small" class="lang-select">
-              <el-option
-                v-for="option in localeOptions"
-                :key="option.value"
-                :label="t(option.labelKey)"
-                :value="option.value"
-              />
-            </el-select>
-          </template>
-          <el-dropdown v-else trigger="click" @command="onAuthCommand">
+          <el-dropdown trigger="click" @command="onAuthCommand">
             <el-button size="small" plain class="account-button">
               <span class="account-name">{{ authStore.user?.username }}</span>
-              <el-tag size="small" effect="dark" class="account-role-tag">
-                {{ t(`auth.roles.${authStore.role}`) }}
-              </el-tag>
             </el-button>
             <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item disabled>
-                  {{ t('auth.currentUser', { username: authStore.user?.username || '' }) }}
+              <el-dropdown-menu class="account-dropdown-menu">
+                <el-dropdown-item disabled class="account-dropdown-title">
+                  {{ authStore.user?.username || t('auth.accountMenu') }}
                 </el-dropdown-item>
                 <el-dropdown-item disabled>
                   {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
                 </el-dropdown-item>
-                <el-dropdown-item divided command="locale:zh-CN">中文</el-dropdown-item>
-                <el-dropdown-item command="locale:en-US">English</el-dropdown-item>
+                <el-dropdown-item divided command="locale:zh-CN">
+                  {{ t('language.label') }} · 中文
+                </el-dropdown-item>
+                <el-dropdown-item command="locale:en-US">
+                  {{ t('language.label') }} · English
+                </el-dropdown-item>
                 <el-dropdown-item divided command="change-password">
                   {{ t('auth.changePassword') }}
                 </el-dropdown-item>
@@ -144,14 +117,13 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
-import { useRoute, useRouter } from 'vue-router'
-import { localeOptions, LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
+import { useRoute } from 'vue-router'
+import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
-const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const passwordDialogVisible = ref(false)
@@ -170,18 +142,12 @@ const canSeeProcessingLogs = computed(() =>
   authStore.hasPermission('sources:operate') || authStore.hasPermission('settings:*')
 )
 const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
+const isAuthRoute = computed(() => route.path === '/auth')
 
 function applyLocale(value) {
   setI18nLocale(value)
   appSettingsStore.patchSettings({ ui_language: value })
 }
-
-const localeModel = computed({
-  get: () => locale.value,
-  set: (value) => {
-    applyLocale(value)
-  },
-})
 
 function syncDocumentTitle(title) {
   if (typeof document !== 'undefined' && title) {
@@ -204,16 +170,6 @@ function syncFavicon(href) {
 
 watch(() => appSettingsStore.siteTitle, syncDocumentTitle, { immediate: true })
 watch(() => appSettingsStore.faviconUrl, syncFavicon, { immediate: true })
-
-function goAuth(mode) {
-  router.push({
-    path: '/auth',
-    query: {
-      mode,
-      redirect: route.path === '/auth' ? '/' : route.path,
-    },
-  })
-}
 
 function resetPasswordForm() {
   passwordForm.currentPassword = ''
@@ -267,7 +223,6 @@ function onAuthCommand(command) {
 
 onMounted(async () => {
   try {
-    await authStore.restore()
     await appSettingsStore.fetchSettings()
 
     if (typeof window !== 'undefined') {
@@ -278,10 +233,6 @@ onMounted(async () => {
     }
   } catch (_) {
     // Keep local defaults when settings API is unavailable.
-  }
-
-  if (authStore.isBootstrapRegistrationOpen && !authStore.isAuthenticated && route.path !== '/auth') {
-    goAuth('register')
   }
 })
 </script>
@@ -367,28 +318,25 @@ body {
 .account-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  min-width: 112px;
+  max-width: 180px;
+  padding: 0 14px;
 }
 
 .account-name {
-  max-width: 132px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.account-role-tag {
-  border: none;
+.account-dropdown-menu {
+  min-width: 196px;
 }
 
-.lang-label {
-  color: #888;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.lang-select {
-  width: 118px;
+.account-dropdown-title {
+  font-weight: 600;
 }
 
 .password-dialog-hint {
@@ -405,8 +353,7 @@ body {
 }
 
 @media (max-width: 960px) {
-  .brand-desc,
-  .lang-label {
+  .brand-desc {
     display: none;
   }
 
@@ -418,12 +365,9 @@ body {
     font-size: 15px;
   }
 
-  .lang-select {
-    width: 90px;
-  }
-
-  .account-role-tag {
-    display: none;
+  .account-button {
+    min-width: 88px;
+    max-width: 132px;
   }
 }
 </style>

@@ -267,3 +267,54 @@ class TestNotificationDispatcher:
 
         assert results == [{"status": "SUCCESS", "message": "sent"}]
         send.assert_awaited_once()
+        payload = send.await_args.args[0]
+        assert payload.body.endswith("Smoke Cam")
+        assert payload.html_body.endswith("Smoke Cam")
+
+    async def test_dispatcher_escapes_html_body_lines(self, init_db):
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="SMTP",
+                type="email",
+                enabled=True,
+                config={
+                    "smtp_host": "smtp.example.com",
+                    "from_address": "sender@example.com",
+                    "to_addresses": ["ops@example.com"],
+                },
+            )
+        )
+        policy = await create_notification_policy(
+            NotificationPolicyCreate(
+                name="Policy",
+                cooldown_seconds=0,
+                provider_ids=[provider.id],
+            )
+        )
+        source = await create_source(
+            VideoSourceCreate(
+                name="Cam <A>",
+                rtsp_url="rtsp://localhost:8554/cam",
+                notification_policy_ids=[policy.id],
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send:
+            await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": source.id,
+                    "source_name": source.name,
+                    "event_type": "smoke<script>",
+                    "event_label": "Smoke & Fire",
+                }
+            )
+
+        payload = send.await_args.args[0]
+        assert payload.body.endswith("Smoke & Fire Cam <A>")
+        assert payload.html_body.endswith("Smoke &amp; Fire Cam &lt;A&gt;")
+        assert "<A>" not in payload.html_body
