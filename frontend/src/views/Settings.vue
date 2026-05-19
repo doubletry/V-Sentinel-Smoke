@@ -29,273 +29,299 @@
           @tab-change="onSettingsTabChange"
         >
           <el-tab-pane :label="t('settings.platformSettings')" name="platform">
-        <section class="settings-section friendly-mode-section">
-          <h2>{{ t('settings.configurationMode') }}</h2>
-          <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
-          <el-form-item :label="t('settings.expertMode')">
-            <div class="field-stack">
-              <el-switch v-model="expertMode" />
-              <p class="form-hint">{{ t('settings.expertModeHint') }}</p>
-            </div>
-          </el-form-item>
-        </section>
+            <el-tabs
+              v-model="activePlatformTab"
+              tab-position="left"
+              class="platform-settings-tabs"
+            >
+              <el-tab-pane :label="t('settings.platformTabOverview')" name="overview">
+                <section class="settings-section friendly-mode-section">
+                  <h2>{{ t('settings.configurationMode') }}</h2>
+                  <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
+                  <el-form-item :label="t('settings.expertMode')">
+                    <div class="field-stack">
+                      <el-switch v-model="expertMode" />
+                      <p class="form-hint">{{ t('settings.expertModeHint') }}</p>
+                    </div>
+                  </el-form-item>
+                </section>
 
-        <section class="settings-section">
-          <h2>{{ t('settings.interface') }}</h2>
-          <el-form-item :label="t('settings.systemLanguage')">
-            <el-select v-model="form.ui_language" style="width: 100%">
-              <el-option
-                v-for="option in languageOptions"
-                :key="option.value"
-                :label="t(option.labelKey)"
-                :value="option.value"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item :label="t('settings.timezone')">
-            <el-select v-model="form.timezone" style="width: 100%" filterable allow-create default-first-option>
-              <el-option
-                v-for="option in timezoneOptions"
-                :key="option"
-                :label="option"
-                :value="option"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item :label="t('settings.siteTitle')">
-            <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
-          </el-form-item>
-          <el-form-item :label="t('settings.siteDescription')">
-            <el-input
-              v-model="form.site_description"
-              :placeholder="t('settings.siteDescription')"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.faviconUrl')">
-            <div class="icon-upload-group">
-              <el-avatar :size="28" shape="square" :src="form.favicon_url">
-                <el-icon><VideoCamera /></el-icon>
-              </el-avatar>
-              <el-upload
-                class="site-icon-upload"
-                :show-file-list="false"
-                :auto-upload="false"
-                accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
-                :on-change="onSiteIconChange"
+                <section class="settings-section">
+                  <h2>{{ t('settings.interface') }}</h2>
+                  <div class="settings-card-grid">
+                    <el-form-item :label="t('settings.systemLanguage')">
+                      <el-select v-model="form.ui_language" style="width: 100%">
+                        <el-option
+                          v-for="option in languageOptions"
+                          :key="option.value"
+                          :label="t(option.labelKey)"
+                          :value="option.value"
+                        />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.timezone')">
+                      <el-select v-model="form.timezone" style="width: 100%" filterable allow-create default-first-option>
+                        <el-option
+                          v-for="option in timezoneOptions"
+                          :key="option"
+                          :label="option"
+                          :value="option"
+                        />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.siteTitle')">
+                      <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.siteDescription')">
+                      <el-input
+                        v-model="form.site_description"
+                        :placeholder="t('settings.siteDescription')"
+                      />
+                    </el-form-item>
+                  </div>
+                  <el-form-item :label="t('settings.faviconUrl')">
+                    <div class="icon-upload-group">
+                      <el-avatar :size="28" shape="square" :src="form.favicon_url">
+                        <el-icon><VideoCamera /></el-icon>
+                      </el-avatar>
+                      <el-upload
+                        class="site-icon-upload"
+                        :show-file-list="false"
+                        :auto-upload="false"
+                        accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
+                        :on-change="onSiteIconChange"
+                      >
+                        <el-button size="small">{{ t('settings.uploadSiteIcon') }}</el-button>
+                      </el-upload>
+                      <el-button size="small" @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.iconPath')">
+                    <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
+                  </el-form-item>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane :label="t('settings.platformTabVideo')" name="video">
+                <section class="settings-section">
+                  <h2>{{ t('settings.vengineServices') }}</h2>
+                  <div class="settings-card-grid">
+                    <el-form-item :label="t('settings.vengineHost')">
+                      <el-input v-model="form.vengine_host" placeholder="localhost" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.detectionPort')">
+                      <div class="port-switch-row">
+                        <el-input v-model="form.detection_port" placeholder="50051" :disabled="form.detection_enabled !== 'true'" />
+                        <el-switch v-model="form.detection_enabled" active-value="true" inactive-value="false" />
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.classificationPort')">
+                      <div class="port-switch-row">
+                        <el-input v-model="form.classification_port" placeholder="50052" :disabled="form.classification_enabled !== 'true'" />
+                        <el-switch v-model="form.classification_enabled" active-value="true" inactive-value="false" />
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.actionPort')">
+                      <div class="port-switch-row">
+                        <el-input v-model="form.action_port" placeholder="50053" :disabled="form.action_enabled !== 'true'" />
+                        <el-switch v-model="form.action_enabled" active-value="true" inactive-value="false" />
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.ocrPort')">
+                      <div class="port-switch-row">
+                        <el-input v-model="form.ocr_port" placeholder="50054" :disabled="form.ocr_enabled !== 'true'" />
+                        <el-switch v-model="form.ocr_enabled" active-value="true" inactive-value="false" />
+                      </div>
+                    </el-form-item>
+                    <el-form-item :label="t('settings.uploadPort')">
+                      <div class="port-switch-row">
+                        <el-input v-model="form.upload_port" placeholder="50050" :disabled="form.upload_enabled !== 'true'" />
+                        <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
+                      </div>
+                    </el-form-item>
+                  </div>
+                  <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
+                </section>
+
+                <section class="settings-section">
+                  <h2>{{ t('settings.mediamtx') }}</h2>
+                  <div class="settings-card-grid">
+                    <el-form-item :label="t('settings.rtspAddress')">
+                      <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.webrtcAddress')">
+                      <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.mediamtxUsername')">
+                      <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.mediamtxPassword')">
+                      <el-input
+                        v-model="form.mediamtx_password"
+                        type="password"
+                        show-password
+                        placeholder="stream-pass"
+                      />
+                    </el-form-item>
+                  </div>
+                  <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
+                </section>
+
+                <section v-if="expertMode" class="settings-section">
+                  <h2>{{ t('settings.threadPools') }}</h2>
+                  <div class="settings-card-grid">
+                    <el-form-item :label="t('settings.maxPullWorkers')">
+                      <el-input v-model="form.max_pull_workers" placeholder="20" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.maxPushWorkers')">
+                      <el-input v-model="form.max_push_workers" placeholder="10" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.maxCpuWorkers')">
+                      <el-input v-model="form.max_cpu_workers" placeholder="16" />
+                    </el-form-item>
+                  </div>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane :label="t('settings.platformTabNotifications')" name="notifications">
+                <section class="settings-section">
+                  <h2>{{ t('settings.emailNotifications') }}</h2>
+                  <div class="settings-card-grid">
+                    <el-form-item :label="t('settings.emailFromAddress')">
+                      <el-input
+                        v-model="form.email_from_address"
+                        placeholder="sender@example.com"
+                      />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.emailSmtpHost')">
+                      <el-input
+                        v-model="form.email_smtp_host"
+                        placeholder="smtp.example.com"
+                      />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.emailSmtpPort')">
+                      <el-input
+                        v-model="form.email_smtp_port"
+                        placeholder="587"
+                      />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.emailSmtpUseTls')">
+                      <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.emailFromAuthCode')">
+                      <el-input
+                        v-model="form.email_smtp_password"
+                        type="password"
+                        show-password
+                        placeholder="授权码 / 密码"
+                      />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.emailEventEnabled')">
+                      <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
+                      <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.messageRetentionDays')">
+                      <el-select v-model="form.message_retention_days" style="width: 100%">
+                        <el-option
+                          v-for="day in retentionDayOptions"
+                          :key="day"
+                          :label="t('settings.messageRetentionDaysOption', { days: day })"
+                          :value="String(day)"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </div>
+                  <el-form-item :label="t('settings.emailToAddresses')">
+                    <div class="field-stack">
+                      <el-input
+                        v-model="form.email_to_addresses"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="a@example.com,b@example.com"
+                      />
+                      <p class="form-hint">{{ t('settings.emailAddressesHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailCcAddresses')">
+                    <el-input
+                      v-model="form.email_cc_addresses"
+                      type="textarea"
+                      :rows="2"
+                      placeholder="cc1@example.com,cc2@example.com"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailEventSubjectTemplate')">
+                    <el-input v-model="form.email_event_subject_template" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailEventBodyTemplate')">
+                    <div class="field-stack">
+                      <el-input
+                        v-model="form.email_event_body_template"
+                        type="textarea"
+                        :rows="8"
+                      />
+                      <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
+                      <div class="placeholder-tags">
+                        <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
+                          {{ '{' + item + '}' }}
+                        </el-tag>
+                      </div>
+                    </div>
+                  </el-form-item>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane
+                v-if="authStore.canManageUsers"
+                :label="t('settings.platformTabUsers')"
+                name="users"
               >
-                <el-button size="small">{{ t('settings.uploadSiteIcon') }}</el-button>
-              </el-upload>
-              <el-button size="small" @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.iconPath')">
-            <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
-          </el-form-item>
-        </section>
-
-        <section class="settings-section">
-          <h2>{{ t('settings.vengineServices') }}</h2>
-          <el-form-item :label="t('settings.vengineHost')">
-            <el-input v-model="form.vengine_host" placeholder="localhost" />
-          </el-form-item>
-          <el-form-item :label="t('settings.detectionPort')">
-            <div class="port-switch-row">
-              <el-input v-model="form.detection_port" placeholder="50051" :disabled="form.detection_enabled !== 'true'" />
-              <el-switch v-model="form.detection_enabled" active-value="true" inactive-value="false" />
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.classificationPort')">
-            <div class="port-switch-row">
-              <el-input v-model="form.classification_port" placeholder="50052" :disabled="form.classification_enabled !== 'true'" />
-              <el-switch v-model="form.classification_enabled" active-value="true" inactive-value="false" />
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.actionPort')">
-            <div class="port-switch-row">
-              <el-input v-model="form.action_port" placeholder="50053" :disabled="form.action_enabled !== 'true'" />
-              <el-switch v-model="form.action_enabled" active-value="true" inactive-value="false" />
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.ocrPort')">
-            <div class="port-switch-row">
-              <el-input v-model="form.ocr_port" placeholder="50054" :disabled="form.ocr_enabled !== 'true'" />
-              <el-switch v-model="form.ocr_enabled" active-value="true" inactive-value="false" />
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.uploadPort')">
-            <div class="port-switch-row">
-              <el-input v-model="form.upload_port" placeholder="50050" :disabled="form.upload_enabled !== 'true'" />
-              <el-switch v-model="form.upload_enabled" active-value="true" inactive-value="false" />
-            </div>
-          </el-form-item>
-          <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
-        </section>
-
-
-        <section class="settings-section">
-          <h2>{{ t('settings.mediamtx') }}</h2>
-          <el-form-item :label="t('settings.rtspAddress')">
-            <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
-          </el-form-item>
-          <el-form-item :label="t('settings.mediamtxUsername')">
-            <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
-          </el-form-item>
-          <el-form-item :label="t('settings.mediamtxPassword')">
-            <el-input
-              v-model="form.mediamtx_password"
-              type="password"
-              show-password
-              placeholder="stream-pass"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.webrtcAddress')">
-            <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
-          </el-form-item>
-          <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
-        </section>
-
-        <section class="settings-section">
-          <h2>{{ t('settings.emailNotifications') }}</h2>
-          <el-form-item :label="t('settings.emailFromAddress')">
-            <el-input
-              v-model="form.email_from_address"
-              placeholder="sender@example.com"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailSmtpHost')">
-            <el-input
-              v-model="form.email_smtp_host"
-              placeholder="smtp.example.com"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailSmtpPort')">
-            <el-input
-              v-model="form.email_smtp_port"
-              placeholder="587"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailSmtpUseTls')">
-            <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailFromAuthCode')">
-            <el-input
-              v-model="form.email_smtp_password"
-              type="password"
-              show-password
-              placeholder="授权码 / 密码"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailToAddresses')">
-            <div class="field-stack">
-              <el-input
-                v-model="form.email_to_addresses"
-                type="textarea"
-                :rows="2"
-                placeholder="a@example.com,b@example.com"
-              />
-              <p class="form-hint">{{ t('settings.emailAddressesHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.emailCcAddresses')">
-            <el-input
-              v-model="form.email_cc_addresses"
-              type="textarea"
-              :rows="2"
-              placeholder="cc1@example.com,cc2@example.com"
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailEventEnabled')">
-            <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
-            <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailEventSubjectTemplate')">
-            <el-input v-model="form.email_event_subject_template" />
-          </el-form-item>
-          <el-form-item :label="t('settings.emailEventBodyTemplate')">
-            <div class="field-stack">
-              <el-input
-                v-model="form.email_event_body_template"
-                type="textarea"
-                :rows="8"
-              />
-              <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
-              <div class="placeholder-tags">
-                <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
-                  {{ '{' + item + '}' }}
-                </el-tag>
-              </div>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.messageRetentionDays')">
-            <el-select v-model="form.message_retention_days" style="width: 100%">
-              <el-option
-                v-for="day in retentionDayOptions"
-                :key="day"
-                :label="t('settings.messageRetentionDaysOption', { days: day })"
-                :value="String(day)"
-              />
-            </el-select>
-          </el-form-item>
-        </section>
-
-        <section v-if="expertMode" class="settings-section">
-          <h2>{{ t('settings.threadPools') }}</h2>
-          <el-form-item :label="t('settings.maxPullWorkers')">
-            <el-input v-model="form.max_pull_workers" placeholder="20" />
-          </el-form-item>
-          <el-form-item :label="t('settings.maxPushWorkers')">
-            <el-input v-model="form.max_push_workers" placeholder="10" />
-          </el-form-item>
-          <el-form-item :label="t('settings.maxCpuWorkers')">
-            <el-input v-model="form.max_cpu_workers" placeholder="16" />
-          </el-form-item>
-        </section>
-
-        <section v-if="authStore.canManageUsers" class="settings-section">
-          <h2>{{ t('settings.userManagement') }}</h2>
-          <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
-          <div class="user-management-grid">
-            <div class="field-stack">
-              <h3>{{ t('settings.accountList') }}</h3>
-              <div class="user-list">
-                <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
-                  <span>{{ item.username }}</span>
-                  <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
-                  <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
-                </div>
-                <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
-              </div>
-            </div>
-            <div class="field-stack">
-              <h3>{{ t('settings.createUser') }}</h3>
-              <el-form-item :label="t('settings.username')">
-                <el-input v-model="userForm.username" autocomplete="username" />
-              </el-form-item>
-              <el-form-item :label="t('settings.userRole')">
-                <el-select v-model="userForm.role" style="width: 100%">
-                  <el-option value="user" :label="t('auth.roles.user')" />
-                  <el-option value="operator" :label="t('auth.roles.operator')" />
-                  <el-option value="admin" :label="t('auth.roles.admin')" />
-                </el-select>
-              </el-form-item>
-              <el-form-item :label="t('settings.temporaryPassword')">
-                <div class="field-stack">
-                  <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
-                  <p class="form-hint">{{ t('settings.temporaryPasswordHint') }}</p>
-                </div>
-              </el-form-item>
-              <div class="settings-inline-actions">
-                <span />
-                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-                  {{ t('settings.createUser') }}
-                </el-button>
-              </div>
-            </div>
-          </div>
-        </section>
-
+                <section class="settings-section">
+                  <h2>{{ t('settings.userManagement') }}</h2>
+                  <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
+                  <div class="user-management-grid">
+                    <div class="field-stack">
+                      <h3>{{ t('settings.accountList') }}</h3>
+                      <div class="user-list">
+                        <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
+                          <span>{{ item.username }}</span>
+                          <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
+                          <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
+                        </div>
+                        <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
+                      </div>
+                    </div>
+                    <div class="field-stack">
+                      <h3>{{ t('settings.createUser') }}</h3>
+                      <el-form-item :label="t('settings.username')">
+                        <el-input v-model="userForm.username" autocomplete="username" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.userRole')">
+                        <el-select v-model="userForm.role" style="width: 100%">
+                          <el-option value="user" :label="t('auth.roles.user')" />
+                          <el-option value="operator" :label="t('auth.roles.operator')" />
+                          <el-option value="admin" :label="t('auth.roles.admin')" />
+                        </el-select>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.temporaryPassword')">
+                        <div class="field-stack">
+                          <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
+                          <p class="form-hint">{{ t('settings.temporaryPasswordHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <div class="settings-inline-actions">
+                        <span />
+                        <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                          {{ t('settings.createUser') }}
+                        </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </el-tab-pane>
+            </el-tabs>
           </el-tab-pane>
 
           <el-tab-pane
@@ -458,6 +484,7 @@ const PLUGIN_TAB_NAME_PATTERN = /^plugin-[A-Za-z0-9_][A-Za-z0-9_-]{0,56}$/
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
 const activeSettingsTab = ref(readInitialSettingsTab())
+const activePlatformTab = ref('overview')
 const DEFAULT_SCENE_DEFINITIONS = [
   {
     id: 'smoke',
@@ -960,6 +987,33 @@ onMounted(async () => {
   background-color: #30364d;
 }
 
+.platform-settings-tabs {
+  min-height: 520px;
+}
+
+.platform-settings-tabs :deep(.el-tabs__header) {
+  min-width: 160px;
+  padding-right: 12px;
+}
+
+.platform-settings-tabs :deep(.el-tabs__item) {
+  justify-content: flex-start;
+  color: #aab7d2;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.platform-settings-tabs :deep(.el-tabs__item.is-active) {
+  color: #e8f2ff;
+  background: rgba(64, 158, 255, 0.16);
+}
+
+.settings-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 16px;
+}
+
 .icon-upload-group {
   display: flex;
   align-items: center;
@@ -1134,6 +1188,11 @@ onMounted(async () => {
 
   .settings-form {
     padding: 12px;
+  }
+
+  .platform-settings-tabs :deep(.el-tabs__header) {
+    min-width: 118px;
+    padding-right: 8px;
   }
 
   .title-line h1 {

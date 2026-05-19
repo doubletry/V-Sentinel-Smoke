@@ -37,23 +37,25 @@
         </el-menu>
 
         <div class="header-tools">
-          <el-button
-            v-if="!authStore.isAuthenticated && authStore.isBootstrapRegistrationOpen"
-            size="small"
-            type="primary"
-            @click="showRegisterDialog = true"
-          >
-            {{ t('auth.registerFirstAdmin') }}
-          </el-button>
-          <el-button
-            v-if="!authStore.isAuthenticated && authStore.bootstrap.has_users"
-            size="small"
-            type="primary"
-            plain
-            @click="showLoginDialog = true"
-          >
-            {{ t('auth.login') }}
-          </el-button>
+          <template v-if="!authStore.isAuthenticated">
+            <el-button
+              v-if="authStore.isBootstrapRegistrationOpen"
+              size="small"
+              type="primary"
+              @click="goAuth('register')"
+            >
+              {{ t('auth.registerFirstAdmin') }}
+            </el-button>
+            <el-button
+              v-else
+              size="small"
+              type="primary"
+              plain
+              @click="goAuth('login')"
+            >
+              {{ t('auth.login') }}
+            </el-button>
+          </template>
           <el-dropdown v-else trigger="click" @command="onAuthCommand">
             <el-button size="small" plain>
               {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
@@ -79,98 +81,23 @@
         <router-view />
       </el-main>
     </el-container>
-
-    <el-dialog
-      v-model="showLoginDialog"
-      :title="t('auth.loginTitle')"
-      width="360px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="loginForm" label-width="90px" @submit.prevent="submitLogin">
-        <el-form-item :label="t('auth.username')" required>
-          <el-input v-model="loginForm.username" autocomplete="username" />
-        </el-form-item>
-        <el-form-item :label="t('auth.password')" required>
-          <el-input
-            v-model="loginForm.password"
-            type="password"
-            show-password
-            autocomplete="current-password"
-            @keyup.enter="submitLogin"
-          />
-        </el-form-item>
-        <p class="auth-hint">{{ t('auth.loginHint') }}</p>
-      </el-form>
-      <template #footer>
-        <el-button @click="showLoginDialog = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="authStore.loading" @click="submitLogin">
-          {{ t('auth.login') }}
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="showRegisterDialog"
-      :title="t('auth.registerTitle')"
-      width="380px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="registerForm" label-width="110px" @submit.prevent="submitRegister">
-        <el-form-item :label="t('auth.username')" required>
-          <el-input v-model="registerForm.username" autocomplete="username" />
-        </el-form-item>
-        <el-form-item :label="t('auth.password')" required>
-          <el-input
-            v-model="registerForm.password"
-            type="password"
-            show-password
-            autocomplete="new-password"
-          />
-        </el-form-item>
-        <el-form-item :label="t('auth.confirmPassword')" required>
-          <el-input
-            v-model="registerForm.confirmPassword"
-            type="password"
-            show-password
-            autocomplete="new-password"
-            @keyup.enter="submitRegister"
-          />
-        </el-form-item>
-        <p class="auth-hint">{{ t('auth.registerHint') }}</p>
-      </el-form>
-      <template #footer>
-        <el-button @click="showRegisterDialog = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="authStore.loading" @click="submitRegister">
-          {{ t('auth.registerFirstAdmin') }}
-        </el-button>
-      </template>
-    </el-dialog>
   </el-config-provider>
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
+import { useRoute, useRouter } from 'vue-router'
 import { localeOptions, LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
 
 const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
-const REGISTER_PROMPT_SESSION_KEY = 'v_sentinel_register_prompt_seen'
-const showLoginDialog = ref(false)
-const showRegisterDialog = ref(false)
-const loginForm = reactive({
-  username: 'operator',
-  password: '',
-})
-const registerForm = reactive({
-  username: '',
-  password: '',
-  confirmPassword: '',
-})
 
 const canSeeVideoWall = computed(() =>
   authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')
@@ -211,39 +138,14 @@ function syncFavicon(href) {
 watch(() => appSettingsStore.siteTitle, syncDocumentTitle, { immediate: true })
 watch(() => appSettingsStore.faviconUrl, syncFavicon, { immediate: true })
 
-async function submitLogin() {
-  try {
-    await authStore.login(loginForm)
-    showLoginDialog.value = false
-    loginForm.password = ''
-    ElMessage.success(t('auth.loginSuccess'))
-  } catch (err) {
-    ElMessage.error(t('auth.loginFailed', { message: err.message }))
-  }
-}
-
-async function submitRegister() {
-  if (!registerForm.username || !registerForm.password) {
-    ElMessage.warning(t('auth.registerMissingFields'))
-    return
-  }
-  if (registerForm.password !== registerForm.confirmPassword) {
-    ElMessage.warning(t('auth.passwordMismatch'))
-    return
-  }
-  try {
-    await authStore.register({
-      username: registerForm.username,
-      password: registerForm.password,
-    })
-    showRegisterDialog.value = false
-    registerForm.username = ''
-    registerForm.password = ''
-    registerForm.confirmPassword = ''
-    ElMessage.success(t('auth.registerSuccess'))
-  } catch (err) {
-    ElMessage.error(t('auth.registerFailed', { message: err.message }))
-  }
+function goAuth(mode) {
+  router.push({
+    path: '/auth',
+    query: {
+      mode,
+      redirect: route.path === '/auth' ? '/' : route.fullPath,
+    },
+  })
 }
 
 function onAuthCommand(command) {
@@ -268,14 +170,8 @@ onMounted(async () => {
     // Keep local defaults when settings API is unavailable.
   }
 
-  if (
-    authStore.isBootstrapRegistrationOpen
-    && !authStore.isAuthenticated
-    && typeof window !== 'undefined'
-    && !window.sessionStorage.getItem(REGISTER_PROMPT_SESSION_KEY)
-  ) {
-    window.sessionStorage.setItem(REGISTER_PROMPT_SESSION_KEY, '1')
-    showRegisterDialog.value = true
+  if (authStore.isBootstrapRegistrationOpen && !authStore.isAuthenticated && route.path !== '/auth') {
+    goAuth('register')
   }
 })
 </script>
@@ -372,13 +268,6 @@ body {
   flex: 1;
   overflow: hidden;
   padding: 0;
-}
-
-.auth-hint {
-  margin: 4px 0 0;
-  color: #8b98b6;
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 @media (max-width: 960px) {

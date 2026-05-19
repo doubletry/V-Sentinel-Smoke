@@ -4,6 +4,7 @@ const VideoWall = () => import('../views/VideoWall.vue')
 const Messages = () => import('../views/Messages.vue')
 const ProcessingLogs = () => import('../views/ProcessingLogs.vue')
 const Settings = () => import('../views/Settings.vue')
+const Auth = () => import('../views/Auth.vue')
 
 const routes = [
   {
@@ -25,6 +26,11 @@ const routes = [
     path: '/settings',
     name: 'Settings',
     component: Settings,
+  },
+  {
+    path: '/auth',
+    name: 'Auth',
+    component: Auth,
   },
 ]
 
