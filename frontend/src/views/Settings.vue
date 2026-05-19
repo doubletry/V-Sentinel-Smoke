@@ -962,7 +962,7 @@ async function reload() {
       data.max_pull_workers,
       data.max_push_workers,
       data.max_cpu_workers,
-    ].some((value) => String(value || '').trim())
+    ].some((value) => String(value ?? '').trim() !== '')
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
       if (Array.isArray(placeholderData?.placeholders)) {
