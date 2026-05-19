@@ -16,7 +16,6 @@ export default {
     logout: '退出登录',
     loginTitle: '登录操作账号',
     registerTitle: '注册平台账号',
-    registerFirstAdmin: '注册',
     platformAccount: '平台账号',
     loginPageTitle: '登录 V-Sentinel 平台',
     loginPageSubtitle: '使用管理员创建的平台账号进入系统。登录后，页面和操作按钮会根据账号权限自动显示。',

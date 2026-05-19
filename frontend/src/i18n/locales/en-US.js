@@ -16,7 +16,6 @@ export default {
     logout: 'Sign out',
     loginTitle: 'Sign in for operations',
     registerTitle: 'Register platform account',
-    registerFirstAdmin: 'Register',
     platformAccount: 'Platform Account',
     loginPageTitle: 'Sign in to V-Sentinel',
     loginPageSubtitle: 'Use a platform account created by an administrator. After sign-in, pages and operation buttons are shown according to permissions.',
