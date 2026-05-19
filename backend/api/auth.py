@@ -37,18 +37,17 @@ async def bootstrap_status() -> AuthBootstrapStatus:
 async def register_first_admin(data: AuthRegisterRequest) -> AuthTokenResponse:
     """Register the very first platform account as admin.
     将平台首个账号注册为管理员。"""
-    if await db.count_users() > 0:
-        raise HTTPException(status_code=403, detail="Public registration is closed")
     username = str(data.username or "").strip()
     password = str(data.password or "")
     if not username or not password:
         raise HTTPException(status_code=400, detail="Username and password are required")
     try:
-        await db.create_user_account(
+        await db.create_first_user_account(
             username=username,
-            role="admin",
             password_hash=hash_password(password),
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except IntegrityError as exc:
         raise HTTPException(status_code=409, detail="Username already exists") from exc
     return AuthTokenResponse(**create_access_token(username=username, role="admin"))

@@ -1464,6 +1464,24 @@ async def create_user_account(*, username: str, role: str, password_hash: str) -
     return UserAccount(username=normalized_username, role=role, created_at=created_at)
 
 
+async def create_first_user_account(*, username: str, password_hash: str) -> UserAccount:
+    """Create the bootstrap admin account only when the user table is empty.
+    仅当用户表为空时创建初始化管理员账号。"""
+    normalized_username = str(username or "").strip()
+    created_at = _now_iso()
+    async with _db_session() as db:
+        async with db.execute("SELECT COUNT(*) FROM users") as cursor:
+            row = await cursor.fetchone()
+        if int(row[0] if row else 0) > 0:
+            raise ValueError("Public registration is closed")
+        await db.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            (normalized_username, password_hash, "admin", created_at),
+        )
+        await db.commit()
+    return UserAccount(username=normalized_username, role="admin", created_at=created_at)
+
+
 async def get_all_settings() -> dict[str, str]:
     """Return all app settings as a key→value dict.
     以键→值字典形式返回所有应用设置。"""

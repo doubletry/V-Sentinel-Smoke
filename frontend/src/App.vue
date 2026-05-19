@@ -180,12 +180,12 @@ const registerForm = reactive({
   confirmPassword: '',
 })
 
-const canSeeVideoWall = computed(() => !authStore.isAuthenticated || authStore.hasPermission('video:watch'))
-const canSeeMessages = computed(() => !authStore.isAuthenticated || authStore.hasPermission('messages:read'))
+const canSeeVideoWall = computed(() =>
+  authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')
+)
+const canSeeMessages = computed(() => authStore.hasPermission('messages:read'))
 const canSeeProcessingLogs = computed(() =>
-  !authStore.isAuthenticated
-  || authStore.hasPermission('sources:operate')
-  || authStore.hasPermission('settings:*')
+  authStore.hasPermission('sources:operate') || authStore.hasPermission('settings:*')
 )
 const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
 
