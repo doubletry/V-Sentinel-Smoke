@@ -37,6 +37,25 @@
         </el-menu>
 
         <div class="header-tools">
+          <el-button
+            v-if="!authStore.isAuthenticated"
+            size="small"
+            type="primary"
+            plain
+            @click="showLoginDialog = true"
+          >
+            {{ t('auth.login') }}
+          </el-button>
+          <el-dropdown v-else trigger="click" @command="onAuthCommand">
+            <el-button size="small" plain>
+              {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout">{{ t('auth.logout') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <span class="lang-label">{{ t('language.label') }}</span>
           <el-select v-model="localeModel" size="small" class="lang-select">
             <el-option
@@ -52,17 +71,62 @@
         <router-view />
       </el-main>
     </el-container>
+
+    <el-dialog
+      v-model="showLoginDialog"
+      :title="t('auth.loginTitle')"
+      width="360px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="loginForm" label-width="90px" @submit.prevent="submitLogin">
+        <el-form-item :label="t('auth.username')" required>
+          <el-input v-model="loginForm.username" autocomplete="username" />
+        </el-form-item>
+        <el-form-item :label="t('auth.role')" required>
+          <el-select v-model="loginForm.role" style="width: 100%">
+            <el-option value="operator" :label="t('auth.roles.operator')" />
+            <el-option value="admin" :label="t('auth.roles.admin')" />
+            <el-option value="user" :label="t('auth.roles.user')" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('auth.password')" required>
+          <el-input
+            v-model="loginForm.password"
+            type="password"
+            show-password
+            autocomplete="current-password"
+            @keyup.enter="submitLogin"
+          />
+        </el-form-item>
+        <p class="auth-hint">{{ t('auth.loginHint') }}</p>
+      </el-form>
+      <template #footer>
+        <el-button @click="showLoginDialog = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="authStore.loading" @click="submitLogin">
+          {{ t('auth.login') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </el-config-provider>
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, reactive, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ElMessage from 'element-plus/es/components/message/index'
 import { localeOptions, LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
+import { useAuthStore } from './stores/auth.js'
 
 const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
+const authStore = useAuthStore()
+const showLoginDialog = ref(false)
+const loginForm = reactive({
+  username: 'operator',
+  role: 'operator',
+  password: '',
+})
 
 const localeModel = computed({
   get: () => locale.value,
@@ -94,8 +158,27 @@ function syncFavicon(href) {
 watch(() => appSettingsStore.siteTitle, syncDocumentTitle, { immediate: true })
 watch(() => appSettingsStore.faviconUrl, syncFavicon, { immediate: true })
 
+async function submitLogin() {
+  try {
+    await authStore.login(loginForm)
+    showLoginDialog.value = false
+    loginForm.password = ''
+    ElMessage.success(t('auth.loginSuccess'))
+  } catch (err) {
+    ElMessage.error(t('auth.loginFailed', { message: err.message }))
+  }
+}
+
+function onAuthCommand(command) {
+  if (command === 'logout') {
+    authStore.logout()
+    ElMessage.success(t('auth.logoutSuccess'))
+  }
+}
+
 onMounted(async () => {
   try {
+    await authStore.restore()
     await appSettingsStore.fetchSettings()
 
     if (typeof window !== 'undefined') {
@@ -202,6 +285,13 @@ body {
   flex: 1;
   overflow: hidden;
   padding: 0;
+}
+
+.auth-hint {
+  margin: 4px 0 0;
+  color: #8b98b6;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @media (max-width: 960px) {

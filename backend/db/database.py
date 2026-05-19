@@ -354,9 +354,19 @@ async def _seed_default_scene(db: aiosqlite.Connection) -> None:
             _json_dumps([]),
             _json_dumps(["template_zone"]),
             _json_dumps(["normal_area", "bright_area"]),
-            _json_dumps({"brightness_threshold": 200}),
+            _json_dumps({}),
             _json_dumps({"expert_mode": True, "groups": ["custom_processing", "notifications"]}),
             now,
+        ),
+    )
+    await db.execute(
+        "UPDATE scenes SET default_config = ? "
+        "WHERE id = ? AND default_config IN (?, ?)",
+        (
+            _json_dumps({}),
+            "template",
+            _json_dumps({"brightness_threshold": 200}),
+            _json_dumps({"brighten_threshold": 200}),
         ),
     )
 

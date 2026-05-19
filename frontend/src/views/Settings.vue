@@ -334,11 +334,16 @@
 
             <section class="settings-section">
               <h2>{{ t('settings.pluginRoiTags') }}</h2>
+              <p class="scene-scope-line">
+                {{ t('settings.pluginRoiTagsScene', { scene: sceneTabLabel(scene.id), id: scene.id }) }}
+              </p>
               <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
                 {{ scene.description || t('settings.templateSceneHint') }}
               </p>
               <div class="plugin-tag-list">
-                <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark">{{ tag }}</el-tag>
+                <el-tag v-for="tag in scene.default_roi_tags" :key="tag" effect="dark" :title="tag">
+                  {{ roiTagLabel(scene, tag) }}
+                </el-tag>
                 <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
               </div>
               <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
@@ -379,6 +384,7 @@ import { localeOptions } from '../i18n/index.js'
 import { scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useSourceStore } from '../stores/source.js'
+import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 
 const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
@@ -567,6 +573,10 @@ function sceneDefaultConfigRows(sceneId) {
     key,
     value: formatConfigValue(value),
   }))
+}
+
+function roiTagLabel(scene, tag) {
+  return sceneScopedRoiTagLabel(scene, tag, locale.value)
 }
 
 function formatConfigValue(value) {
@@ -885,6 +895,12 @@ onMounted(async () => {
 .roi-tag-empty {
   color: #7f8bad;
   font-size: 12px;
+}
+
+.scene-scope-line {
+  color: #8aa6d9;
+  font-size: 12px;
+  margin: -2px 0 10px;
 }
 
 .roi-tag-input-row {

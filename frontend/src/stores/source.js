@@ -4,6 +4,13 @@ import { sourcesApi, processorApi } from '../api/index.js'
 import ElMessage from 'element-plus/es/components/message/index'
 import { i18n } from '../i18n/index.js'
 
+function friendlyOperationError(message) {
+  if (String(message || '').toLowerCase().includes('missing bearer token')) {
+    return i18n.global.t('auth.loginRequired')
+  }
+  return message
+}
+
 export const useSourceStore = defineStore('source', () => {
   const sources = ref([])
   const loading = ref(false)
@@ -70,7 +77,7 @@ export const useSourceStore = defineStore('source', () => {
       runningSourceIds.value.add(sourceId)
       ElMessage.success(i18n.global.t('sourceList.analysisStarted'))
     } catch (err) {
-      ElMessage.error(i18n.global.t('sourceList.failedToStart', { message: err.message }))
+      ElMessage.error(i18n.global.t('sourceList.failedToStart', { message: friendlyOperationError(err.message) }))
     }
   }
 
@@ -80,7 +87,7 @@ export const useSourceStore = defineStore('source', () => {
       runningSourceIds.value.delete(sourceId)
       ElMessage.success(i18n.global.t('sourceList.analysisStopped'))
     } catch (err) {
-      ElMessage.error(i18n.global.t('sourceList.failedToStop', { message: err.message }))
+      ElMessage.error(i18n.global.t('sourceList.failedToStop', { message: friendlyOperationError(err.message) }))
     }
   }
 

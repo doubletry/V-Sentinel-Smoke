@@ -1,5 +1,6 @@
 import axios from 'axios'
 import config from '../config.js'
+import { AUTH_TOKEN_STORAGE_KEY } from '../utils/authStorage.js'
 
 const api = axios.create({
   baseURL: config.apiBaseUrl,
@@ -9,7 +10,7 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (cfg) => {
-    const token = window.localStorage?.getItem('v_sentinel_token')
+    const token = window.localStorage?.getItem(AUTH_TOKEN_STORAGE_KEY)
     cfg.headers = cfg.headers || {}
     if (token) {
       cfg.headers.Authorization = `Bearer ${token}`
