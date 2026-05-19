@@ -50,6 +50,13 @@
               {{ item.label }}
             </el-button>
           </div>
+          <div v-if="canManageSettings" class="management-expert-toggle">
+            <div>
+              <h3>{{ t('settings.configurationMode') }}</h3>
+              <p>{{ t('settings.expertModeHint') }}</p>
+            </div>
+            <el-switch v-model="expertMode" />
+          </div>
         </div>
 
         <section v-if="isSitePage" class="settings-page-panel">
@@ -82,14 +89,6 @@
                       {{ t('settings.saveSection') }}
                     </el-button>
                   </div>
-                </div>
-
-                <div class="inline-setting-block">
-                  <div>
-                    <h3>{{ t('settings.configurationMode') }}</h3>
-                    <p class="info-tip">{{ t('settings.expertModeHint') }}</p>
-                  </div>
-                  <el-switch v-model="expertMode" />
                 </div>
 
                 <div class="settings-form-grid wide-grid">
@@ -220,14 +219,6 @@
                   {{ t('settings.saveSection') }}
                 </el-button>
               </div>
-            </div>
-
-            <div class="inline-setting-block">
-              <div>
-                <h3>{{ t('settings.configurationMode') }}</h3>
-                <p class="info-tip">{{ t('settings.expertModeHint') }}</p>
-              </div>
-              <el-switch v-model="expertMode" />
             </div>
 
             <div class="settings-form-grid wide-grid">
@@ -1064,6 +1055,8 @@ function ensureValidSettingsRoute() {
   if (section === 'plugins' && canManageSettings.value) {
     if (sceneDefinitions.value.length) {
       navigateToPluginScene(sceneDefinitions.value[0].id)
+    } else {
+      replaceSettingsRoute(fallback)
     }
     return
   }
@@ -1360,6 +1353,29 @@ onMounted(async () => {
   background: rgba(5, 10, 24, 0.36);
 }
 
+.management-expert-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #2f3a5b;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(255, 255, 255, 0.02));
+}
+
+.management-expert-toggle h3 {
+  color: #dbe7ff;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.management-expert-toggle p {
+  color: #8f9fbe;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .settings-page-nav__button,
 .settings-scene-nav__button {
   border-radius: 12px;
@@ -1558,24 +1574,6 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
-.inline-setting-block {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border: 1px solid #2f3a5b;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(255, 255, 255, 0.02));
-}
-
-.inline-setting-block h3 {
-  color: #dbe7ff;
-  font-size: 15px;
-  margin-bottom: 4px;
-}
-
 .expert-card {
   margin-top: 18px;
   padding: 16px;
@@ -1680,7 +1678,7 @@ onMounted(async () => {
   }
 
   .section-card__head,
-  .inline-setting-block {
+  .management-expert-toggle {
     flex-direction: column;
     align-items: stretch;
   }

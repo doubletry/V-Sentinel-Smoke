@@ -26,6 +26,7 @@ export function getDefaultSettingsPath(canManageSettings, canManageUsers) {
 
 export function legacySettingsSectionToManagement(section) {
   if (section === 'platform') return 'site'
+  if (section === 'plugin') return 'plugins'
   if (['notifications', 'users'].includes(section)) return section
   return 'site'
 }
