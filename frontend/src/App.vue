@@ -68,7 +68,7 @@
           </el-dropdown>
         </div>
       </el-header>
-      <el-main :class="['app-main', { 'app-main--management': isManagementRoute }]">
+      <el-main class="app-main">
         <router-view />
       </el-main>
     </el-container>
@@ -389,10 +389,6 @@ body {
   flex: 1;
   overflow: hidden;
   padding: 0;
-}
-
-.app-main--management {
-  height: 100vh;
 }
 
 @media (max-width: 960px) {
