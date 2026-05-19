@@ -269,6 +269,9 @@ onMounted(async () => {
 }
 
 .auth-hero {
+  --decorative-orb-right: -60px;
+  --decorative-orb-bottom: -100px;
+
   position: relative;
   overflow: hidden;
   padding: 48px;
@@ -280,10 +283,7 @@ onMounted(async () => {
 .auth-hero::after {
   /* Keep the glow partially outside the card to create a soft overflow halo. */
   /* A slight right overflow keeps the orb visible without covering form content. */
-  --decorative-orb-right: -60px;
   /* A larger bottom overflow makes the halo fade out below the hero card. */
-  --decorative-orb-bottom: -100px;
-
   content: '';
   position: absolute;
   inset: auto var(--decorative-orb-right) var(--decorative-orb-bottom) auto;
@@ -291,7 +291,6 @@ onMounted(async () => {
   height: 280px;
   border-radius: 50%;
   background: rgba(64, 158, 255, 0.18);
-  filter: blur(2px);
 }
 
 .auth-badge {

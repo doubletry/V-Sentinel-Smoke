@@ -48,8 +48,10 @@
 
                 <section class="settings-section">
                   <h2>{{ t('settings.interface') }}</h2>
-                  <!-- Compact two-column grid keeps dense platform fields scannable without a long single column. -->
-                  <div class="settings-form-grid">
+                  <div
+                    class="settings-form-grid"
+                    aria-label="Compact platform field grid"
+                  >
                     <el-form-item :label="t('settings.systemLanguage')">
                       <el-select v-model="form.ui_language" style="width: 100%">
                         <el-option
@@ -1010,7 +1012,7 @@ onMounted(async () => {
 }
 
 .settings-form-grid {
-  /* Shared grid for dense platform setting groups across overview, video, notifications, and expert tabs. */
+  /* Shared grid for dense platform setting groups and expert-mode sections within existing tabs. */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 4px 16px;
