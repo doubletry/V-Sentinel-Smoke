@@ -47,7 +47,7 @@ async def update_settings(
         except (TypeError, ValueError) as exc:
             logger.warning("Invalid message retention days while pruning: {}", exc)
 
-    mediamtx_shared_keys = {
+    mediamtx_related_keys = {
         "mediamtx_rtsp_addr",
         "mediamtx_webrtc_addr",
         "mediamtx_username",
@@ -57,7 +57,7 @@ async def update_settings(
         "mediamtx_webrtc_username",
         "mediamtx_webrtc_password",
     }
-    if mediamtx_shared_keys.intersection(updates):
+    if mediamtx_related_keys.intersection(updates):
         await db.rewrite_source_rtsp_urls(
             old_rtsp_base_address=previous_settings.get("mediamtx_rtsp_addr", ""),
             new_rtsp_base_address=result.get("mediamtx_rtsp_addr", ""),

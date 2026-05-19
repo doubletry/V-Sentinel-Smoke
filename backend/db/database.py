@@ -706,30 +706,33 @@ async def _get_shared_mediamtx_credentials_from_db(
         "mediamtx_password",
         DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
     )
-    if str(username).strip():
-        return username, password
-    return (
-        await _get_setting_from_db(
-            db,
-            "mediamtx_rtsp_username",
-            DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
-        )
-        or await _get_setting_from_db(
-            db,
-            "mediamtx_webrtc_username",
-            DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
-        ),
-        await _get_setting_from_db(
-            db,
-            "mediamtx_rtsp_password",
-            DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
-        )
-        or await _get_setting_from_db(
-            db,
-            "mediamtx_webrtc_password",
-            DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
-        ),
+    legacy_rtsp_username = await _get_setting_from_db(
+        db,
+        "mediamtx_rtsp_username",
+        DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
     )
+    legacy_webrtc_username = await _get_setting_from_db(
+        db,
+        "mediamtx_webrtc_username",
+        DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
+    )
+    legacy_rtsp_password = await _get_setting_from_db(
+        db,
+        "mediamtx_rtsp_password",
+        DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
+    )
+    legacy_webrtc_password = await _get_setting_from_db(
+        db,
+        "mediamtx_webrtc_password",
+        DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
+    )
+    resolved_username = username if str(username).strip() else (legacy_rtsp_username or legacy_webrtc_username)
+    resolved_password = (
+        password
+        if str(password).strip() or str(username).strip()
+        else (legacy_rtsp_password or legacy_webrtc_password)
+    )
+    return resolved_username, resolved_password
 
 
 async def _resolve_source_rtsp_url(
