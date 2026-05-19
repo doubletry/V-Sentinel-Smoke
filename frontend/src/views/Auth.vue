@@ -8,15 +8,11 @@
         <div class="auth-feature-list">
           <div class="auth-feature-item">
             <span class="auth-feature-dot" />
-            {{ t('auth.featureSecureAuth') }}
-          </div>
-          <div class="auth-feature-item">
-            <span class="auth-feature-dot" />
-            {{ t('auth.featureRoleAccess') }}
-          </div>
-          <div class="auth-feature-item">
-            <span class="auth-feature-dot" />
             {{ t('auth.featurePermissionUi') }}
+          </div>
+          <div class="auth-feature-item">
+            <span class="auth-feature-dot" />
+            {{ t('auth.featureSecureAuth') }}
           </div>
         </div>
       </section>
