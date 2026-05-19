@@ -26,7 +26,8 @@ const routes = [
   },
   {
     path: '/settings',
-    redirect: '/settings/platform',
+    name: 'SettingsRoot',
+    component: Settings,
   },
   {
     path: '/settings/:section(platform|notifications|users)',
@@ -85,6 +86,12 @@ router.beforeEach(async (to) => {
 
   await authStore.ensureRestored()
   if (authStore.isAuthenticated) {
+    if (to.path === '/settings') {
+      return {
+        path: authStore.hasPermission('settings:*') ? '/settings/platform' : '/settings/users',
+        replace: true,
+      }
+    }
     return true
   }
 

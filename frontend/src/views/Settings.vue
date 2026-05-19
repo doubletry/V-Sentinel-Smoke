@@ -886,12 +886,12 @@ const form = ref({
 const firstAllowedSectionKey = computed(() => {
   if (canManageSettings.value) return 'platform'
   if (authStore.canManageUsers) return 'users'
-  return ''
+  return null
 })
 const currentSettingsPage = computed(() => (
   route.name === 'SettingsPlugin'
     ? 'plugin'
-    : String(route.params.section || firstAllowedSectionKey.value)
+    : (route.params.section || '')
 ))
 const currentPluginSceneId = computed(() => (
   route.name === 'SettingsPlugin' ? String(route.params.sceneId || '') : ''
@@ -976,13 +976,9 @@ function applyFormValues(data, keys) {
 }
 
 function firstAllowedSettingsRoute() {
-  if (canManageSettings.value) {
-    return { name: 'SettingsSection', params: { section: 'platform' } }
-  }
-  if (authStore.canManageUsers) {
-    return { name: 'SettingsSection', params: { section: 'users' } }
-  }
-  return null
+  return firstAllowedSectionKey.value
+    ? { name: 'SettingsSection', params: { section: firstAllowedSectionKey.value } }
+    : null
 }
 
 function replaceSettingsRoute(location) {
@@ -1222,12 +1218,10 @@ function resetSmokeAdvancedThresholds() {
 
 watch(
   [
-    () => route.name,
-    () => route.params.section,
-    () => route.params.sceneId,
+    () => route.fullPath,
     canManageSettings,
     () => authStore.canManageUsers,
-    () => sceneDefinitions.value.length,
+    () => sceneDefinitions.value.map((scene) => scene.id).join(','),
   ],
   () => {
     ensureValidSettingsRoute()
