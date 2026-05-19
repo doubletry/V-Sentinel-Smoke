@@ -870,6 +870,13 @@ class BaseVideoProcessor(ABC):
         number = bitrate[:-1] if suffix else bitrate
         return f"{float(number) * 2:g}{suffix}"
 
+    @staticmethod
+    def _format_ffmpeg_fps(value: float) -> str:
+        rounded = round(float(value))
+        if abs(float(value) - rounded) <= FPS_CHANGE_THRESHOLD:
+            return f"{int(rounded)}/1"
+        return f"{float(value):g}"
+
     def _output_video_bitrate(self) -> str:
         configured = self._normalize_video_bitrate(
             self.app_settings.get("mediamtx_output_bitrate")
@@ -1026,7 +1033,7 @@ class BaseVideoProcessor(ABC):
                         "-f", "rawvideo",
                         "-pixel_format", "rgb24",
                         "-video_size", f"{w}x{h}",
-                        "-framerate", f"{target_fps:.3f}",
+                        "-framerate", self._format_ffmpeg_fps(target_fps),
                         "-use_wallclock_as_timestamps", "1",
                         "-i", "pipe:0",
                         "-c:v", "libx264",
@@ -1053,7 +1060,7 @@ class BaseVideoProcessor(ABC):
                     self._push_fps = target_fps
                     self._push_bitrate = video_bitrate
 
-                    self._output_stop.wait(PUSH_STARTUP_CHECK_DELAY)
+                    time.sleep(PUSH_STARTUP_CHECK_DELAY)
                     if self._push_proc.poll() is not None:
                         stderr_text = self._read_push_stderr()
                         logger.warning(
@@ -1102,7 +1109,10 @@ class BaseVideoProcessor(ABC):
 
     @staticmethod
     def _truncate_stderr(text: str) -> str:
-        return str(text or "").strip()[-MAX_STDERR_LOG_CHARS:]
+        normalized = str(text or "").strip()
+        if len(normalized) <= MAX_STDERR_LOG_CHARS:
+            return normalized
+        return "..." + normalized[-MAX_STDERR_LOG_CHARS:]
 
     def _read_push_stderr(self) -> str:
         with self._push_stderr_lock:

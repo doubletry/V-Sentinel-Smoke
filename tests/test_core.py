@@ -669,7 +669,7 @@ class TestCoreBaseVideoProcessorPipeline:
 
         monkeypatch.setattr("core.base_processor.subprocess.Popen", _fake_popen)
         monkeypatch.setattr("core.base_processor.time.sleep", lambda *_args, **_kwargs: None)
-        proc._start_push_stderr_drain = lambda: None
+        monkeypatch.setattr(proc, "_start_push_stderr_drain", lambda: None)
 
         proc._push_frame(frame, "cam1_processed")
 
@@ -682,7 +682,7 @@ class TestCoreBaseVideoProcessorPipeline:
         assert "-rtsp_transport" in cmd and "tcp" in cmd
         assert "libx264" in cmd
         assert "rtsp://shared-user:shared-pass@localhost:8554/cam1_processed" == cmd[-1]
-        assert f"{proc._current_publish_fps():.3f}" in cmd
+        assert "30/1" in cmd
         captured["proc"].stdin.write.assert_called_once_with(frame.tobytes())
         captured["proc"].stdin.flush.assert_called_once()
 
