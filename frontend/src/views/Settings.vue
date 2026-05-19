@@ -10,7 +10,7 @@
       </div>
 
       <div v-if="!canAccessSettings" class="settings-section">
-        <h2>{{ t('settings.userManagement') }}</h2>
+        <h2>{{ t('settings.title') }}</h2>
         <p class="info-tip">{{ t('settings.noPermission') }}</p>
       </div>
 
@@ -263,7 +263,7 @@
                 <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
                   <span>{{ item.username }}</span>
                   <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
-                  <span class="user-created-at">{{ item.created_at }}</span>
+                  <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
                 </div>
                 <span v-if="!authStore.users.length" class="roi-tag-empty">{{ t('settings.noUsers') }}</span>
               </div>
@@ -435,6 +435,7 @@ import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
+import { formatTimeWithTimezone } from '../utils/time.js'
 
 const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
@@ -635,6 +636,10 @@ function sceneDefaultConfigRows(sceneId) {
 
 function roiTagLabel(scene, tag) {
   return sceneScopedRoiTagLabel(scene, tag, locale.value)
+}
+
+function formatCreatedAt(value) {
+  return formatTimeWithTimezone(value, appSettingsStore.timeZone)
 }
 
 function formatConfigValue(value) {

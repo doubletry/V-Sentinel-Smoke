@@ -17,6 +17,7 @@ from backend.db import database as db
 _PROCESS_SECRET = secrets.token_urlsafe(32)
 _TOKEN_TTL_HOURS = 8
 _PASSWORD_ITERATIONS = 600_000
+_PASSWORD_SALT_BYTES = 16
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -49,7 +50,7 @@ def _role_password(role: str) -> str:
 def hash_password(password: str) -> str:
     """Hash a plaintext password using PBKDF2-SHA256.
     使用 PBKDF2-SHA256 哈希明文密码。"""
-    salt = secrets.token_bytes(16)
+    salt = secrets.token_bytes(_PASSWORD_SALT_BYTES)
     digest = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),

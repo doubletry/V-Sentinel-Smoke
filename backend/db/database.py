@@ -15,7 +15,7 @@ import aiosqlite
 from loguru import logger
 
 from backend.config import DEFAULT_APP_SETTINGS, settings
-from backend.models.schemas import ROI, ROICreate, UserAccount, UserAccountCreate, VideoSource, VideoSourceCreate, VideoSourceUpdate
+from backend.models.schemas import ROI, ROICreate, UserAccount, VideoSource, VideoSourceCreate, VideoSourceUpdate
 from backend.models.schemas import (
     NotificationPolicy,
     NotificationPolicyCreate,
@@ -1450,18 +1450,18 @@ async def get_user_auth_record(username: str) -> tuple[str, str, str] | None:
     return (str(row[0]), str(row[1]), str(row[2])) if row else None
 
 
-async def create_user_account(data: UserAccountCreate, *, password_hash: str) -> UserAccount:
+async def create_user_account(*, username: str, role: str, password_hash: str) -> UserAccount:
     """Persist a new user account with a precomputed password hash.
     使用预先计算的密码哈希持久化新用户账号。"""
-    username = str(data.username or "").strip()
+    normalized_username = str(username or "").strip()
     created_at = _now_iso()
     async with _db_session() as db:
         await db.execute(
             "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
-            (username, password_hash, data.role, created_at),
+            (normalized_username, password_hash, role, created_at),
         )
         await db.commit()
-    return UserAccount(username=username, role=data.role, created_at=created_at)
+    return UserAccount(username=normalized_username, role=role, created_at=created_at)
 
 
 async def get_all_settings() -> dict[str, str]:

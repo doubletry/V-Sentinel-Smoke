@@ -13,7 +13,6 @@ from backend.models.schemas import (
     AuthRegisterRequest,
     AuthTokenResponse,
     CurrentUser,
-    UserAccountCreate,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -46,7 +45,8 @@ async def register_first_admin(data: AuthRegisterRequest) -> AuthTokenResponse:
         raise HTTPException(status_code=400, detail="Username and password are required")
     try:
         await db.create_user_account(
-            UserAccountCreate(username=username, password=password, role="admin"),
+            username=username,
+            role="admin",
             password_hash=hash_password(password),
         )
     except IntegrityError as exc:

@@ -33,6 +33,10 @@ async def create_user(
     if not username or not password:
         raise HTTPException(status_code=400, detail="Username and password are required")
     try:
-        return await db.create_user_account(data, password_hash=hash_password(password))
+        return await db.create_user_account(
+            username=username,
+            role=data.role,
+            password_hash=hash_password(password),
+        )
     except IntegrityError as exc:
         raise HTTPException(status_code=409, detail="Username already exists") from exc

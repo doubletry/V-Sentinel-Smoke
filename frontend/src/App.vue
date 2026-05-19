@@ -166,6 +166,7 @@ import { useAuthStore } from './stores/auth.js'
 const { t, locale } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
+const REGISTER_PROMPT_SESSION_KEY = 'v_sentinel_register_prompt_seen'
 const showLoginDialog = ref(false)
 const showRegisterDialog = ref(false)
 const loginForm = reactive({
@@ -275,7 +276,13 @@ onMounted(async () => {
     // Keep local defaults when settings API is unavailable.
   }
 
-  if (authStore.isBootstrapRegistrationOpen && !authStore.isAuthenticated) {
+  if (
+    authStore.isBootstrapRegistrationOpen
+    && !authStore.isAuthenticated
+    && typeof window !== 'undefined'
+    && !window.sessionStorage.getItem(REGISTER_PROMPT_SESSION_KEY)
+  ) {
+    window.sessionStorage.setItem(REGISTER_PROMPT_SESSION_KEY, '1')
     showRegisterDialog.value = true
   }
 })

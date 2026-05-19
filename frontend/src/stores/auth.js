@@ -92,15 +92,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function createUser(payload) {
     const created = await usersApi.create(payload)
-    users.value.push(created)
-    users.value.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    await fetchUsers()
     return created
   }
 
   function hasPermission(permission) {
     const value = String(permission || '')
     if (!value) return false
-    const [namespace] = value.split(':', 1)
+    const namespace = value.split(':')[0]
     return permissions.value.includes(value) || permissions.value.includes(`${namespace}:*`)
   }
 
