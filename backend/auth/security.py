@@ -125,23 +125,23 @@ def authenticate_role(username: str, password: str, role: str) -> dict[str, str]
     return create_access_token(username=username.strip() or normalized_role, role=normalized_role)
 
 
-async def authenticate_user(username: str, password: str, role: str) -> dict[str, str]:
+async def authenticate_user(username: str, password: str, role: str | None) -> dict[str, str]:
     """Authenticate against registered users first, then legacy env passwords.
     优先使用已注册用户认证，其次回退到旧环境变量密码认证。"""
     normalized_username = str(username or "").strip()
-    normalized_role = str(role or "").strip().lower()
-    if normalized_role not in ROLE_PERMISSIONS:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
     record = await db.get_user_auth_record(normalized_username)
     if record is not None:
         record_username, password_hash, stored_role = record
-        if stored_role != normalized_role:
+        normalized_role = str(role or "").strip().lower()
+        if normalized_role and stored_role != normalized_role:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         if not verify_password(password, password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         return create_access_token(username=record_username, role=stored_role)
 
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role not in ROLE_PERMISSIONS:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     return authenticate_role(normalized_username, password, normalized_role)
 
 

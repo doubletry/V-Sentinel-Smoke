@@ -246,7 +246,7 @@ class AuthLoginRequest(BaseModel):
 
     username: str
     password: str
-    role: UserRole
+    role: UserRole | None = None
 
 
 class AuthRegisterRequest(BaseModel):

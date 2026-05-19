@@ -265,7 +265,7 @@
                   <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
                   <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
                 </div>
-                <span v-if="!authStore.users.length" class="roi-tag-empty">{{ t('settings.noUsers') }}</span>
+                <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
               </div>
             </div>
             <div class="field-stack">
@@ -980,6 +980,11 @@ onMounted(async () => {
 }
 
 .roi-tag-empty {
+  color: #7f8bad;
+  font-size: 12px;
+}
+
+.empty-list-message {
   color: #7f8bad;
   font-size: 12px;
 }

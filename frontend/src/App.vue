@@ -90,13 +90,6 @@
         <el-form-item :label="t('auth.username')" required>
           <el-input v-model="loginForm.username" autocomplete="username" />
         </el-form-item>
-        <el-form-item :label="t('auth.role')" required>
-          <el-select v-model="loginForm.role" style="width: 100%">
-            <el-option value="operator" :label="t('auth.roles.operator')" />
-            <el-option value="admin" :label="t('auth.roles.admin')" />
-            <el-option value="user" :label="t('auth.roles.user')" />
-          </el-select>
-        </el-form-item>
         <el-form-item :label="t('auth.password')" required>
           <el-input
             v-model="loginForm.password"
@@ -171,7 +164,6 @@ const showLoginDialog = ref(false)
 const showRegisterDialog = ref(false)
 const loginForm = reactive({
   username: 'operator',
-  role: 'operator',
   password: '',
 })
 const registerForm = reactive({

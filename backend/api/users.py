@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from sqlite3 import IntegrityError
-
+from aiosqlite import IntegrityError
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth.dependencies import require_permission

@@ -60,7 +60,7 @@ class TestAuthBootstrapAndUsers:
 
         login_resp = await async_client.post(
             "/api/auth/login",
-            json={"username": "operator1", "password": "operator-secret", "role": "operator"},
+            json={"username": "operator1", "password": "operator-secret"},
         )
         assert login_resp.status_code == 200
 
