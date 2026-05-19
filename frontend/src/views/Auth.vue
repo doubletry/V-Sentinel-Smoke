@@ -5,16 +5,6 @@
         <el-tag effect="dark" class="auth-badge">{{ t('auth.platformAccount') }}</el-tag>
         <h1>{{ isRegisterMode ? t('auth.registerPageTitle') : t('auth.loginPageTitle') }}</h1>
         <p>{{ isRegisterMode ? t('auth.registerPageSubtitle') : t('auth.loginPageSubtitle') }}</p>
-        <div class="auth-feature-list">
-          <div class="auth-feature-item">
-            <span class="auth-feature-dot" />
-            {{ t('auth.featurePermissionUi') }}
-          </div>
-          <div class="auth-feature-item">
-            <span class="auth-feature-dot" />
-            {{ t('auth.featureSecureAuth') }}
-          </div>
-        </div>
       </section>
 
       <section class="auth-card">
@@ -270,9 +260,6 @@ onMounted(async () => {
 }
 
 .auth-hero::after {
-  /* Keep the glow partially outside the card to create a soft overflow halo. */
-  /* A slight right overflow keeps the orb visible without covering form content. */
-  /* A larger bottom overflow makes the halo fade out below the hero card. */
   content: '';
   position: absolute;
   inset: auto var(--decorative-orb-right) var(--decorative-orb-bottom) auto;
@@ -289,6 +276,8 @@ onMounted(async () => {
 }
 
 .auth-hero h1 {
+  position: relative;
+  z-index: 1;
   max-width: 620px;
   color: #f2f7ff;
   font-size: 42px;
@@ -297,37 +286,12 @@ onMounted(async () => {
 }
 
 .auth-hero p {
+  position: relative;
+  z-index: 1;
   max-width: 620px;
   color: #c4d4ef;
   font-size: 15px;
   line-height: 1.8;
-}
-
-.auth-feature-list {
-  position: relative;
-  z-index: 1;
-  margin-top: 44px;
-  display: grid;
-  gap: 14px;
-}
-
-.auth-feature-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #e8f1ff;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(8px);
-}
-
-.auth-feature-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #67c23a;
-  box-shadow: 0 0 0 5px rgba(103, 194, 58, 0.16);
 }
 
 .auth-card {

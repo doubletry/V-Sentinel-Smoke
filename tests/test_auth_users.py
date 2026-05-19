@@ -71,3 +71,34 @@ class TestAuthBootstrapAndUsers:
         assert me_resp.status_code == 200
         assert me_resp.json()["role"] == "operator"
         assert "sources:operate" in me_resp.json()["permissions"]
+
+    async def test_registered_user_can_change_password(self, async_client: AsyncClient):
+        register_resp = await async_client.post(
+            "/api/auth/register",
+            json={"username": "root", "password": "root-secret"},
+        )
+        assert register_resp.status_code == 201
+        token = register_resp.json()["access_token"]
+
+        change_resp = await async_client.post(
+            "/api/auth/password",
+            json={
+                "current_password": "root-secret",
+                "new_password": "root-secret-2",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert change_resp.status_code == 200
+        assert change_resp.json()["status"] == "SUCCESS"
+
+        old_login = await async_client.post(
+            "/api/auth/login",
+            json={"username": "root", "password": "root-secret"},
+        )
+        assert old_login.status_code == 401
+
+        new_login = await async_client.post(
+            "/api/auth/login",
+            json={"username": "root", "password": "root-secret-2"},
+        )
+        assert new_login.status_code == 200

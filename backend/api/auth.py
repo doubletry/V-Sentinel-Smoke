@@ -4,11 +4,17 @@ from aiosqlite import IntegrityError
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth.dependencies import current_user
-from backend.auth.security import authenticate_user, create_access_token, hash_password
+from backend.auth.security import (
+    authenticate_user,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 from backend.db import database as db
 from backend.models.schemas import (
     AuthBootstrapStatus,
     AuthLoginRequest,
+    AuthPasswordChangeRequest,
     AuthRegisterRequest,
     AuthTokenResponse,
     CurrentUser,
@@ -57,3 +63,27 @@ async def me(user: CurrentUser = Depends(current_user)) -> CurrentUser:
     """Return the current authenticated principal.
     返回当前已认证主体。"""
     return user
+
+
+@router.post("/password")
+async def change_password(
+    data: AuthPasswordChangeRequest,
+    user: CurrentUser = Depends(current_user),
+) -> dict[str, str]:
+    """Change the password for the current registered account.
+    修改当前已注册账号的密码。"""
+    current_password = str(data.current_password or "")
+    new_password = str(data.new_password or "")
+    if not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="Current password and new password are required")
+    record = await db.get_user_auth_record(user.username)
+    if record is None:
+        raise HTTPException(status_code=400, detail="Only registered accounts can change passwords")
+    record_username, password_hash, _stored_role = record
+    if not verify_password(current_password, password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    await db.update_user_password_hash(
+        username=record_username,
+        password_hash=hash_password(new_password),
+    )
+    return {"status": "SUCCESS"}

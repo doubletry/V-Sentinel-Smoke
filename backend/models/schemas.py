@@ -257,6 +257,14 @@ class AuthRegisterRequest(BaseModel):
     password: str
 
 
+class AuthPasswordChangeRequest(BaseModel):
+    """Password change payload for the current signed-in account.
+    当前已登录账号的密码修改载荷。"""
+
+    current_password: str
+    new_password: str
+
+
 class AuthTokenResponse(BaseModel):
     """Signed bearer token returned after login.
     登录后返回的签名 Bearer token。"""

@@ -9,18 +9,16 @@
         <p>{{ t('settings.subtitle') }}</p>
       </div>
 
-      <div v-if="!canAccessSettings" class="settings-section">
+      <div v-if="!canAccessSettings" class="settings-section section-card">
         <h2>{{ t('settings.title') }}</h2>
         <p class="info-tip">{{ t('settings.noPermission') }}</p>
       </div>
 
       <el-form
         v-else
-        ref="formRef"
         :model="form"
         class="settings-form"
-        label-width="210px"
-        label-position="right"
+        label-position="top"
         v-loading="loading"
       >
         <el-tabs
@@ -34,24 +32,39 @@
               tab-position="left"
               class="platform-settings-tabs"
             >
-              <el-tab-pane :label="t('settings.platformTabOverview')" name="overview">
-                <section class="settings-section friendly-mode-section">
-                  <h2>{{ t('settings.configurationMode') }}</h2>
-                  <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
-                  <el-form-item :label="t('settings.expertMode')">
-                    <div class="field-stack">
-                      <el-switch v-model="expertMode" />
-                      <p class="form-hint">{{ t('settings.expertModeHint') }}</p>
+              <el-tab-pane :label="t('settings.platformSectionInterface')" name="overview">
+                <section class="settings-section section-card">
+                  <div class="section-card__head">
+                    <div>
+                      <h2>{{ t('settings.platformSectionInterface') }}</h2>
+                      <p class="info-tip">{{ t('settings.sceneTabsStartupHint') }}</p>
                     </div>
-                  </el-form-item>
-                </section>
+                    <div class="section-card__actions">
+                      <el-button
+                        :loading="activeRestoreSection === 'platform-interface'"
+                        @click="restoreSection('platform-interface', UI_SETTING_KEYS)"
+                      >
+                        {{ t('settings.restoreSection') }}
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        :loading="activeSaveSection === 'platform-interface'"
+                        @click="saveSection('platform-interface', UI_SETTING_KEYS)"
+                      >
+                        {{ t('settings.saveSection') }}
+                      </el-button>
+                    </div>
+                  </div>
 
-                <section class="settings-section">
-                  <h2>{{ t('settings.interface') }}</h2>
-                  <div
-                    class="settings-form-grid"
-                    aria-label="Compact platform field grid"
-                  >
+                  <div class="inline-setting-block">
+                    <div>
+                      <h3>{{ t('settings.configurationMode') }}</h3>
+                      <p class="info-tip">{{ t('settings.expertModeHint') }}</p>
+                    </div>
+                    <el-switch v-model="expertMode" />
+                  </div>
+
+                  <div class="settings-form-grid wide-grid">
                     <el-form-item :label="t('settings.systemLanguage')">
                       <el-select v-model="form.ui_language" style="width: 100%">
                         <el-option
@@ -81,9 +94,9 @@
                         :placeholder="t('settings.siteDescription')"
                       />
                     </el-form-item>
-                    <el-form-item :label="t('settings.faviconUrl')">
+                    <el-form-item :label="t('settings.faviconUrl')" class="form-grid-span-full">
                       <div class="icon-upload-group">
-                        <el-avatar :size="28" shape="square" :src="form.favicon_url">
+                        <el-avatar :size="32" shape="square" :src="form.favicon_url">
                           <el-icon><VideoCamera /></el-icon>
                         </el-avatar>
                         <el-upload
@@ -93,22 +106,41 @@
                           accept=".ico,.png,.jpg,.jpeg,.svg,.webp"
                           :on-change="onSiteIconChange"
                         >
-                          <el-button size="small">{{ t('settings.uploadSiteIcon') }}</el-button>
+                          <el-button>{{ t('settings.uploadSiteIcon') }}</el-button>
                         </el-upload>
-                        <el-button size="small" @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
+                        <el-button @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
+                        <el-input v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
                       </div>
-                    </el-form-item>
-                    <el-form-item :label="t('settings.iconPath')">
-                      <el-input v-model="form.favicon_url" placeholder="/favicon.ico" />
                     </el-form-item>
                   </div>
                 </section>
               </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.platformTabVideo')" name="video">
-                <section class="settings-section">
-                  <h2>{{ t('settings.vengineServices') }}</h2>
-                  <div class="settings-form-grid">
+              <el-tab-pane :label="t('settings.platformSectionVengine')" name="video">
+                <section class="settings-section section-card">
+                  <div class="section-card__head">
+                    <div>
+                      <h2>{{ t('settings.platformSectionVengine') }}</h2>
+                      <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
+                    </div>
+                    <div class="section-card__actions">
+                      <el-button
+                        :loading="activeRestoreSection === 'platform-vengine'"
+                        @click="restoreSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                      >
+                        {{ t('settings.restoreSection') }}
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        :loading="activeSaveSection === 'platform-vengine'"
+                        @click="saveSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                      >
+                        {{ t('settings.saveSection') }}
+                      </el-button>
+                    </div>
+                  </div>
+
+                  <div class="settings-form-grid wide-grid">
                     <el-form-item :label="t('settings.vengineHost')">
                       <el-input v-model="form.vengine_host" placeholder="localhost" />
                     </el-form-item>
@@ -143,12 +175,49 @@
                       </div>
                     </el-form-item>
                   </div>
-                  <p class="info-tip">{{ t('settings.serviceToggleTip') }}</p>
-                </section>
 
-                <section class="settings-section">
-                  <h2>{{ t('settings.mediamtx') }}</h2>
-                  <div class="settings-form-grid">
+                  <section v-if="expertMode" class="expert-card">
+                    <h3>{{ t('settings.threadPools') }}</h3>
+                    <div class="settings-form-grid compact-grid">
+                      <el-form-item :label="t('settings.maxPullWorkers')">
+                        <el-input v-model="form.max_pull_workers" placeholder="20" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.maxPushWorkers')">
+                        <el-input v-model="form.max_push_workers" placeholder="10" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.maxCpuWorkers')">
+                        <el-input v-model="form.max_cpu_workers" placeholder="16" />
+                      </el-form-item>
+                    </div>
+                  </section>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane :label="t('settings.platformSectionMediaMtx')" name="mediamtx">
+                <section class="settings-section section-card">
+                  <div class="section-card__head">
+                    <div>
+                      <h2>{{ t('settings.platformSectionMediaMtx') }}</h2>
+                      <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
+                    </div>
+                    <div class="section-card__actions">
+                      <el-button
+                        :loading="activeRestoreSection === 'platform-mediamtx'"
+                        @click="restoreSection('platform-mediamtx', MEDIAMTX_SETTING_KEYS)"
+                      >
+                        {{ t('settings.restoreSection') }}
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        :loading="activeSaveSection === 'platform-mediamtx'"
+                        @click="saveSection('platform-mediamtx', MEDIAMTX_SETTING_KEYS)"
+                      >
+                        {{ t('settings.saveSection') }}
+                      </el-button>
+                    </div>
+                  </div>
+
+                  <div class="settings-form-grid wide-grid">
                     <el-form-item :label="t('settings.rtspAddress')">
                       <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
                     </el-form-item>
@@ -167,76 +236,73 @@
                       />
                     </el-form-item>
                   </div>
-                  <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
-                </section>
-
-                <section v-if="expertMode" class="settings-section">
-                  <h2>{{ t('settings.threadPools') }}</h2>
-                  <div class="settings-form-grid">
-                    <el-form-item :label="t('settings.maxPullWorkers')">
-                      <el-input v-model="form.max_pull_workers" placeholder="20" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.maxPushWorkers')">
-                      <el-input v-model="form.max_push_workers" placeholder="10" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.maxCpuWorkers')">
-                      <el-input v-model="form.max_cpu_workers" placeholder="16" />
-                    </el-form-item>
-                  </div>
                 </section>
               </el-tab-pane>
+            </el-tabs>
+          </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.platformTabNotifications')" name="notifications">
-                <section class="settings-section">
-                  <h2>{{ t('settings.emailNotifications') }}</h2>
-                  <div class="settings-form-grid">
-                    <el-form-item :label="t('settings.emailFromAddress')">
-                      <el-input
-                        v-model="form.email_from_address"
-                        placeholder="sender@example.com"
-                      />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.emailSmtpHost')">
-                      <el-input
-                        v-model="form.email_smtp_host"
-                        placeholder="smtp.example.com"
-                      />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.emailSmtpPort')">
-                      <el-input
-                        v-model="form.email_smtp_port"
-                        placeholder="587"
-                      />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.emailSmtpUseTls')">
-                      <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.emailFromAuthCode')">
-                      <el-input
-                        v-model="form.email_smtp_password"
-                        type="password"
-                        show-password
-                        placeholder="授权码 / 密码"
-                      />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.emailEventEnabled')">
-                      <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
-                      <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
-                    </el-form-item>
-                    <el-form-item :label="t('settings.messageRetentionDays')">
-                      <el-select v-model="form.message_retention_days" style="width: 100%">
-                        <el-option
-                          v-for="day in retentionDayOptions"
-                          :key="day"
-                          :label="t('settings.messageRetentionDaysOption', { days: day })"
-                          :value="String(day)"
-                        />
-                      </el-select>
-                    </el-form-item>
+          <el-tab-pane :label="t('settings.notificationManagement')" name="notifications">
+            <div class="settings-stack">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.notificationEmailSection') }}</h2>
+                    <p class="info-tip">{{ t('settings.emailAddressesHint') }}</p>
                   </div>
-                  <el-form-item :label="t('settings.emailToAddresses')">
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'notifications-email'"
+                      @click="restoreSection('notifications-email', NOTIFICATION_EMAIL_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button :loading="testingEmail" @click="testEmailConfig">
+                      {{ t('settings.testEmail') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'notifications-email'"
+                      @click="saveSection('notifications-email', NOTIFICATION_EMAIL_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <div class="settings-form-grid wide-grid">
+                  <el-form-item :label="t('settings.emailFromAddress')">
+                    <el-input
+                      v-model="form.email_from_address"
+                      placeholder="sender@example.com"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailSmtpHost')">
+                    <el-input
+                      v-model="form.email_smtp_host"
+                      placeholder="smtp.example.com"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailSmtpPort')">
+                    <el-input
+                      v-model="form.email_smtp_port"
+                      placeholder="587"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailSmtpUseTls')">
+                    <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailFromAuthCode')">
+                    <el-input
+                      v-model="form.email_smtp_password"
+                      type="password"
+                      show-password
+                      placeholder="授权码 / 密码"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailEventEnabled')">
+                    <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.emailToAddresses')" class="form-grid-span-full">
                     <div class="field-stack">
                       <el-input
                         v-model="form.email_to_addresses"
@@ -247,7 +313,7 @@
                       <p class="form-hint">{{ t('settings.emailAddressesHint') }}</p>
                     </div>
                   </el-form-item>
-                  <el-form-item :label="t('settings.emailCcAddresses')">
+                  <el-form-item :label="t('settings.emailCcAddresses')" class="form-grid-span-full">
                     <el-input
                       v-model="form.email_cc_addresses"
                       type="textarea"
@@ -255,10 +321,10 @@
                       placeholder="cc1@example.com,cc2@example.com"
                     />
                   </el-form-item>
-                  <el-form-item :label="t('settings.emailEventSubjectTemplate')">
+                  <el-form-item :label="t('settings.emailEventSubjectTemplate')" class="form-grid-span-full">
                     <el-input v-model="form.email_event_subject_template" />
                   </el-form-item>
-                  <el-form-item :label="t('settings.emailEventBodyTemplate')">
+                  <el-form-item :label="t('settings.emailEventBodyTemplate')" class="form-grid-span-full">
                     <div class="field-stack">
                       <el-input
                         v-model="form.email_event_body_template"
@@ -273,58 +339,100 @@
                       </div>
                     </div>
                   </el-form-item>
-                </section>
-              </el-tab-pane>
+                </div>
+              </section>
 
-              <el-tab-pane
-                v-if="authStore.canManageUsers"
-                :label="t('settings.platformTabUsers')"
-                name="users"
-              >
-                <section class="settings-section">
-                  <h2>{{ t('settings.userManagement') }}</h2>
-                  <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
-                  <div class="user-management-grid">
-                    <div class="field-stack">
-                      <h3>{{ t('settings.accountList') }}</h3>
-                      <div class="user-list">
-                        <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
-                          <span>{{ item.username }}</span>
-                          <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
-                          <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
-                        </div>
-                        <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
-                      </div>
-                    </div>
-                    <div class="field-stack">
-                      <h3>{{ t('settings.createUser') }}</h3>
-                      <el-form-item :label="t('settings.username')">
-                        <el-input v-model="userForm.username" autocomplete="username" />
-                      </el-form-item>
-                      <el-form-item :label="t('settings.userRole')">
-                        <el-select v-model="userForm.role" style="width: 100%">
-                          <el-option value="user" :label="t('auth.roles.user')" />
-                          <el-option value="operator" :label="t('auth.roles.operator')" />
-                          <el-option value="admin" :label="t('auth.roles.admin')" />
-                        </el-select>
-                      </el-form-item>
-                      <el-form-item :label="t('settings.temporaryPassword')">
-                        <div class="field-stack">
-                          <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
-                          <p class="form-hint">{{ t('settings.temporaryPasswordHint') }}</p>
-                        </div>
-                      </el-form-item>
-                      <div class="settings-inline-actions">
-                        <span />
-                        <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-                          {{ t('settings.createUser') }}
-                        </el-button>
-                      </div>
-                    </div>
+              <section class="settings-section section-card compact-section">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.notificationRetentionSection') }}</h2>
+                    <p class="info-tip">{{ t('settings.notificationRetentionHint') }}</p>
                   </div>
-                </section>
-              </el-tab-pane>
-            </el-tabs>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'notifications-retention'"
+                      @click="restoreSection('notifications-retention', NOTIFICATION_RETENTION_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'notifications-retention'"
+                      @click="saveSection('notifications-retention', NOTIFICATION_RETENTION_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
+                <div class="settings-form-grid compact-grid">
+                  <el-form-item :label="t('settings.messageRetentionDays')">
+                    <el-select v-model="form.message_retention_days" style="width: 100%">
+                      <el-option
+                        v-for="day in retentionDayOptions"
+                        :key="day"
+                        :label="t('settings.messageRetentionDaysOption', { days: day })"
+                        :value="String(day)"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
+                    <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
+                  </el-form-item>
+                </div>
+              </section>
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane
+            v-if="authStore.canManageUsers"
+            :label="t('settings.userManagement')"
+            name="users"
+          >
+            <div class="settings-split-grid">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.accountList') }}</h2>
+                    <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
+                  </div>
+                </div>
+                <div class="user-list">
+                  <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
+                    <span>{{ item.username }}</span>
+                    <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
+                    <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
+                  </div>
+                  <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
+                </div>
+              </section>
+
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.createUser') }}</h2>
+                    <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
+                  </div>
+                </div>
+                <el-form-item :label="t('settings.username')">
+                  <el-input v-model="userForm.username" autocomplete="username" />
+                </el-form-item>
+                <el-form-item :label="t('settings.userRole')">
+                  <el-select v-model="userForm.role" style="width: 100%">
+                    <el-option value="user" :label="t('auth.roles.user')" />
+                    <el-option value="operator" :label="t('auth.roles.operator')" />
+                    <el-option value="admin" :label="t('auth.roles.admin')" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item :label="t('settings.temporaryPassword')">
+                  <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
+                </el-form-item>
+                <div class="section-card__actions single-action">
+                  <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                    {{ t('settings.createUser') }}
+                  </el-button>
+                </div>
+              </section>
+            </div>
           </el-tab-pane>
 
           <el-tab-pane
@@ -334,87 +442,116 @@
             :name="`plugin-${scene.id}`"
           >
             <template v-if="scene.id === SMOKE_SCENE_ID">
-        <section class="settings-section">
-          <h2>{{ t('settings.smokeScene') }}</h2>
-          <el-form-item :label="t('settings.smokeDetectionModelName')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
-              <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeDetectionModelVersion')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
-              <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeDetectionConfidence')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
-              <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeDetectionNms')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
-              <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
-              <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
-              <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeMaxMissFrames')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
-              <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeAlarmHoldTime')">
-            <div class="field-stack">
-              <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
-              <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item :label="t('settings.smokeAppearanceFilter')">
-            <div class="field-stack">
-              <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
-              <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
-            </div>
-          </el-form-item>
-          <el-form-item v-if="expertMode" :label="t('settings.smokeAdvancedThresholds')">
-            <div class="field-stack">
-              <div class="settings-inline-actions">
-                <p class="form-hint">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
-                <el-button size="small" @click="resetSmokeAdvancedThresholds">
-                  {{ t('settings.resetAdvancedThresholds') }}
-                </el-button>
-              </div>
-              <div class="smoke-threshold-grid">
-                <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
-                  <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
-                  <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
-                  <p class="form-hint">{{ t(item.hintKey) }}</p>
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.smokeScene') }}</h2>
+                    <p class="info-tip">{{ scene.description }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === `plugin-${scene.id}`"
+                      @click="restoreSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === `plugin-${scene.id}`"
+                      @click="saveSection(`plugin-${scene.id}`, pluginSettingKeys(scene.id))"
+                    >
+                      {{ t('settings.savePluginSection') }}
+                    </el-button>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </el-form-item>
-        </section>
+
+                <div class="settings-form-grid wide-grid">
+                  <el-form-item :label="t('settings.smokeDetectionModelName')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_detection_model_name" placeholder="smoke-fire-detection" />
+                      <p class="form-hint">{{ t('settings.smokeDetectionModelNameHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeDetectionModelVersion')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_detection_model_version" :placeholder="t('settings.defaultVersionPlaceholder')" />
+                      <p class="form-hint">{{ t('settings.smokeDetectionModelVersionHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeDetectionConfidence')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_detection_confidence" placeholder="0.35" />
+                      <p class="form-hint">{{ t('settings.smokeDetectionConfidenceHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeDetectionNms')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_detection_nms" placeholder="0.7" />
+                      <p class="form-hint">{{ t('settings.smokeDetectionNmsHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeTemporalConfirmFrames')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_temporal_confirm_frames" placeholder="3" />
+                      <p class="form-hint">{{ t('settings.smokeTemporalConfirmFramesHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeTemporalConfirmWindow')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_temporal_confirm_window" placeholder="2.0" />
+                      <p class="form-hint">{{ t('settings.smokeTemporalConfirmWindowHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeMaxMissFrames')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_max_miss_frames" placeholder="5" />
+                      <p class="form-hint">{{ t('settings.smokeMaxMissFramesHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeAlarmHoldTime')">
+                    <div class="field-stack">
+                      <el-input v-model="form.smoke_alarm_hold_time" placeholder="3.0" />
+                      <p class="form-hint">{{ t('settings.smokeAlarmHoldTimeHint') }}</p>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="t('settings.smokeAppearanceFilter')" class="form-grid-span-full">
+                    <div class="field-stack switch-field-stack">
+                      <el-switch v-model="form.smoke_enable_appearance_filter" active-value="true" inactive-value="false" />
+                      <p class="form-hint">{{ t('settings.smokeAppearanceFilterHint') }}</p>
+                    </div>
+                  </el-form-item>
+                </div>
+
+                <section v-if="expertMode" class="expert-card plugin-advanced-card">
+                  <div class="section-card__head threshold-head">
+                    <div>
+                      <h3>{{ t('settings.smokeAdvancedThresholds') }}</h3>
+                      <p class="info-tip">{{ t('settings.smokeAdvancedThresholdsHint') }}</p>
+                    </div>
+                    <el-button @click="resetSmokeAdvancedThresholds">
+                      {{ t('settings.resetAdvancedThresholds') }}
+                    </el-button>
+                  </div>
+                  <div class="smoke-threshold-grid">
+                    <div v-for="item in smokeAdvancedFields" :key="item.key" class="field-stack smoke-threshold-item">
+                      <span class="smoke-threshold-label">{{ t(item.labelKey) }}</span>
+                      <el-input v-model="form[item.key]" :placeholder="item.placeholder" />
+                      <p class="form-hint">{{ t(item.hintKey) }}</p>
+                    </div>
+                  </div>
+                </section>
+              </section>
             </template>
 
-            <section class="settings-section">
-              <h2>{{ t('settings.pluginRoiTags') }}</h2>
-              <p class="scene-scope-line">
-                {{ t('settings.pluginRoiTagsScene', { scene: sceneTabLabel(scene.id), id: scene.id }) }}
-              </p>
+            <section class="settings-section section-card">
+              <div class="section-card__head">
+                <div>
+                  <h2>{{ t('settings.pluginRoiTags') }}</h2>
+                  <p class="scene-scope-line">
+                    {{ t('settings.pluginRoiTagsScene', { scene: sceneTabLabel(scene.id), id: scene.id }) }}
+                  </p>
+                </div>
+              </div>
               <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
                 {{ scene.description || t('settings.templateSceneHint') }}
               </p>
@@ -427,8 +564,15 @@
               <p class="info-tip">{{ t('settings.pluginRoiTagsHint') }}</p>
             </section>
 
-            <section v-if="scene.id !== SMOKE_SCENE_ID" class="settings-section">
-              <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
+            <section class="settings-section section-card">
+              <div class="section-card__head">
+                <div>
+                  <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
+                  <p v-if="scene.id !== SMOKE_SCENE_ID" class="info-tip">
+                    {{ scene.description || t('settings.templateSceneHint') }}
+                  </p>
+                </div>
+              </div>
               <div class="plugin-config-list">
                 <el-tag v-for="item in sceneDefaultConfigRows(scene.id)" :key="item.key" type="info">
                   {{ item.key }}: {{ item.value }}
@@ -438,18 +582,7 @@
             </section>
           </el-tab-pane>
         </el-tabs>
-
-        <div class="settings-actions">
-          <el-button @click="reload">{{ t('common.reset') }}</el-button>
-          <el-button @click="testEmailConfig" :loading="testingEmail">
-            {{ t('settings.testEmail') }}
-          </el-button>
-          <el-button type="primary" @click="save" :loading="saving">
-            {{ t('settings.saveSettings') }}
-          </el-button>
-        </div>
       </el-form>
-
     </div>
   </div>
 </template>
@@ -472,6 +605,7 @@ const authStore = useAuthStore()
 const sourceStore = useSourceStore()
 const languageOptions = localeOptions
 const retentionDayOptions = [7, 15, 21, 30]
+const MAIN_SETTINGS_TABS = new Set(['platform', 'notifications', 'users'])
 // Plugin tab names are exactly `plugin-{sceneId}`. Scene IDs must start with a
 // letter, number, or underscore, and later characters may also include hyphens.
 // Scene IDs are 1-57 characters here (one required first character plus up to
@@ -544,6 +678,57 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
+const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url']
+const VENGINE_SETTING_KEYS = [
+  'vengine_host',
+  'detection_port',
+  'classification_port',
+  'action_port',
+  'ocr_port',
+  'upload_port',
+  'detection_enabled',
+  'classification_enabled',
+  'action_enabled',
+  'ocr_enabled',
+  'upload_enabled',
+  'max_pull_workers',
+  'max_push_workers',
+  'max_cpu_workers',
+]
+const MEDIAMTX_SETTING_KEYS = [
+  'mediamtx_rtsp_addr',
+  'mediamtx_webrtc_addr',
+  'mediamtx_username',
+  'mediamtx_password',
+]
+const NOTIFICATION_EMAIL_KEYS = [
+  'email_from_address',
+  'email_smtp_password',
+  'email_to_addresses',
+  'email_cc_addresses',
+  'email_smtp_host',
+  'email_smtp_port',
+  'email_smtp_use_tls',
+  'email_event_enabled',
+  'email_event_subject_template',
+  'email_event_body_template',
+]
+const NOTIFICATION_RETENTION_KEYS = [
+  'message_retention_days',
+  'smoke_email_cooldown_seconds',
+]
+const SMOKE_PLUGIN_SETTING_KEYS = [
+  'smoke_detection_model_name',
+  'smoke_detection_model_version',
+  'smoke_detection_confidence',
+  'smoke_detection_nms',
+  'smoke_temporal_confirm_frames',
+  'smoke_temporal_confirm_window',
+  'smoke_max_miss_frames',
+  'smoke_alarm_hold_time',
+  'smoke_enable_appearance_filter',
+  ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
+]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
   { key: 'smoke_min_confidence_fire', labelKey: 'settings.smokeMinConfidenceFire', hintKey: 'settings.smokeMinConfidenceFireHint', placeholder: '0.40' },
@@ -568,10 +753,11 @@ const smokeAdvancedFields = [
 ]
 
 const loading = ref(false)
-const saving = ref(false)
 const testingEmail = ref(false)
 const creatingUser = ref(false)
 const expertMode = ref(false)
+const activeSaveSection = ref('')
+const activeRestoreSection = ref('')
 const userForm = ref({
   username: '',
   password: '',
@@ -698,7 +884,7 @@ function readInitialSettingsTab() {
 
 function isValidSettingsTabName(tabName) {
   if (typeof tabName !== 'string') return false
-  return tabName === 'platform' || PLUGIN_TAB_NAME_PATTERN.test(tabName)
+  return MAIN_SETTINGS_TABS.has(tabName) || PLUGIN_TAB_NAME_PATTERN.test(tabName)
 }
 
 function extractSceneIdFromTabName(tabName) {
@@ -719,7 +905,11 @@ function extractSceneIdFromTabName(tabName) {
  * 如果 URL hash 无效，则回退到平台设置，避免显示空白分页。
  */
 function resetInvalidSettingsTab() {
-  if (activeSettingsTab.value === 'platform') return
+  if (activeSettingsTab.value === 'users' && !authStore.canManageUsers) {
+    activeSettingsTab.value = 'platform'
+    return
+  }
+  if (MAIN_SETTINGS_TABS.has(activeSettingsTab.value)) return
   if (!sceneDefinitions.value.length) {
     activeSettingsTab.value = 'platform'
     return
@@ -728,6 +918,22 @@ function resetInvalidSettingsTab() {
   if (!activeSceneId || !sceneDefinitions.value.some((scene) => scene.id === activeSceneId)) {
     activeSettingsTab.value = 'platform'
   }
+}
+
+function pluginSettingKeys(sceneId) {
+  return sceneId === SMOKE_SCENE_ID ? SMOKE_PLUGIN_SETTING_KEYS : []
+}
+
+function pickFormValues(keys) {
+  return Object.fromEntries(keys.map((key) => [key, form.value[key]]))
+}
+
+function applyFormValues(data, keys) {
+  keys.forEach((key) => {
+    if (data[key] !== undefined) {
+      form.value[key] = data[key]
+    }
+  })
 }
 
 function onSettingsTabChange(tabName) {
@@ -752,6 +958,11 @@ async function reload() {
       ? scenes
       : DEFAULT_SCENE_DEFINITIONS
     resetInvalidSettingsTab()
+    expertMode.value = [
+      data.max_pull_workers,
+      data.max_push_workers,
+      data.max_cpu_workers,
+    ].some((value) => String(value || '').trim())
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
       if (Array.isArray(placeholderData?.placeholders)) {
@@ -767,6 +978,20 @@ async function reload() {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))
   } finally {
     loading.value = false
+  }
+}
+
+async function restoreSection(sectionId, keys) {
+  activeRestoreSection.value = sectionId
+  try {
+    const data = await appSettingsStore.fetchSettings(true)
+    applyFormValues(data, keys)
+    appSettingsStore.applyLanguage(form.value.ui_language)
+    ElMessage.success(t('common.reset'))
+  } catch (err) {
+    ElMessage.error(t('settings.failedToLoad', { message: err.message }))
+  } finally {
+    activeRestoreSection.value = ''
   }
 }
 
@@ -791,24 +1016,31 @@ async function createUserAccount() {
   }
 }
 
-async function save() {
-  saving.value = true
+async function saveSection(sectionId, keys) {
+  activeSaveSection.value = sectionId
   const previousSettings = appSettingsStore.settings || {}
   try {
     const processorConfigChanged = (
-      PROCESSOR_RESTART_SETTING_KEYS.some(
-        (key) => String(previousSettings[key] || '') !== String(form.value[key] || '')
+      keys.some(
+        (key) => PROCESSOR_RESTART_SETTING_KEYS.includes(key)
+          && String(previousSettings[key] || '') !== String(form.value[key] || '')
       )
     )
     const mediamtxRtspChanged = (
-      String(previousSettings.mediamtx_rtsp_addr || '') !== String(form.value.mediamtx_rtsp_addr || '')
-      || String(previousSettings.mediamtx_username || '') !== String(form.value.mediamtx_username || '')
-      || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
+      keys.some((key) => ['mediamtx_rtsp_addr', 'mediamtx_username', 'mediamtx_password'].includes(key))
+      && (
+        String(previousSettings.mediamtx_rtsp_addr || '') !== String(form.value.mediamtx_rtsp_addr || '')
+        || String(previousSettings.mediamtx_username || '') !== String(form.value.mediamtx_username || '')
+        || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
+      )
     )
     const mediamtxWebrtcChanged = (
-      String(previousSettings.mediamtx_webrtc_addr || '') !== String(form.value.mediamtx_webrtc_addr || '')
-      || String(previousSettings.mediamtx_username || '') !== String(form.value.mediamtx_username || '')
-      || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
+      keys.some((key) => ['mediamtx_webrtc_addr', 'mediamtx_username', 'mediamtx_password'].includes(key))
+      && (
+        String(previousSettings.mediamtx_webrtc_addr || '') !== String(form.value.mediamtx_webrtc_addr || '')
+        || String(previousSettings.mediamtx_username || '') !== String(form.value.mediamtx_username || '')
+        || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
+      )
     )
     let runningSourceIds = []
     if (processorConfigChanged || mediamtxRtspChanged) {
@@ -816,7 +1048,7 @@ async function save() {
       runningSourceIds = sourceStore.getRunningSourceIdsSnapshot()
     }
 
-    const data = await appSettingsStore.updateSettings(form.value)
+    const data = await appSettingsStore.updateSettings(pickFormValues(keys))
     Object.assign(form.value, data)
     appSettingsStore.applyLanguage(form.value.ui_language)
     if (mediamtxRtspChanged || mediamtxWebrtcChanged) {
@@ -855,7 +1087,7 @@ async function save() {
   } catch (err) {
     ElMessage.error(t('settings.failedToSave', { message: err.message }))
   } finally {
-    saving.value = false
+    activeSaveSection.value = ''
   }
 }
 
@@ -920,7 +1152,7 @@ onMounted(async () => {
 .settings-page {
   height: 100%;
   overflow-y: auto;
-  padding: 20px 24px 28px;
+  padding: 24px 28px 32px;
   background:
     radial-gradient(circle at 0% 0%, rgba(64, 158, 255, 0.13), transparent 42%),
     radial-gradient(circle at 100% 100%, rgba(0, 178, 169, 0.12), transparent 40%),
@@ -928,11 +1160,11 @@ onMounted(async () => {
 }
 
 .settings-shell {
-  max-width: 980px;
+  max-width: 1360px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .settings-head {
@@ -946,7 +1178,7 @@ onMounted(async () => {
 }
 
 .title-line h1 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   color: #e9f0ff;
 }
@@ -960,22 +1192,22 @@ onMounted(async () => {
 .settings-form {
   background: rgba(16, 21, 37, 0.92);
   border: 1px solid #26314d;
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 18px;
 }
 
 .settings-section {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid #30364d;
-  border-radius: 12px;
-  padding: 16px 12px 6px;
-  margin-bottom: 14px;
+  border-radius: 16px;
+  padding: 18px 18px 14px;
+  margin-bottom: 16px;
 }
 
 .settings-section h2 {
-  font-size: 14px;
-  color: #9ab2df;
-  margin-bottom: 10px;
+  font-size: 16px;
+  color: #e5eeff;
+  margin-bottom: 6px;
 }
 
 .settings-tabs :deep(.el-tabs__item) {
@@ -991,19 +1223,19 @@ onMounted(async () => {
 }
 
 .platform-settings-tabs {
-  min-height: 520px;
+  min-height: 640px;
 }
 
 .platform-settings-tabs :deep(.el-tabs__header) {
-  min-width: 160px;
-  padding-right: 12px;
+  min-width: 182px;
+  padding-right: 14px;
 }
 
 .platform-settings-tabs :deep(.el-tabs__item) {
   justify-content: flex-start;
   color: #aab7d2;
-  border-radius: 10px;
-  margin-bottom: 6px;
+  border-radius: 12px;
+  margin-bottom: 8px;
 }
 
 .platform-settings-tabs :deep(.el-tabs__item.is-active) {
@@ -1012,17 +1244,33 @@ onMounted(async () => {
 }
 
 .settings-form-grid {
-  /* Shared grid for dense platform setting groups and expert-mode sections within existing tabs. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 4px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 18px;
+}
+
+.settings-form-grid.wide-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.settings-form-grid.compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.form-grid-span-full {
+  grid-column: 1 / -1;
 }
 
 .icon-upload-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+.icon-path-input {
+  min-width: min(420px, 100%);
+  flex: 1 1 320px;
 }
 
 .roi-tags-editor {
@@ -1072,9 +1320,15 @@ onMounted(async () => {
   min-height: 24px;
 }
 
-.user-management-grid {
+.settings-split-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.settings-stack {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
@@ -1088,9 +1342,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid #30364d;
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
   color: #d7e3ff;
   font-size: 13px;
@@ -1102,25 +1356,73 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.settings-inline-actions {
+.section-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.section-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-card__actions.single-action {
+  justify-content: flex-end;
+}
+
+.inline-setting-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #2f3a5b;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(255, 255, 255, 0.02));
+}
+
+.inline-setting-block h3 {
+  color: #dbe7ff;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.expert-card {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #2f3a5b;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.compact-section {
+  max-width: 760px;
+}
+
+.switch-field-stack {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .smoke-threshold-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
   width: 100%;
 }
 
 .smoke-threshold-item {
-  padding: 10px;
+  padding: 12px;
   border: 1px solid #2d3650;
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
 }
 
@@ -1158,7 +1460,7 @@ onMounted(async () => {
 .port-switch-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -1166,60 +1468,49 @@ onMounted(async () => {
   flex: 1;
 }
 
-.settings-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  position: sticky;
-  bottom: 0;
-  padding-top: 10px;
-  padding-bottom: 4px;
-  background: linear-gradient(to bottom, rgba(16, 21, 37, 0), rgba(16, 21, 37, 0.96) 26%);
-}
-
 :deep(.el-form-item__label) {
   color: #aab7d2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+:deep(.el-form-item__content) {
+  width: 100%;
 }
 
 @media (max-width: 768px) {
   .settings-page {
-    padding: 12px 12px 20px;
+    padding: 14px 14px 24px;
   }
 
   .settings-form {
-    padding: 12px;
+    padding: 14px;
   }
 
   .platform-settings-tabs :deep(.el-tabs__header) {
-    min-width: 118px;
-    padding-right: 8px;
+    min-width: 126px;
+    padding-right: 10px;
   }
 
   .title-line h1 {
     font-size: 18px;
   }
 
-  :deep(.el-form-item) {
-    margin-bottom: 14px;
+  .section-card__head,
+  .inline-setting-block {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  :deep(.el-form-item__label) {
-    width: 100% !important;
-    justify-content: flex-start;
-    margin-bottom: 4px;
-    line-height: 1.4;
-  }
-
-  :deep(.el-form-item__content) {
-    margin-left: 0 !important;
-  }
-
+  .port-switch-row,
+  .switch-field-stack,
+  .icon-upload-group,
   .roi-tag-input-row {
     flex-wrap: wrap;
+  }
+
+  .icon-path-input {
+    min-width: 100%;
   }
 }
 </style>

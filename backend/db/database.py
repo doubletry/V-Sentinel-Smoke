@@ -1482,6 +1482,19 @@ async def create_first_user_account(*, username: str, password_hash: str) -> Use
     return UserAccount(username=normalized_username, role="admin", created_at=created_at)
 
 
+async def update_user_password_hash(*, username: str, password_hash: str) -> bool:
+    """Update a registered user's password hash.
+    更新已注册用户的密码哈希。"""
+    normalized_username = str(username or "").strip()
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ?",
+            (password_hash, normalized_username),
+        )
+        await db.commit()
+    return int(cursor.rowcount or 0) > 0
+
+
 async def get_all_settings() -> dict[str, str]:
     """Return all app settings as a key→value dict.
     以键→值字典形式返回所有应用设置。"""

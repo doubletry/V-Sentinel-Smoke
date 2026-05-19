@@ -71,6 +71,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function changePassword(payload) {
+    loading.value = true
+    try {
+      return await authApi.changePassword(payload)
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function fetchBootstrap() {
     bootstrap.value = await authApi.bootstrap()
     return bootstrap.value
@@ -123,6 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
     restore,
     login,
     register,
+    changePassword,
     fetchBootstrap,
     fetchUsers,
     createUser,

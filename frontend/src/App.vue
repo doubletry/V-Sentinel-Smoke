@@ -56,37 +56,92 @@
               {{ t('auth.login') }}
             </el-button>
             <el-tag v-else type="warning" effect="dark">{{ t('auth.accountUnavailable') }}</el-tag>
+            <span class="lang-label">{{ t('language.label') }}</span>
+            <el-select v-model="localeModel" size="small" class="lang-select">
+              <el-option
+                v-for="option in localeOptions"
+                :key="option.value"
+                :label="t(option.labelKey)"
+                :value="option.value"
+              />
+            </el-select>
           </template>
           <el-dropdown v-else trigger="click" @command="onAuthCommand">
-            <el-button size="small" plain>
-              {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+            <el-button size="small" plain class="account-button">
+              <span class="account-name">{{ authStore.user?.username }}</span>
+              <el-tag size="small" effect="dark" class="account-role-tag">
+                {{ t(`auth.roles.${authStore.role}`) }}
+              </el-tag>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item disabled>
+                  {{ t('auth.currentUser', { username: authStore.user?.username || '' }) }}
+                </el-dropdown-item>
+                <el-dropdown-item disabled>
+                  {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+                </el-dropdown-item>
+                <el-dropdown-item divided command="locale:zh-CN">中文</el-dropdown-item>
+                <el-dropdown-item command="locale:en-US">English</el-dropdown-item>
+                <el-dropdown-item divided command="change-password">
+                  {{ t('auth.changePassword') }}
+                </el-dropdown-item>
                 <el-dropdown-item command="logout">{{ t('auth.logout') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <span class="lang-label">{{ t('language.label') }}</span>
-          <el-select v-model="localeModel" size="small" class="lang-select">
-            <el-option
-              v-for="option in localeOptions"
-              :key="option.value"
-              :label="t(option.labelKey)"
-              :value="option.value"
-            />
-          </el-select>
         </div>
       </el-header>
       <el-main class="app-main">
         <router-view />
       </el-main>
     </el-container>
+    <el-dialog
+      v-model="passwordDialogVisible"
+      :title="t('auth.changePasswordTitle')"
+      width="420px"
+      destroy-on-close
+    >
+      <el-form label-position="top" :model="passwordForm">
+        <p class="password-dialog-hint">{{ t('auth.changePasswordHint') }}</p>
+        <el-form-item :label="t('auth.currentPassword')" required>
+          <el-input
+            v-model="passwordForm.currentPassword"
+            type="password"
+            show-password
+            autocomplete="current-password"
+          />
+        </el-form-item>
+        <el-form-item :label="t('auth.newPassword')" required>
+          <el-input
+            v-model="passwordForm.newPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+          />
+        </el-form-item>
+        <el-form-item :label="t('auth.confirmNewPassword')" required>
+          <el-input
+            v-model="passwordForm.confirmPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            @keyup.enter="submitPasswordChange"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closePasswordDialog">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="passwordSubmitting" @click="submitPasswordChange">
+          {{ t('auth.changePassword') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </el-config-provider>
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useRoute, useRouter } from 'vue-router'
@@ -99,6 +154,13 @@ const route = useRoute()
 const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
+const passwordDialogVisible = ref(false)
+const passwordSubmitting = ref(false)
+const passwordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
 
 const canSeeVideoWall = computed(() =>
   authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')
@@ -109,11 +171,15 @@ const canSeeProcessingLogs = computed(() =>
 )
 const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
 
+function applyLocale(value) {
+  setI18nLocale(value)
+  appSettingsStore.patchSettings({ ui_language: value })
+}
+
 const localeModel = computed({
   get: () => locale.value,
   set: (value) => {
-    setI18nLocale(value)
-    appSettingsStore.patchSettings({ ui_language: value })
+    applyLocale(value)
   },
 })
 
@@ -149,10 +215,53 @@ function goAuth(mode) {
   })
 }
 
+function resetPasswordForm() {
+  passwordForm.currentPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.confirmPassword = ''
+}
+
+function closePasswordDialog() {
+  passwordDialogVisible.value = false
+  resetPasswordForm()
+}
+
+async function submitPasswordChange() {
+  if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    ElMessage.warning(t('auth.missingFields'))
+    return
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    ElMessage.warning(t('auth.passwordMismatch'))
+    return
+  }
+  passwordSubmitting.value = true
+  try {
+    await authStore.changePassword({
+      current_password: passwordForm.currentPassword,
+      new_password: passwordForm.newPassword,
+    })
+    ElMessage.success(t('auth.passwordChangeSuccess'))
+    closePasswordDialog()
+  } catch (err) {
+    ElMessage.error(t('auth.passwordChangeFailed', { message: err.message }))
+  } finally {
+    passwordSubmitting.value = false
+  }
+}
+
 function onAuthCommand(command) {
   if (command === 'logout') {
     authStore.logout()
     ElMessage.success(t('auth.logoutSuccess'))
+    return
+  }
+  if (command === 'change-password') {
+    passwordDialogVisible.value = true
+    return
+  }
+  if (typeof command === 'string' && command.startsWith('locale:')) {
+    applyLocale(command.slice('locale:'.length))
   }
 }
 
@@ -164,7 +273,7 @@ onMounted(async () => {
     if (typeof window !== 'undefined') {
       const hasSavedLocale = Boolean(window.localStorage.getItem(LOCALE_STORAGE_KEY))
       if (!hasSavedLocale) {
-        setI18nLocale(appSettingsStore.uiLanguage)
+        applyLocale(appSettingsStore.uiLanguage)
       }
     }
   } catch (_) {
@@ -255,6 +364,23 @@ body {
   flex-shrink: 0;
 }
 
+.account-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-name {
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-role-tag {
+  border: none;
+}
+
 .lang-label {
   color: #888;
   font-size: 12px;
@@ -263,6 +389,13 @@ body {
 
 .lang-select {
   width: 118px;
+}
+
+.password-dialog-hint {
+  margin-bottom: 16px;
+  color: #7d8fb3;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .app-main {
@@ -287,6 +420,10 @@ body {
 
   .lang-select {
     width: 90px;
+  }
+
+  .account-role-tag {
+    display: none;
   }
 }
 </style>
