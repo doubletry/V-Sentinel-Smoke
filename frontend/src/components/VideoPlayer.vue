@@ -84,8 +84,8 @@ async function connect() {
       props.streamPath,
       videoEl.value,
       appSettingsStore.mediamtxWebrtcAddr,
-      appSettingsStore.mediamtxWebrtcUsername,
-      appSettingsStore.mediamtxWebrtcPassword
+      appSettingsStore.mediamtxUsername,
+      appSettingsStore.mediamtxPassword
     )
     if (!_shouldReconnect) {
       _conn?.stop?.()
@@ -137,8 +137,8 @@ watch(() => props.streamPath, (newPath) => {
 watch(
   () => [
     appSettingsStore.mediamtxWebrtcAddr,
-    appSettingsStore.mediamtxWebrtcUsername,
-    appSettingsStore.mediamtxWebrtcPassword,
+    appSettingsStore.mediamtxUsername,
+    appSettingsStore.mediamtxPassword,
   ],
   () => {
     disconnect()

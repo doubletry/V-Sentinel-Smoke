@@ -67,8 +67,8 @@ class TestCreateSource:
     async def test_creates_from_route_path_using_current_settings(self):
         await update_settings({
             "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
-            "mediamtx_rtsp_username": "stream-user",
-            "mediamtx_rtsp_password": "stream-pass",
+            "mediamtx_username": "stream-user",
+            "mediamtx_password": "stream-pass",
         })
         src = await create_source(
             VideoSourceCreate(name="Cam3", route_path="cam3")
@@ -146,8 +146,8 @@ class TestUpdateSource:
         )
         await update_settings({
             "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/base",
-            "mediamtx_rtsp_username": "stream-user",
-            "mediamtx_rtsp_password": "stream-pass",
+            "mediamtx_username": "stream-user",
+            "mediamtx_password": "stream-pass",
         })
         updated = await update_source(
             src.id,

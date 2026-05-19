@@ -131,12 +131,12 @@
           <el-form-item :label="t('settings.rtspAddress')">
             <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
           </el-form-item>
-          <el-form-item :label="t('settings.rtspUsername')">
-            <el-input v-model="form.mediamtx_rtsp_username" placeholder="stream-user" />
+          <el-form-item :label="t('settings.mediamtxUsername')">
+            <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
           </el-form-item>
-          <el-form-item :label="t('settings.rtspPassword')">
+          <el-form-item :label="t('settings.mediamtxPassword')">
             <el-input
-              v-model="form.mediamtx_rtsp_password"
+              v-model="form.mediamtx_password"
               type="password"
               show-password
               placeholder="stream-pass"
@@ -144,17 +144,6 @@
           </el-form-item>
           <el-form-item :label="t('settings.webrtcAddress')">
             <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
-          </el-form-item>
-          <el-form-item :label="t('settings.webrtcUsername')">
-            <el-input v-model="form.mediamtx_webrtc_username" placeholder="viewer" />
-          </el-form-item>
-          <el-form-item :label="t('settings.webrtcPassword')">
-            <el-input
-              v-model="form.mediamtx_webrtc_password"
-              type="password"
-              show-password
-              placeholder="viewer-pass"
-            />
           </el-form-item>
           <p class="info-tip">{{ t('settings.mediamtxAddressSyncHint') }}</p>
         </section>
@@ -512,11 +501,9 @@ const form = ref({
   ocr_enabled: 'false',
   upload_enabled: 'false',
   mediamtx_rtsp_addr: '',
-  mediamtx_rtsp_username: '',
-  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: '',
-  mediamtx_webrtc_username: '',
-  mediamtx_webrtc_password: '',
+  mediamtx_username: '',
+  mediamtx_password: '',
   email_from_address: '',
   email_smtp_password: '',
   email_to_addresses: '',
@@ -688,13 +675,13 @@ async function save() {
     )
     const mediamtxRtspChanged = (
       String(previousSettings.mediamtx_rtsp_addr || '') !== String(form.value.mediamtx_rtsp_addr || '')
-      || String(previousSettings.mediamtx_rtsp_username || '') !== String(form.value.mediamtx_rtsp_username || '')
-      || String(previousSettings.mediamtx_rtsp_password || '') !== String(form.value.mediamtx_rtsp_password || '')
+      || String(previousSettings.mediamtx_username || '') !== String(form.value.mediamtx_username || '')
+      || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
     )
     const mediamtxWebrtcChanged = (
       String(previousSettings.mediamtx_webrtc_addr || '') !== String(form.value.mediamtx_webrtc_addr || '')
-      || String(previousSettings.mediamtx_webrtc_username || '') !== String(form.value.mediamtx_webrtc_username || '')
-      || String(previousSettings.mediamtx_webrtc_password || '') !== String(form.value.mediamtx_webrtc_password || '')
+      || String(previousSettings.mediamtx_username || '') !== String(form.value.mediamtx_username || '')
+      || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
     )
     let runningSourceIds = []
     if (processorConfigChanged || mediamtxRtspChanged) {

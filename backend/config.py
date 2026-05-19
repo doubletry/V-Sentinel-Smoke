@@ -48,11 +48,9 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "upload_enabled": "false",
     # MediaMTX
     "mediamtx_rtsp_addr": "rtsp://localhost:8554",
-    "mediamtx_rtsp_username": "",
-    "mediamtx_rtsp_password": "",
     "mediamtx_webrtc_addr": "http://localhost:8889",
-    "mediamtx_webrtc_username": "",
-    "mediamtx_webrtc_password": "",
+    "mediamtx_username": "",
+    "mediamtx_password": "",
     # Email notifications / 邮件通知
     "email_from_address": "",
     "email_smtp_password": "",

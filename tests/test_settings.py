@@ -39,8 +39,8 @@ class TestSettingsDB:
         assert "email_event_body_template" in all_settings
         assert "{event_label}" in all_settings["email_event_body_template"]
         assert all_settings["message_retention_days"] == "7"
-        assert all_settings["mediamtx_rtsp_username"] == ""
-        assert all_settings["mediamtx_webrtc_username"] == ""
+        assert all_settings["mediamtx_username"] == ""
+        assert all_settings["mediamtx_password"] == ""
 
     async def test_get_setting(self, init_db):
         val = await get_setting("vengine_host")
@@ -119,11 +119,9 @@ class TestSettingsAPI:
                 "smoke_email_cooldown_seconds": "60",
                 "message_retention_days": "14",
                 "mediamtx_rtsp_addr": "rtsp://stream.example.com:8554/live",
-                "mediamtx_rtsp_username": "stream-user",
-                "mediamtx_rtsp_password": "stream-pass",
                 "mediamtx_webrtc_addr": "https://stream.example.com:8889/whep",
-                "mediamtx_webrtc_username": "viewer",
-                "mediamtx_webrtc_password": "viewer-pass",
+                "mediamtx_username": "shared-user",
+                "mediamtx_password": "shared-pass",
             },
         )
         assert resp.status_code == 200
@@ -145,11 +143,9 @@ class TestSettingsAPI:
         assert data["smoke_email_cooldown_seconds"] == "60"
         assert data["message_retention_days"] == "14"
         assert data["mediamtx_rtsp_addr"] == "rtsp://stream.example.com:8554/live"
-        assert data["mediamtx_rtsp_username"] == "stream-user"
-        assert data["mediamtx_rtsp_password"] == "stream-pass"
         assert data["mediamtx_webrtc_addr"] == "https://stream.example.com:8889/whep"
-        assert data["mediamtx_webrtc_username"] == "viewer"
-        assert data["mediamtx_webrtc_password"] == "viewer-pass"
+        assert data["mediamtx_username"] == "shared-user"
+        assert data["mediamtx_password"] == "shared-pass"
 
     async def test_update_empty(self, async_client: AsyncClient):
         """Empty update should return current settings."""
@@ -192,8 +188,8 @@ class TestSettingsAPI:
             "/api/settings",
             json={
                 "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
-                "mediamtx_rtsp_username": "stream-user",
-                "mediamtx_rtsp_password": "stream-pass",
+                "mediamtx_username": "stream-user",
+                "mediamtx_password": "stream-pass",
             },
         )
 
@@ -204,6 +200,46 @@ class TestSettingsAPI:
             updated_source.rtsp_url
             == "rtsp://stream-user:stream-pass@gateway.example.com:9554/live/cam1"
         )
+
+    async def test_update_shared_mediamtx_settings_syncs_default_gateway(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
+                "mediamtx_webrtc_addr": "https://gateway.example.com:8889/live",
+                "mediamtx_username": "shared-user",
+                "mediamtx_password": "shared-pass",
+            },
+        )
+
+        assert resp.status_code == 200
+        gateways_resp = await async_client.get("/api/video-gateways")
+        assert gateways_resp.status_code == 200
+        default_gateway = next(item for item in gateways_resp.json() if item["id"] == "default-mediamtx")
+        assert default_gateway["rtsp_base_url"] == "rtsp://gateway.example.com:9554/live"
+        assert default_gateway["webrtc_base_url"] == "https://gateway.example.com:8889/live"
+        assert default_gateway["username"] == "shared-user"
+        assert default_gateway["password"] == "shared-pass"
+
+    async def test_legacy_mediamtx_protocol_credentials_are_mapped_to_shared_fields(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={
+                "mediamtx_rtsp_username": "legacy-user",
+                "mediamtx_rtsp_password": "legacy-pass",
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["mediamtx_username"] == "legacy-user"
+        assert data["mediamtx_password"] == "legacy-pass"
 
 
 class TestVEngineClientAddresses:

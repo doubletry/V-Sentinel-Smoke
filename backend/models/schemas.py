@@ -346,9 +346,14 @@ class AppSettingsUpdate(BaseModel):
     upload_enabled: str | None = None
 
     mediamtx_rtsp_addr: str | None = None
+    mediamtx_webrtc_addr: str | None = None
+    mediamtx_username: str | None = None
+    mediamtx_password: str | None = None
+    # Legacy per-protocol aliases are still accepted on input so existing
+    # deployments can roll forward without a breaking API change.
+    # 仍兼容旧的按协议拆分字段输入，便于现有部署平滑升级。
     mediamtx_rtsp_username: str | None = None
     mediamtx_rtsp_password: str | None = None
-    mediamtx_webrtc_addr: str | None = None
     mediamtx_webrtc_username: str | None = None
     mediamtx_webrtc_password: str | None = None
     email_from_address: str | None = None

@@ -31,7 +31,7 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 18080
 
 ![真实运行视频墙截图](screenshots/runtime-video-wall.png)
 
-### 设置页（平台设置分页）
+### 设置页（平台设置分页，MediaMTX 共享账号密码）
 
 ![真实运行平台设置截图](screenshots/runtime-settings-platform.png)
 
@@ -58,10 +58,23 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 18080
 - `GET /api/health`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `PUT /api/settings`，写入 MediaMTX RTSP / WebRTC 地址和共享账号密码
 - `GET /api/scenes`
 - `POST /api/sources`，分别创建绑定 `smoke` 与 `template` 场景的视频源
 - `GET /api/sources`
 - `GET /api/notifications/providers`
 
 这些接口覆盖健康检查、生产式 Bearer token 认证、场景模板、视频源场景绑定、
-多源多插件并存、通知配置读取和空白数据库初始化链路。
+多源多插件并存、通知配置读取、MediaMTX 共享认证配置和空白数据库初始化链路。
+
+## MediaMTX 共享认证真实验证（2026-05-19）
+
+本轮额外使用真实 MediaMTX 1.18.2 做了共享账号密码联调验证，确认 RTSP 与 WebRTC/WHEP 共用同一套认证信息：
+
+- 使用 `shared-user / shared-pass` 启动 MediaMTX 内部认证。
+- 使用 `ffmpeg` 将 `testsrc` 实时发布到 `rtsp://shared-user:shared-pass@127.0.0.1:8554/cam1`。
+- 使用 `ffprobe rtsp://127.0.0.1:8554/cam1` 验证无认证访问返回 `401 Unauthorized`。
+- 使用 `ffprobe rtsp://shared-user:shared-pass@127.0.0.1:8554/cam1` 验证共享认证可以成功读取 `h264` 流。
+- 使用 `POST http://127.0.0.1:8889/cam1/whep` 验证无认证访问返回 `401 Unauthorized`。
+- 使用同一组 Basic Auth 凭据再次请求 WHEP，MediaMTX 返回 `400 Bad Request` 且报 `invalid SDP`，说明请求已通过认证并进入真实 WHEP SDP 校验阶段。
+- 将应用设置更新为上述共享凭据后，`POST /api/sources` 创建 `route_path=cam1` 的视频源，服务端实际保存的地址为 `rtsp://shared-user:shared-pass@127.0.0.1:8554/cam1`。

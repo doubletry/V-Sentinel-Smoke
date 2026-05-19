@@ -22,11 +22,9 @@ const DEFAULT_UI_SETTINGS = {
   site_description: config.siteDescription,
   favicon_url: '/favicon.ico',
   mediamtx_rtsp_addr: 'rtsp://localhost:8554',
-  mediamtx_rtsp_username: '',
-  mediamtx_rtsp_password: '',
   mediamtx_webrtc_addr: config.mediamtxWebrtcUrl || 'http://localhost:8889',
-  mediamtx_webrtc_username: '',
-  mediamtx_webrtc_password: '',
+  mediamtx_username: '',
+  mediamtx_password: '',
   email_from_address: '',
   email_smtp_password: '',
   email_to_addresses: '',
@@ -69,17 +67,11 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const mediamtxWebrtcAddr = computed(
     () => settings.value.mediamtx_webrtc_addr || DEFAULT_UI_SETTINGS.mediamtx_webrtc_addr
   )
-  const mediamtxRtspUsername = computed(
-    () => settings.value.mediamtx_rtsp_username || DEFAULT_UI_SETTINGS.mediamtx_rtsp_username
+  const mediamtxUsername = computed(
+    () => settings.value.mediamtx_username || DEFAULT_UI_SETTINGS.mediamtx_username
   )
-  const mediamtxRtspPassword = computed(
-    () => settings.value.mediamtx_rtsp_password || DEFAULT_UI_SETTINGS.mediamtx_rtsp_password
-  )
-  const mediamtxWebrtcUsername = computed(
-    () => settings.value.mediamtx_webrtc_username || DEFAULT_UI_SETTINGS.mediamtx_webrtc_username
-  )
-  const mediamtxWebrtcPassword = computed(
-    () => settings.value.mediamtx_webrtc_password || DEFAULT_UI_SETTINGS.mediamtx_webrtc_password
+  const mediamtxPassword = computed(
+    () => settings.value.mediamtx_password || DEFAULT_UI_SETTINGS.mediamtx_password
   )
 
   async function fetchSettings(force = false) {
@@ -133,10 +125,8 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     siteIconUrl,
     mediamtxRtspAddr,
     mediamtxWebrtcAddr,
-    mediamtxRtspUsername,
-    mediamtxRtspPassword,
-    mediamtxWebrtcUsername,
-    mediamtxWebrtcPassword,
+    mediamtxUsername,
+    mediamtxPassword,
     fetchSettings,
     updateSettings,
     testEmail,

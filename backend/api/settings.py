@@ -47,18 +47,24 @@ async def update_settings(
         except (TypeError, ValueError) as exc:
             logger.warning("Invalid message retention days while pruning: {}", exc)
 
-    mediamtx_rtsp_keys = {
+    mediamtx_shared_keys = {
         "mediamtx_rtsp_addr",
+        "mediamtx_webrtc_addr",
+        "mediamtx_username",
+        "mediamtx_password",
         "mediamtx_rtsp_username",
         "mediamtx_rtsp_password",
+        "mediamtx_webrtc_username",
+        "mediamtx_webrtc_password",
     }
-    if mediamtx_rtsp_keys.intersection(updates):
+    if mediamtx_shared_keys.intersection(updates):
         await db.rewrite_source_rtsp_urls(
             old_rtsp_base_address=previous_settings.get("mediamtx_rtsp_addr", ""),
             new_rtsp_base_address=result.get("mediamtx_rtsp_addr", ""),
-            new_rtsp_username=result.get("mediamtx_rtsp_username", ""),
-            new_rtsp_password=result.get("mediamtx_rtsp_password", ""),
+            new_rtsp_username=result.get("mediamtx_username", ""),
+            new_rtsp_password=result.get("mediamtx_password", ""),
         )
+        await db.sync_default_video_gateway_from_settings(result)
 
     # Reconnect V-Engine client with new addresses / 使用新地址重连 V-Engine 客户端
     vengine_client = request.app.state.vengine_client

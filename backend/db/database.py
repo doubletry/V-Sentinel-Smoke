@@ -365,8 +365,8 @@ async def _seed_default_video_gateway(db: aiosqlite.Connection) -> None:
     """Seed the default MediaMTX gateway with shared credentials.
     使用共享凭据写入默认 MediaMTX 网关。"""
     now = _now_iso()
-    username = DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_username", "")
-    password = DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_password", "")
+    username = DEFAULT_APP_SETTINGS.get("mediamtx_username", "")
+    password = DEFAULT_APP_SETTINGS.get("mediamtx_password", "")
     await db.execute(
         "INSERT OR IGNORE INTO video_gateways "
         "(id, name, rtsp_base_url, webrtc_base_url, username, password, enabled, created_at) "
@@ -670,6 +670,68 @@ async def _get_setting_from_db(
     return str(row[0] or default)
 
 
+def _shared_mediamtx_credentials_from_settings(
+    settings: dict[str, str] | None,
+) -> tuple[str, str]:
+    """Resolve one shared MediaMTX username/password pair from current settings.
+    从当前设置中解析一套共享的 MediaMTX 用户名/密码。"""
+    source = settings or {}
+    username = str(
+        source.get("mediamtx_username")
+        or source.get("mediamtx_rtsp_username")
+        or source.get("mediamtx_webrtc_username")
+        or DEFAULT_APP_SETTINGS.get("mediamtx_username", "")
+    )
+    password = str(
+        source.get("mediamtx_password")
+        or source.get("mediamtx_rtsp_password")
+        or source.get("mediamtx_webrtc_password")
+        or DEFAULT_APP_SETTINGS.get("mediamtx_password", "")
+    )
+    return username, password
+
+
+async def _get_shared_mediamtx_credentials_from_db(
+    db: aiosqlite.Connection,
+) -> tuple[str, str]:
+    """Resolve one shared MediaMTX username/password pair from the database.
+    从数据库中解析一套共享的 MediaMTX 用户名/密码。"""
+    username = await _get_setting_from_db(
+        db,
+        "mediamtx_username",
+        DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
+    )
+    password = await _get_setting_from_db(
+        db,
+        "mediamtx_password",
+        DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
+    )
+    if str(username).strip() or str(password).strip():
+        return username, password
+    return (
+        await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_username",
+            DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
+        )
+        or await _get_setting_from_db(
+            db,
+            "mediamtx_webrtc_username",
+            DEFAULT_APP_SETTINGS.get("mediamtx_username", ""),
+        ),
+        await _get_setting_from_db(
+            db,
+            "mediamtx_rtsp_password",
+            DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
+        )
+        or await _get_setting_from_db(
+            db,
+            "mediamtx_webrtc_password",
+            DEFAULT_APP_SETTINGS.get("mediamtx_password", ""),
+        ),
+    )
+
+
 async def _resolve_source_rtsp_url(
     db: aiosqlite.Connection,
     *,
@@ -683,16 +745,7 @@ async def _resolve_source_rtsp_url(
             "mediamtx_rtsp_addr",
             DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", ""),
         )
-        rtsp_username = await _get_setting_from_db(
-            db,
-            "mediamtx_rtsp_username",
-            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_username", ""),
-        )
-        rtsp_password = await _get_setting_from_db(
-            db,
-            "mediamtx_rtsp_password",
-            DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_password", ""),
-        )
+        rtsp_username, rtsp_password = await _get_shared_mediamtx_credentials_from_db(db)
         resolved_rtsp_url = build_source_rtsp_url(
             rtsp_base_address,
             route,
@@ -1339,7 +1392,13 @@ async def get_all_settings() -> dict[str, str]:
     async with _db_session() as db:
         async with db.execute("SELECT key, value FROM app_settings") as cursor:
             rows = await cursor.fetchall()
-    return {row[0]: row[1] for row in rows}
+    settings = {row[0]: row[1] for row in rows}
+    username, password = _shared_mediamtx_credentials_from_settings(settings)
+    if not str(settings.get("mediamtx_username", "")).strip():
+        settings["mediamtx_username"] = username
+    if not str(settings.get("mediamtx_password", "")).strip():
+        settings["mediamtx_password"] = password
+    return settings
 
 
 async def get_setting(key: str) -> str | None:
@@ -1356,8 +1415,26 @@ async def get_setting(key: str) -> str | None:
 async def update_settings(data: dict[str, str]) -> dict[str, str]:
     """Update multiple settings at once. Returns all settings after update.
     批量更新设置。返回更新后的所有设置。"""
+    normalized_data = dict(data)
+    if "mediamtx_username" not in normalized_data:
+        if "mediamtx_rtsp_username" in normalized_data:
+            normalized_data["mediamtx_username"] = normalized_data["mediamtx_rtsp_username"]
+        elif "mediamtx_webrtc_username" in normalized_data:
+            normalized_data["mediamtx_username"] = normalized_data["mediamtx_webrtc_username"]
+    if "mediamtx_password" not in normalized_data:
+        if "mediamtx_rtsp_password" in normalized_data:
+            normalized_data["mediamtx_password"] = normalized_data["mediamtx_rtsp_password"]
+        elif "mediamtx_webrtc_password" in normalized_data:
+            normalized_data["mediamtx_password"] = normalized_data["mediamtx_webrtc_password"]
+    if "mediamtx_username" in normalized_data:
+        normalized_data["mediamtx_rtsp_username"] = normalized_data["mediamtx_username"]
+        normalized_data["mediamtx_webrtc_username"] = normalized_data["mediamtx_username"]
+    if "mediamtx_password" in normalized_data:
+        normalized_data["mediamtx_rtsp_password"] = normalized_data["mediamtx_password"]
+        normalized_data["mediamtx_webrtc_password"] = normalized_data["mediamtx_password"]
+
     async with _db_session() as db:
-        for key, value in data.items():
+        for key, value in normalized_data.items():
             await db.execute(
                 "INSERT INTO app_settings (key, value) VALUES (?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -1365,6 +1442,37 @@ async def update_settings(data: dict[str, str]) -> dict[str, str]:
             )
         await db.commit()
     return await get_all_settings()
+
+
+async def sync_default_video_gateway_from_settings(settings: dict[str, str]) -> None:
+    """Keep the seeded default MediaMTX gateway aligned with app settings.
+    保持默认 MediaMTX 网关记录与应用设置一致。"""
+    username, password = _shared_mediamtx_credentials_from_settings(settings)
+    now = _now_iso()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO video_gateways "
+            "(id, name, rtsp_base_url, webrtc_base_url, username, password, enabled, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "name = excluded.name, "
+            "rtsp_base_url = excluded.rtsp_base_url, "
+            "webrtc_base_url = excluded.webrtc_base_url, "
+            "username = excluded.username, "
+            "password = excluded.password, "
+            "enabled = excluded.enabled",
+            (
+                "default-mediamtx",
+                "Default MediaMTX",
+                settings.get("mediamtx_rtsp_addr", DEFAULT_APP_SETTINGS["mediamtx_rtsp_addr"]),
+                settings.get("mediamtx_webrtc_addr", DEFAULT_APP_SETTINGS["mediamtx_webrtc_addr"]),
+                username,
+                password,
+                1,
+                now,
+            ),
+        )
+        await db.commit()
 
 
 async def rewrite_source_rtsp_urls(

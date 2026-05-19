@@ -46,8 +46,8 @@ class TestCreateSource:
             "/api/settings",
             json={
                 "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/live",
-                "mediamtx_rtsp_username": "stream-user",
-                "mediamtx_rtsp_password": "stream-pass",
+                "mediamtx_username": "stream-user",
+                "mediamtx_password": "stream-pass",
             },
         )
         assert settings_resp.status_code == 200
@@ -164,8 +164,8 @@ class TestUpdateSource:
             "/api/settings",
             json={
                 "mediamtx_rtsp_addr": "rtsp://gateway.example.com:9554/base",
-                "mediamtx_rtsp_username": "stream-user",
-                "mediamtx_rtsp_password": "stream-pass",
+                "mediamtx_username": "stream-user",
+                "mediamtx_password": "stream-pass",
             },
         )
         assert settings_resp.status_code == 200
