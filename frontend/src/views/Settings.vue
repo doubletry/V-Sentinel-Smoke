@@ -883,10 +883,15 @@ const form = ref({
   max_push_workers: '',
   max_cpu_workers: '',
 })
+const firstAllowedSectionKey = computed(() => {
+  if (canManageSettings.value) return 'platform'
+  if (authStore.canManageUsers) return 'users'
+  return 'platform'
+})
 const currentSettingsPage = computed(() => (
   route.name === 'SettingsPlugin'
     ? 'plugin'
-    : String(route.params.section || 'platform')
+    : String(route.params.section || firstAllowedSectionKey.value)
 ))
 const currentPluginSceneId = computed(() => (
   route.name === 'SettingsPlugin' ? String(route.params.sceneId || '') : ''
@@ -980,6 +985,13 @@ function firstAllowedSettingsRoute() {
   return null
 }
 
+function replaceSettingsRoute(location) {
+  const target = router.resolve(location)
+  if (target.fullPath !== route.fullPath) {
+    router.replace(location)
+  }
+}
+
 function navigateToSettingsPage(pageKey) {
   router.push({ name: 'SettingsSection', params: { section: pageKey } })
 }
@@ -996,7 +1008,7 @@ function ensureValidSettingsRoute() {
 
   if (route.name === 'SettingsPlugin') {
     if (!canManageSettings.value || !currentPluginScene.value) {
-      router.replace(fallback)
+      replaceSettingsRoute(fallback)
     }
     return
   }
@@ -1008,7 +1020,7 @@ function ensureValidSettingsRoute() {
   if (section === 'users' && authStore.canManageUsers) {
     return
   }
-  router.replace(fallback)
+  replaceSettingsRoute(fallback)
 }
 
 async function reload() {
@@ -1215,7 +1227,7 @@ watch(
     () => route.params.sceneId,
     canManageSettings,
     () => authStore.canManageUsers,
-    sceneDefinitions,
+    () => sceneDefinitions.value.length,
   ],
   () => {
     ensureValidSettingsRoute()

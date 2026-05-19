@@ -31,7 +31,7 @@
             <el-icon><Document /></el-icon>
             {{ t('nav.processingLogs') }}
           </el-menu-item>
-          <el-menu-item v-if="canSeeSettings" index="/settings/platform">
+          <el-menu-item v-if="canSeeSettings" :index="settingsEntryPath">
             <el-icon><Setting /></el-icon>
             {{ t('nav.settings') }}
           </el-menu-item>
@@ -143,8 +143,11 @@ const canSeeProcessingLogs = computed(() =>
 )
 const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
 const isAuthRoute = computed(() => route.path === '/auth')
+const settingsEntryPath = computed(() => (
+  authStore.hasPermission('settings:*') ? '/settings/platform' : '/settings/users'
+))
 const activeHeaderPath = computed(() => (
-  route.path.startsWith('/settings') ? '/settings/platform' : route.path
+  route.path.startsWith('/settings') ? settingsEntryPath.value : route.path
 ))
 
 function applyLocale(value) {
