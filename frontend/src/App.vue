@@ -143,7 +143,7 @@ function goAuth(mode) {
     path: '/auth',
     query: {
       mode,
-      redirect: route.path === '/auth' ? '/' : route.fullPath,
+      redirect: route.path === '/auth' ? '/' : route.path,
     },
   })
 }

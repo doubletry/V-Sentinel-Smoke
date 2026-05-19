@@ -158,7 +158,15 @@ const isRegisterMode = computed(() => {
 
 function redirectTarget() {
   const value = String(route.query.redirect || '')
-  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/'
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
+  try {
+    const decoded = decodeURIComponent(value)
+    if (decoded.startsWith('//') || decoded.includes('://')) return '/'
+    const resolved = router.resolve(decoded)
+    return resolved.matched.length && resolved.path !== '/auth' ? resolved.fullPath : '/'
+  } catch (_) {
+    return '/'
+  }
 }
 
 async function finishAuth(successMessageKey) {
@@ -262,9 +270,12 @@ onMounted(async () => {
 }
 
 .auth-hero::after {
+  --decorative-orb-right: -60px;
+  --decorative-orb-bottom: -100px;
+
   content: '';
   position: absolute;
-  inset: auto -60px -100px auto;
+  inset: auto var(--decorative-orb-right) var(--decorative-orb-bottom) auto;
   width: 280px;
   height: 280px;
   border-radius: 50%;

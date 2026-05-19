@@ -1009,6 +1009,7 @@ onMounted(async () => {
 }
 
 .settings-card-grid {
+  /* Shared grid for dense platform setting groups across overview, video, notification, and expert tabs. */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 4px 16px;
