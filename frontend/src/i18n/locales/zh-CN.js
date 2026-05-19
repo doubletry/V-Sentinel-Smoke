@@ -38,6 +38,7 @@ export default {
     loginFailed: '登录失败：{message}',
     registerSuccess: '首个管理员注册成功',
     registerFailed: '注册失败：{message}',
+    missingFields: '请完整填写账号和密码',
     registerMissingFields: '请完整填写注册信息',
     passwordMismatch: '两次输入的密码不一致',
     logoutSuccess: '已退出登录',

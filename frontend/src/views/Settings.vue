@@ -48,7 +48,7 @@
 
                 <section class="settings-section">
                   <h2>{{ t('settings.interface') }}</h2>
-                  <div class="settings-card-grid">
+                  <div class="settings-form-grid">
                     <el-form-item :label="t('settings.systemLanguage')">
                       <el-select v-model="form.ui_language" style="width: 100%">
                         <el-option
@@ -105,7 +105,7 @@
               <el-tab-pane :label="t('settings.platformTabVideo')" name="video">
                 <section class="settings-section">
                   <h2>{{ t('settings.vengineServices') }}</h2>
-                  <div class="settings-card-grid">
+                  <div class="settings-form-grid">
                     <el-form-item :label="t('settings.vengineHost')">
                       <el-input v-model="form.vengine_host" placeholder="localhost" />
                     </el-form-item>
@@ -145,7 +145,7 @@
 
                 <section class="settings-section">
                   <h2>{{ t('settings.mediamtx') }}</h2>
-                  <div class="settings-card-grid">
+                  <div class="settings-form-grid">
                     <el-form-item :label="t('settings.rtspAddress')">
                       <el-input v-model="form.mediamtx_rtsp_addr" placeholder="rtsp://localhost:8554" />
                     </el-form-item>
@@ -169,7 +169,7 @@
 
                 <section v-if="expertMode" class="settings-section">
                   <h2>{{ t('settings.threadPools') }}</h2>
-                  <div class="settings-card-grid">
+                  <div class="settings-form-grid">
                     <el-form-item :label="t('settings.maxPullWorkers')">
                       <el-input v-model="form.max_pull_workers" placeholder="20" />
                     </el-form-item>
@@ -186,7 +186,7 @@
               <el-tab-pane :label="t('settings.platformTabNotifications')" name="notifications">
                 <section class="settings-section">
                   <h2>{{ t('settings.emailNotifications') }}</h2>
-                  <div class="settings-card-grid">
+                  <div class="settings-form-grid">
                     <el-form-item :label="t('settings.emailFromAddress')">
                       <el-input
                         v-model="form.email_from_address"
@@ -769,7 +769,7 @@ async function reload() {
 
 async function createUserAccount() {
   if (!userForm.value.username || !userForm.value.password) {
-    ElMessage.warning(t('auth.registerMissingFields'))
+    ElMessage.warning(t('auth.missingFields'))
     return
   }
   creatingUser.value = true
@@ -1008,8 +1008,8 @@ onMounted(async () => {
   background: rgba(64, 158, 255, 0.16);
 }
 
-.settings-card-grid {
-  /* Shared grid for dense platform setting groups across overview, video, notification, and expert tabs. */
+.settings-form-grid {
+  /* Shared grid for dense platform setting groups across overview, video, notifications, and expert tabs. */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 4px 16px;

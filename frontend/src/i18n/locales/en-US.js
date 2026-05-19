@@ -38,6 +38,7 @@ export default {
     loginFailed: 'Sign-in failed: {message}',
     registerSuccess: 'First administrator registered',
     registerFailed: 'Registration failed: {message}',
+    missingFields: 'Please complete the account and password fields',
     registerMissingFields: 'Please complete the registration form',
     passwordMismatch: 'The passwords do not match',
     logoutSuccess: 'Signed out',

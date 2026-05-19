@@ -171,7 +171,7 @@ function redirectTarget() {
       return '/'
     }
     const resolved = router.resolve(decoded)
-    return resolved.matched.length && resolved.path !== '/auth' ? resolved.fullPath : '/'
+    return resolved.matched.length && resolved.path !== '/auth' ? resolved.path : '/'
   } catch (_) {
     return '/'
   }
@@ -184,7 +184,7 @@ async function finishAuth(successMessageKey) {
 
 async function submitLogin() {
   if (!loginForm.username || !loginForm.password) {
-    ElMessage.warning(t('auth.registerMissingFields'))
+    ElMessage.warning(t('auth.missingFields'))
     return
   }
   try {
@@ -198,7 +198,7 @@ async function submitLogin() {
 
 async function submitRegister() {
   if (!registerForm.username || !registerForm.password) {
-    ElMessage.warning(t('auth.registerMissingFields'))
+    ElMessage.warning(t('auth.missingFields'))
     return
   }
   if (registerForm.password !== registerForm.confirmPassword) {
