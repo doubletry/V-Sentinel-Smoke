@@ -48,6 +48,8 @@ OUTPUT_QUEUE_TIMEOUT_SEC = 0.2
 MAX_REASONABLE_SOURCE_FPS = 120.0
 OBSERVED_FPS_ESTIMATE_WINDOW_SEC = 1.0
 FPS_CHANGE_THRESHOLD = 0.01
+OBSERVED_FPS_LOWER_RATIO = 0.75
+OBSERVED_FPS_UPPER_RATIO = 1.25
 GOP_DIVISOR = 2
 PUSH_STARTUP_CHECK_DELAY = 0.3
 PUSH_RETRY_BASE_COOLDOWN = 2.0
@@ -453,8 +455,8 @@ class BaseVideoProcessor(ABC):
         if reported_fps is None or not math.isfinite(reported_fps) or reported_fps <= 0:
             return True
         return (
-            observed_fps < reported_fps * 0.75
-            or observed_fps > reported_fps * 1.25
+            observed_fps < reported_fps * OBSERVED_FPS_LOWER_RATIO
+            or observed_fps > reported_fps * OBSERVED_FPS_UPPER_RATIO
         )
 
     # ── Abstract method ───────────────────────────────────────────────────
