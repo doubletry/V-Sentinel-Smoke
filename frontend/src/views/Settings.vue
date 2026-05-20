@@ -491,13 +491,25 @@
                   <p class="info-tip">{{ scene.description || t('settings.templateSceneHint') }}</p>
                 </div>
                 <div class="section-card__actions">
-                  <el-button type="primary" @click="navigateToPluginSettingsDialog(scene.id)">
+                  <el-button
+                    type="primary"
+                    :aria-label="`${t('settings.openPluginSettings')} - ${sceneTabLabel(scene.id)}`"
+                    @click="navigateToPluginSettingsDialog(scene.id)"
+                  >
                     {{ t('settings.openPluginSettings') }}
                   </el-button>
-                  <el-button plain @click="navigateToPluginSettingsDialog(scene.id, 'roi-tags')">
+                  <el-button
+                    plain
+                    :aria-label="`${t('settings.pluginRoiTags')} - ${sceneTabLabel(scene.id)}`"
+                    @click="navigateToPluginSettingsDialog(scene.id, 'roi-tags')"
+                  >
                     {{ t('settings.pluginRoiTags') }}
                   </el-button>
-                  <el-button plain @click="navigateToPluginSettingsDialog(scene.id, 'defaults')">
+                  <el-button
+                    plain
+                    :aria-label="`${t('settings.pluginDefaultConfig')} - ${sceneTabLabel(scene.id)}`"
+                    @click="navigateToPluginSettingsDialog(scene.id, 'defaults')"
+                  >
                     {{ t('settings.pluginDefaultConfig') }}
                   </el-button>
                 </div>
@@ -1098,8 +1110,11 @@ function ensureValidSettingsRoute() {
   if (route.name === 'ManagementPlugin') {
     if (!canManageSettings.value) {
       replaceSettingsRoute(fallback)
-    } else if (!currentPluginScene.value) {
+      return
+    }
+    if (!currentPluginScene.value) {
       replaceSettingsRoute({ name: 'ManagementSection', params: { section: 'plugins' } })
+      return
     }
     return
   }
