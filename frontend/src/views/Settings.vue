@@ -1,19 +1,12 @@
 <template>
   <div class="settings-page">
     <div class="settings-shell">
-      <div class="settings-head">
+      <div v-if="!hasSettingsAccess" class="settings-section section-card">
         <div class="title-line">
           <el-icon :size="20"><Setting /></el-icon>
-          <h1>{{ t('management.title') }}</h1>
+          <h2>{{ t('management.title') }}</h2>
         </div>
-        <p>{{ t('management.subtitle') }}</p>
-        <el-tag v-if="authStore.role" size="small" effect="dark" class="management-role-tag">
-          {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
-        </el-tag>
-      </div>
-
-      <div v-if="!hasSettingsAccess" class="settings-section section-card">
-        <h2>{{ t('management.title') }}</h2>
+        <p class="info-tip">{{ t('management.subtitle') }}</p>
         <p class="info-tip">{{ t('settings.noPermission') }}</p>
       </div>
 
@@ -24,33 +17,70 @@
         label-position="top"
         v-loading="loading"
       >
-        <div class="settings-page-toolbar">
-          <div class="settings-page-nav">
-            <button
-              v-for="item in settingsNavItems"
-              :key="item.key"
-              type="button"
-              class="settings-page-nav__button"
-              :class="{ 'is-active': currentSettingsPage === item.key }"
-              @click="navigateToSettingsPage(item.key)"
-            >
-              <span class="settings-page-nav__label-row">
-                <span class="settings-page-nav__label">{{ item.label }}</span>
-                <span v-if="currentSettingsPage === item.key" class="settings-page-nav__state" />
-              </span>
-              <span class="settings-page-nav__hint">{{ item.hint }}</span>
-            </button>
-          </div>
-          <div v-if="canManageSettings" class="management-expert-toggle">
-            <div>
-              <h3>{{ t('settings.configurationMode') }}</h3>
-              <p>{{ t('settings.expertModeHint') }}</p>
-            </div>
-            <el-switch v-model="expertMode" />
-          </div>
-        </div>
+        <div class="settings-layout">
+          <aside class="settings-sidebar">
+            <section class="settings-overview-card">
+              <div class="title-line">
+                <el-icon :size="20"><Setting /></el-icon>
+                <h1>{{ t('management.title') }}</h1>
+              </div>
+              <p>{{ t('management.subtitle') }}</p>
+              <el-tag v-if="authStore.role" size="small" effect="dark" class="management-role-tag">
+                {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+              </el-tag>
+              <div class="settings-overview-stats">
+                <div v-for="item in managementOverviewCards" :key="item.key" class="settings-overview-stat">
+                  <span class="settings-overview-stat__label">{{ item.label }}</span>
+                  <strong class="settings-overview-stat__value">{{ item.value }}</strong>
+                </div>
+              </div>
+            </section>
 
-        <section v-if="isSitePage" class="settings-page-panel">
+            <section class="settings-sidebar-card">
+              <div class="settings-sidebar-card__head">
+                <h3>{{ t('settings.quickNavigation') }}</h3>
+                <p>{{ t('settings.quickNavigationHint') }}</p>
+              </div>
+              <div class="settings-page-nav settings-page-nav--sidebar">
+                <button
+                  v-for="item in settingsNavItems"
+                  :key="item.key"
+                  type="button"
+                  class="settings-page-nav__button"
+                  :class="{ 'is-active': currentSettingsPage === item.key }"
+                  @click="navigateToSettingsPage(item.key)"
+                >
+                  <span class="settings-page-nav__label-row">
+                    <span class="settings-page-nav__title-wrap">
+                      <el-icon class="settings-page-nav__icon"><component :is="item.icon" /></el-icon>
+                      <span class="settings-page-nav__label">{{ item.label }}</span>
+                    </span>
+                    <span v-if="currentSettingsPage === item.key" class="settings-page-nav__state" />
+                  </span>
+                  <span class="settings-page-nav__hint">{{ item.hint }}</span>
+                </button>
+              </div>
+            </section>
+
+            <section v-if="canManageSettings" class="management-expert-toggle">
+              <div>
+                <h3>{{ t('settings.configurationMode') }}</h3>
+                <p>{{ t('settings.expertModeHint') }}</p>
+              </div>
+              <el-switch v-model="expertMode" />
+            </section>
+          </aside>
+
+          <div class="settings-main">
+            <section class="settings-current-panel">
+              <div>
+                <span class="settings-current-panel__eyebrow">{{ t('settings.currentSection') }}</span>
+                <h2>{{ currentSettingsNavItem?.label || t('management.title') }}</h2>
+                <p>{{ currentSettingsNavItem?.hint || t('management.subtitle') }}</p>
+              </div>
+            </section>
+
+            <section v-if="isSitePage" class="settings-page-panel">
           <div class="settings-page-panel__head">
             <div>
               <h2>{{ t('management.siteSettings') }}</h2>
@@ -182,7 +212,7 @@
           </el-tabs>
         </section>
 
-        <section v-else-if="isVenginePage" class="settings-page-panel">
+            <section v-else-if="isVenginePage" class="settings-page-panel">
           <div class="settings-page-panel__head">
             <div>
               <h2>{{ t('management.vengineSettings') }}</h2>
@@ -265,7 +295,7 @@
           </section>
         </section>
 
-        <section v-else-if="isLogsPage" class="settings-page-panel management-logs-panel">
+            <section v-else-if="isLogsPage" class="settings-page-panel management-logs-panel">
           <div class="settings-page-panel__head">
             <div>
               <h2>{{ t('management.processingLogs') }}</h2>
@@ -275,7 +305,7 @@
           <ProcessingLogs embedded />
         </section>
 
-        <section v-else-if="isNotificationsPage" class="settings-page-panel">
+            <section v-else-if="isNotificationsPage" class="settings-page-panel">
           <div class="settings-page-panel__head">
             <div>
               <h2>{{ t('settings.notificationManagement') }}</h2>
@@ -418,7 +448,7 @@
           </el-tabs>
         </section>
 
-        <section v-else-if="isUsersPage" class="settings-page-panel">
+            <section v-else-if="isUsersPage" class="settings-page-panel">
           <div class="settings-page-panel__head">
             <div>
               <h2>{{ t('settings.userManagement') }}</h2>
@@ -472,7 +502,7 @@
           </div>
         </section>
 
-        <section v-else-if="isPluginPage" class="settings-page-panel">
+            <section v-else-if="isPluginPage" class="settings-page-panel">
           <div class="settings-page-panel__head">
             <div>
               <h2>{{ t('settings.pluginSettingsOverview') }}</h2>
@@ -536,7 +566,9 @@
               </div>
             </section>
           </div>
-        </section>
+            </section>
+          </div>
+        </div>
 
         <el-dialog
           v-model="pluginDialogVisible"
@@ -731,6 +763,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
@@ -997,24 +1030,44 @@ const settingsNavItems = computed(() => {
   const items = []
   if (canManageSettings.value) {
     items.push(
-      { key: 'site', label: t('management.siteSettings'), hint: t('management.siteSettingsHint') },
+      { key: 'site', label: t('management.siteSettings'), hint: t('management.siteSettingsHint'), icon: Setting },
     )
   }
   if (authStore.canManageUsers) {
-    items.push({ key: 'users', label: t('settings.userManagement'), hint: t('settings.userManagementHint') })
+    items.push({ key: 'users', label: t('settings.userManagement'), hint: t('settings.userManagementHint'), icon: User })
   }
   if (canViewLogs.value) {
-    items.push({ key: 'logs', label: t('management.processingLogs'), hint: t('processingLogs.subtitle') })
+    items.push({ key: 'logs', label: t('management.processingLogs'), hint: t('processingLogs.subtitle'), icon: Document })
   }
   if (canManageSettings.value) {
     items.push(
-      { key: 'vengine', label: t('management.vengineSettings'), hint: t('settings.serviceToggleTip') },
-      { key: 'notifications', label: t('management.notificationSettings'), hint: t('settings.subtitle') },
-      { key: 'plugins', label: t('management.pluginSettings'), hint: t('settings.pluginSectionHint') },
+      { key: 'vengine', label: t('management.vengineSettings'), hint: t('settings.serviceToggleTip'), icon: Monitor },
+      { key: 'notifications', label: t('management.notificationSettings'), hint: t('settings.subtitle'), icon: Bell },
+      { key: 'plugins', label: t('management.pluginSettings'), hint: t('settings.pluginSectionHint'), icon: Crop },
     )
   }
   return items
 })
+const currentSettingsNavItem = computed(() => (
+  settingsNavItems.value.find((item) => item.key === currentSettingsPage.value) || settingsNavItems.value[0] || null
+))
+const managementOverviewCards = computed(() => ([
+  {
+    key: 'current',
+    label: t('settings.currentSection'),
+    value: currentSettingsNavItem.value?.label || t('management.title'),
+  },
+  {
+    key: 'sections',
+    label: t('settings.availableModules'),
+    value: String(settingsNavItems.value.length),
+  },
+  {
+    key: 'plugins',
+    label: t('settings.pluginSceneCount'),
+    value: String(sceneDefinitions.value.length),
+  },
+]))
 
 function sceneById(sceneId) {
   return sceneDefinitions.value.find((scene) => scene.id === sceneId)
@@ -1385,11 +1438,6 @@ onMounted(async () => {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
-
-.settings-head {
-  padding: 4px 4px 0;
 }
 
 .title-line {
@@ -1404,10 +1452,11 @@ onMounted(async () => {
   color: #e9f0ff;
 }
 
-.settings-head p {
+.settings-overview-card > p {
   margin-top: 6px;
   color: #9ba8be;
   font-size: 13px;
+  line-height: 1.6;
 }
 
 .management-role-tag {
@@ -1417,21 +1466,97 @@ onMounted(async () => {
 .settings-form {
   background: rgba(16, 21, 37, 0.92);
   border: 1px solid #26314d;
-  border-radius: 18px;
-  padding: 18px;
+  border-radius: 24px;
+  padding: 20px;
 }
 
-.settings-page-toolbar {
+.settings-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+}
+
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.settings-overview-card,
+.settings-sidebar-card,
+.settings-current-panel {
+  border: 1px solid #2b3550;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(20, 28, 48, 0.92), rgba(12, 18, 33, 0.94));
+  box-shadow: 0 18px 40px rgba(5, 10, 24, 0.22);
+}
+
+.settings-overview-card {
+  padding: 20px;
+}
+
+.settings-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.settings-overview-stat {
+  padding: 12px;
+  border: 1px solid rgba(74, 94, 138, 0.45);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.settings-overview-stat__label {
+  display: block;
+  color: #8ea2c9;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.settings-overview-stat__value {
+  display: block;
+  color: #eef4ff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.settings-sidebar-card {
+  padding: 16px;
+}
+
+.settings-sidebar-card__head {
+  margin-bottom: 14px;
+}
+
+.settings-sidebar-card__head h3 {
+  color: #e4edff;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.settings-sidebar-card__head p {
+  color: #8f9fbe;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .settings-page-nav {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .management-expert-toggle {
@@ -1439,10 +1564,11 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 14px;
+  padding: 16px 18px;
   border: 1px solid #2f3a5b;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.12), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 18px 40px rgba(5, 10, 24, 0.22);
 }
 
 .management-expert-toggle h3 {
@@ -1464,7 +1590,7 @@ onMounted(async () => {
   align-items: flex-start;
   gap: 8px;
   width: 100%;
-  min-height: 84px;
+  min-height: 78px;
   padding: 14px 16px;
   border: 1px solid #2f3a5b;
   border-radius: 16px;
@@ -1495,6 +1621,17 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.settings-page-nav__title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-page-nav__icon {
+  font-size: 16px;
+  color: #7cc2ff;
+}
+
 .settings-page-nav__label {
   font-size: 15px;
   font-weight: 700;
@@ -1520,6 +1657,31 @@ onMounted(async () => {
   gap: 16px;
 }
 
+.settings-current-panel {
+  padding: 18px 20px;
+}
+
+.settings-current-panel__eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #7cc2ff;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-current-panel h2 {
+  color: #eef4ff;
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.settings-current-panel p {
+  color: #93a3bf;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .management-logs-panel {
   min-height: 720px;
 }
@@ -1540,11 +1702,12 @@ onMounted(async () => {
 }
 
 .settings-section {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.025);
   border: 1px solid #30364d;
-  border-radius: 16px;
-  padding: 18px 18px 14px;
-  margin-bottom: 16px;
+  border-radius: 20px;
+  padding: 20px 20px 16px;
+  margin-bottom: 0;
+  box-shadow: 0 14px 32px rgba(7, 12, 26, 0.18);
 }
 
 .settings-section h2 {
@@ -1557,21 +1720,30 @@ onMounted(async () => {
   margin-bottom: 18px;
 }
 
+.settings-top-tabs :deep(.el-tabs__nav) {
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(9, 14, 28, 0.72);
+}
+
 .settings-top-tabs :deep(.el-tabs__nav-wrap::after) {
-  background-color: #2d3853;
+  background-color: transparent;
 }
 
 .settings-top-tabs :deep(.el-tabs__item) {
+  height: 38px;
   color: #aebbd7;
   padding: 0 18px;
+  border-radius: 999px;
 }
 
 .settings-top-tabs :deep(.el-tabs__item.is-active) {
   color: #eef4ff;
+  background: rgba(64, 158, 255, 0.14);
 }
 
 .settings-top-tabs :deep(.el-tabs__active-bar) {
-  background-color: #409eff;
+  display: none;
 }
 
 .settings-form-grid {
@@ -1659,6 +1831,7 @@ onMounted(async () => {
 
 .plugin-launcher-card {
   margin-bottom: 0;
+  min-height: 100%;
 }
 
 .plugin-launcher-card__summary {
@@ -1677,6 +1850,10 @@ onMounted(async () => {
   color: #c7d5ef;
   font-size: 12px;
   font-weight: 600;
+}
+
+.plugin-launcher-card :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .plugin-dialog-hint {
@@ -1831,6 +2008,18 @@ onMounted(async () => {
     padding: 14px 14px 24px;
   }
 
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sidebar {
+    position: static;
+  }
+
+  .settings-overview-stats {
+    grid-template-columns: 1fr;
+  }
+
   .plugin-launcher-grid {
     grid-template-columns: 1fr;
   }
@@ -1840,7 +2029,7 @@ onMounted(async () => {
   }
 
   .settings-page-nav {
-    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .title-line h1 {
