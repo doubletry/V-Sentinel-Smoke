@@ -66,8 +66,10 @@ async def update_settings(
     _ensure_legacy_mediamtx_credentials_are_consistent(updates)
     if "active_plugin_id" in updates:
         plugin_id = str(updates["active_plugin_id"] or "").strip()
-        if not plugin_id or await db.get_scene(plugin_id) is None:
-            raise HTTPException(status_code=422, detail="Selected plugin is not available")
+        if not plugin_id:
+            raise HTTPException(status_code=422, detail="Plugin ID cannot be empty")
+        if await db.get_scene(plugin_id) is None:
+            raise HTTPException(status_code=422, detail=f"Plugin not found: {plugin_id}")
         updates["active_plugin_id"] = plugin_id
 
     previous_settings = await db.get_all_settings()

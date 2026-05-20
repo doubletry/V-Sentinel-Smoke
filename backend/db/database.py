@@ -1066,12 +1066,14 @@ async def update_all_sources_scene(scene_id: str) -> int:
             changed_source_ids = [str(row[0]) for row in await cursor.fetchall()]
         if not changed_source_ids:
             return 0
-        for source_id in changed_source_ids:
-            await db.execute(
-                "UPDATE video_sources SET scene_id = ? WHERE id = ?",
-                (next_scene_id, source_id),
-            )
-            await db.execute("DELETE FROM rois WHERE source_id = ?", (source_id,))
+        await db.executemany(
+            "UPDATE video_sources SET scene_id = ? WHERE id = ?",
+            [(next_scene_id, source_id) for source_id in changed_source_ids],
+        )
+        await db.executemany(
+            "DELETE FROM rois WHERE source_id = ?",
+            [(source_id,) for source_id in changed_source_ids],
+        )
         await db.commit()
         return len(changed_source_ids)
 

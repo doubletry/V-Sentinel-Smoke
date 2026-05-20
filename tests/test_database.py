@@ -203,6 +203,7 @@ class TestUpdateSource:
         assert updated is not None
         assert updated.scene_id == "template"
         assert updated.rois == []
+        assert await update_all_sources_scene("template") == 0
 
     async def test_empty_roi_list_explicitly_clears_rois(self):
         src = await create_source(
