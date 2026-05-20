@@ -91,6 +91,7 @@ class ProcessorManager:
                 source_id=source.id,
                 source_name=source.name,
                 rtsp_url=source.rtsp_url,
+                source_remark=source.source_remark,
                 rois=source.rois,
                 vengine_client=self._vengine,
                 ws_manager=self._ws_manager,

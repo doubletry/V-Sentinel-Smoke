@@ -114,6 +114,14 @@
             :placeholder="t('sourceList.routePlaceholder')"
           />
         </el-form-item>
+        <el-form-item :label="t('sourceList.sourceRemark')">
+          <el-input
+            v-model="form.source_remark"
+            type="textarea"
+            :rows="2"
+            :placeholder="t('sourceList.sourceRemarkPlaceholder')"
+          />
+        </el-form-item>
         <el-form-item :label="t('sourceList.activePlugin')">
           <el-input :model-value="activePluginLabel" disabled />
           <div class="route-hint">{{ t('sourceList.activePluginHint') }}</div>
@@ -143,6 +151,14 @@
           <el-input
             v-model="editForm.route_path"
             :placeholder="t('sourceList.routePlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('sourceList.sourceRemark')">
+          <el-input
+            v-model="editForm.source_remark"
+            type="textarea"
+            :rows="2"
+            :placeholder="t('sourceList.sourceRemarkPlaceholder')"
           />
         </el-form-item>
         <el-form-item :label="t('sourceList.activePlugin')">
@@ -185,8 +201,8 @@ const editingSourceId = ref('')
 const scenes = ref([])
 const DEFAULT_SCENE_ID = 'smoke'
 
-const form = reactive({ name: '', route_path: '' })
-const editForm = reactive({ name: '', route_path: '' })
+const form = reactive({ name: '', route_path: '', source_remark: '' })
+const editForm = reactive({ name: '', route_path: '', source_remark: '' })
 
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
@@ -245,10 +261,11 @@ async function addSource() {
 
   addLoading.value = true
   try {
-    await store.createSource({ name: form.name, route_path: routePath })
+    await store.createSource({ name: form.name, route_path: routePath, source_remark: form.source_remark })
     showAddDialog.value = false
     form.name = ''
     form.route_path = ''
+    form.source_remark = ''
     ElMessage.success(t('sourceList.sourceAdded'))
   } catch (err) {
     ElMessage.error(err.message || t('sourceList.failedToAdd'))
@@ -274,6 +291,7 @@ function openEditDialog(source) {
   editingSourceId.value = source.id
   editForm.name = source.name
   editForm.route_path = extractRoutePath(source.rtsp_url, appSettingsStore.mediamtxRtspAddr)
+  editForm.source_remark = source.source_remark || ''
   showEditDialog.value = true
 }
 
@@ -296,6 +314,7 @@ async function saveEdit() {
     await store.updateSource(editingSourceId.value, {
       name: editForm.name,
       route_path: routePath,
+      source_remark: editForm.source_remark,
     })
     showEditDialog.value = false
     ElMessage.success(t('sourceList.sourceUpdated'))

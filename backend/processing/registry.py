@@ -4,12 +4,14 @@ from typing import Type
 
 from backend.processing.base import BaseVideoProcessor
 from backend.processing.example import ExampleProcessor
+from backend.processing.fire_door import FireDoorProcessor
 from backend.processing.smoke import SmokeFireProcessor
 from backend.processing.template import TemplateSceneProcessor
 
 
 PROCESSOR_PLUGINS: dict[str, Type[BaseVideoProcessor]] = {
     "example": ExampleProcessor,
+    "fire_door": FireDoorProcessor,
     "smoke": SmokeFireProcessor,
     "template": TemplateSceneProcessor,
 }

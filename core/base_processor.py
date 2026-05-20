@@ -118,6 +118,7 @@ class BaseVideoProcessor(ABC):
         source_id: str = "standalone",
         source_name: str = "standalone",
         rtsp_url: str = "",
+        source_remark: str = "",
         rois: list[ROI] | None = None,
         vengine_client: Any = None,
         app_settings: dict[str, str] | None = None,
@@ -125,6 +126,7 @@ class BaseVideoProcessor(ABC):
         self.source_id = source_id
         self.source_name = source_name
         self.rtsp_url = rtsp_url
+        self.source_remark = source_remark
         self.rois: list[ROI] = rois or []
         self.vengine = vengine_client
         self.app_settings: dict[str, str] = app_settings or {}

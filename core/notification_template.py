@@ -11,8 +11,10 @@ helpers instead of depending on a channel-specific client.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import html
 from string import Formatter
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -31,6 +33,28 @@ NOTIFICATION_TEMPLATE_PLACEHOLDERS: tuple[str, ...] = (
     "detection_count",
     "frame_id",
     "active_tracks",
+    "original_image",
+    "detected_image",
+    "original_image_url",
+    "detected_image_url",
+    "has_original_image",
+    "has_detected_image",
+    "source_rtsp_url",
+    "source_route_path",
+    "source_host",
+    "source_ip",
+    "source_port",
+    "source_remark",
+    "source_description",
+    "roi_id",
+    "roi_tag",
+    "roi_index",
+    "roi_count",
+    "door_state",
+    "door_state_label",
+    "alarm_label",
+    "open_count",
+    "closed_count",
 )
 
 DEFAULT_EVENT_SUBJECT_TEMPLATE = "[{site_title}] {event_label} alert from {source_name}"
@@ -65,6 +89,30 @@ def safe_float(value: Any) -> float:
         return 0.0
 
 
+def _image_html(image_base64: str, alt: str) -> str:
+    payload = str(image_base64 or "").strip()
+    if not payload:
+        return ""
+    safe_alt = html.escape(alt, quote=True)
+    return (
+        f'<img alt="{safe_alt}" src="data:image/jpeg;base64,{payload}" '
+        'style="max-width:100%;height:auto;border:1px solid #ddd;" />'
+    )
+
+
+def _source_parts(event: dict[str, Any]) -> tuple[str, str, str]:
+    raw_url = str(event.get("source_rtsp_url") or event.get("rtsp_url") or "")
+    if not raw_url:
+        return "", "", ""
+    try:
+        parsed = urlsplit(raw_url)
+    except ValueError:
+        return "", "", ""
+    host = parsed.hostname or ""
+    port = str(parsed.port or "")
+    return host, host, port
+
+
 def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) -> dict[str, str]:
     """Build the standard placeholder context for one scene event.
     为单个场景事件构造标准占位符上下文。"""
@@ -87,6 +135,11 @@ def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) 
     else:
         labels = str(labels_raw)
     event_type = str(event.get("event_type") or labels).strip() or "event"
+    original_image_base64 = str(event.get("original_image_base64") or "").strip()
+    detected_image_base64 = str(
+        event.get("detected_image_base64") or event.get("image_base64") or ""
+    ).strip()
+    source_host, source_ip, source_port = _source_parts(event)
     return {
         "site_title": product_name(app_settings),
         "timestamp": timestamp,
@@ -102,6 +155,28 @@ def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) 
         "detection_count": str(event.get("detection_count") or 0),
         "frame_id": str(event.get("frame_id") or ""),
         "active_tracks": str(event.get("active_tracks") or ""),
+        "original_image": _image_html(original_image_base64, "original image"),
+        "detected_image": _image_html(detected_image_base64, "detected image"),
+        "original_image_url": str(event.get("original_image_url") or ""),
+        "detected_image_url": str(event.get("detected_image_url") or event.get("image_url") or ""),
+        "has_original_image": "true" if original_image_base64 or event.get("original_image_url") else "false",
+        "has_detected_image": "true" if detected_image_base64 or event.get("detected_image_url") or event.get("image_url") else "false",
+        "source_rtsp_url": str(event.get("source_rtsp_url") or event.get("rtsp_url") or ""),
+        "source_route_path": str(event.get("source_route_path") or ""),
+        "source_host": source_host,
+        "source_ip": source_ip,
+        "source_port": source_port,
+        "source_remark": str(event.get("source_remark") or ""),
+        "source_description": str(event.get("source_description") or event.get("source_remark") or ""),
+        "roi_id": str(event.get("roi_id") or ""),
+        "roi_tag": str(event.get("roi_tag") or ""),
+        "roi_index": str(event.get("roi_index") or ""),
+        "roi_count": str(event.get("roi_count") or ""),
+        "door_state": str(event.get("door_state") or ""),
+        "door_state_label": str(event.get("door_state_label") or ""),
+        "alarm_label": str(event.get("alarm_label") or ""),
+        "open_count": str(event.get("open_count") or 0),
+        "closed_count": str(event.get("closed_count") or 0),
     }
 
 

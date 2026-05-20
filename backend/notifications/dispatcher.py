@@ -4,6 +4,7 @@ import base64
 import html
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
 from loguru import logger
 
@@ -51,17 +52,15 @@ class NotificationDispatcher:
             if not self._should_send(policy_id, policy.cooldown_seconds, event):
                 continue
             template = templates.get(str(policy.template_id or ""))
-            context = build_template_context(app_settings, event)
+            context = build_template_context(app_settings, self._enrich_event(event, source))
             subject_template = template.subject_template if template else "{event_label} alert from {source_name}"
             body_template = template.body_template if template else "{local_time} {event_label} {source_name}"
             rendered_body = render_template(body_template, context)
+            html_context = self._html_template_context(context)
             payload = NotificationPayload(
                 subject=render_template(subject_template, context),
                 body=rendered_body,
-                html_body="<br>".join(
-                    html.escape(line)
-                    for line in rendered_body.splitlines()
-                ),
+                html_body="<br>".join(render_template(body_template, html_context).splitlines()),
                 context=context,
                 attachments=self._build_attachments(event),
             )
@@ -99,20 +98,45 @@ class NotificationDispatcher:
     def _should_send(self, policy_id: str, cooldown_seconds: int, event: dict[str, Any]) -> bool:
         now_ts = datetime.now(timezone.utc).timestamp()
         last_ts = self._last_sent_at.get(self._cooldown_key(policy_id, event), 0.0)
-        return now_ts - last_ts >= max(0, int(cooldown_seconds))
+        cooldown = event.get("cooldown_seconds", cooldown_seconds)
+        return now_ts - last_ts >= max(0, int(cooldown))
 
     def _mark_sent(self, policy_id: str, event: dict[str, Any]) -> None:
         self._last_sent_at[self._cooldown_key(policy_id, event)] = datetime.now(timezone.utc).timestamp()
 
     def _build_attachments(self, event: dict[str, Any]) -> list[tuple[str, bytes, str]]:
-        image_base64 = str(event.get("image_base64") or "").strip()
-        if not image_base64:
-            return []
-        try:
-            image_bytes = base64.b64decode(image_base64, validate=True)
-        except Exception:
-            return []
         timestamp = str(event.get("timestamp") or datetime.now(timezone.utc).isoformat())[:19]
         safe_timestamp = timestamp.replace(":", "-")
         event_type = str(event.get("event_type") or "event").replace("/", "_")
-        return [(f"{event_type}-{safe_timestamp}.jpg", image_bytes, "image/jpeg")]
+        attachments: list[tuple[str, bytes, str]] = []
+        for key, suffix in (
+            ("original_image_base64", "original"),
+            ("detected_image_base64", "detected"),
+            ("image_base64", "image"),
+        ):
+            image_base64 = str(event.get(key) or "").strip()
+            if not image_base64:
+                continue
+            try:
+                image_bytes = base64.b64decode(image_base64, validate=True)
+            except Exception:
+                continue
+            attachments.append((f"{event_type}-{safe_timestamp}-{suffix}.jpg", image_bytes, "image/jpeg"))
+        return attachments
+
+    def _enrich_event(self, event: dict[str, Any], source: Any) -> dict[str, Any]:
+        enriched = dict(event)
+        if source is None:
+            return enriched
+        enriched.setdefault("source_rtsp_url", getattr(source, "rtsp_url", ""))
+        enriched.setdefault("source_route_path", getattr(source, "route_path", ""))
+        enriched.setdefault("source_remark", getattr(source, "source_remark", ""))
+        enriched.setdefault("source_description", getattr(source, "source_remark", ""))
+        return enriched
+
+    def _html_template_context(self, context: dict[str, str]) -> dict[str, str]:
+        passthrough = {"original_image", "detected_image"}
+        return {
+            key: (value if key in passthrough else html.escape(str(value)))
+            for key, value in context.items()
+        }

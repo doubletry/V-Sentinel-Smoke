@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS video_sources (
     name TEXT NOT NULL,
     rtsp_url TEXT NOT NULL UNIQUE,
     route_path TEXT NOT NULL DEFAULT '',
+    source_remark TEXT NOT NULL DEFAULT '',
     scene_id TEXT NOT NULL DEFAULT 'smoke',
     notification_policy_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL
@@ -269,6 +270,7 @@ async def init_db() -> None:
         await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
         await db.execute(CREATE_USERS_TABLE)
         await _ensure_column_exists(db, "video_sources", "route_path", "TEXT NOT NULL DEFAULT ''")
+        await _ensure_column_exists(db, "video_sources", "source_remark", "TEXT NOT NULL DEFAULT ''")
         await _ensure_column_exists(db, "video_sources", "scene_id", "TEXT NOT NULL DEFAULT 'smoke'")
         await _ensure_column_exists(
             db,
@@ -348,6 +350,30 @@ async def _seed_default_scene(db: aiosqlite.Connection) -> None:
                     "groups": ["model", "temporal", "false_positive_filters"],
                 }
             ),
+            now,
+        ),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO scenes "
+        "(id, label_zh, label_en, description, required_services, default_roi_tags, "
+        "event_types, default_config, expert_config_schema, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "fire_door",
+            "消防门检测",
+            "Fire Door Detection",
+            "Classifies one or more fire-door ROIs and alerts when a configured open state is confirmed.",
+            _json_dumps(["classification"]),
+            _json_dumps(["fire_door"]),
+            _json_dumps(["fire_door_open"]),
+            _json_dumps(
+                {
+                    "fire_door_classification_model_name": DEFAULT_APP_SETTINGS["fire_door_classification_model_name"],
+                    "fire_door_classification_confidence": DEFAULT_APP_SETTINGS["fire_door_classification_confidence"],
+                    "fire_door_alarm_labels": DEFAULT_APP_SETTINGS["fire_door_alarm_labels"],
+                }
+            ),
+            _json_dumps({"expert_mode": True, "groups": ["model", "labels", "temporal", "notifications"]}),
             now,
         ),
     )
@@ -656,11 +682,15 @@ async def _get_rois_for_source(db: aiosqlite.Connection, source_id: str) -> list
 def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     """Convert a database row and ROI list to a VideoSource model.
     将数据库行与 ROI 列表转换为 VideoSource 模型。"""
-    if len(row) >= 7:
+    if len(row) >= 8:
+        source_id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at = row[:8]
+    elif len(row) >= 7:
         source_id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at = row[:7]
+        source_remark = ""
     else:
         source_id, name, rtsp_url, created_at = row
         route_path = ""
+        source_remark = ""
         scene_id = DEFAULT_SCENE_ID
         notification_policy_ids = "[]"
     return VideoSource(
@@ -668,6 +698,7 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
         name=name,
         rtsp_url=rtsp_url,
         route_path=str(route_path or ""),
+        source_remark=str(source_remark or ""),
         scene_id=str(scene_id or DEFAULT_SCENE_ID),
         notification_policy_ids=[str(item) for item in _json_list(notification_policy_ids)],
         rois=rois,
@@ -912,13 +943,14 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         )
         await db.execute(
             "INSERT INTO video_sources "
-            "(id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 source_id,
                 source.name,
                 resolved_rtsp_url,
                 route_path,
+                source.source_remark,
                 active_plugin_id,
                 _json_dumps(source.notification_policy_ids),
                 created_at,
@@ -930,6 +962,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         name=source.name,
         rtsp_url=resolved_rtsp_url,
         route_path=route_path,
+        source_remark=source.source_remark,
         scene_id=active_plugin_id,
         notification_policy_ids=source.notification_policy_ids,
         rois=[],
@@ -942,7 +975,7 @@ async def get_source(source_id: str) -> VideoSource | None:
     按 ID 获取单个视频源，未找到则返回 None。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at "
             "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
@@ -958,7 +991,7 @@ async def get_source_by_rtsp(rtsp_url: str) -> VideoSource | None:
     按 RTSP URL 获取视频源，未找到则返回 None。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at "
             "FROM video_sources WHERE rtsp_url = ?",
             (rtsp_url,),
         ) as cursor:
@@ -974,7 +1007,7 @@ async def list_sources() -> list[VideoSource]:
     按创建时间列出所有视频源。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at "
             "FROM video_sources ORDER BY created_at"
         ) as cursor:
             rows = await cursor.fetchall()
@@ -1001,6 +1034,9 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
         if data.name is not None:
             fields.append("name = ?")
             values.append(data.name)
+        if data.source_remark is not None:
+            fields.append("source_remark = ?")
+            values.append(data.source_remark)
         if data.route_path is not None:
             fields.append("rtsp_url = ?")
             route_path = _normalize_route_path(data.route_path)
@@ -1055,7 +1091,7 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             await db.execute("DELETE FROM rois WHERE source_id = ?", (source_id,))
         await db.commit()
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at "
             "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:

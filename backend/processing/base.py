@@ -62,6 +62,7 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
         ws_manager: "WSManager",
         app_settings: dict[str, str],
         agent: "AnalysisAgent | None" = None,
+        source_remark: str = "",
     ) -> None:
         # Convert Pydantic ROI objects to core ROI dataclasses
         # 将 Pydantic ROI 对象转换为 core ROI 数据类
@@ -79,6 +80,7 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
             source_id=source_id,
             source_name=source_name,
             rtsp_url=rtsp_url,
+            source_remark=source_remark,
             rois=core_rois,
             vengine_client=vengine_client,
             app_settings=app_settings,

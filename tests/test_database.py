@@ -45,11 +45,12 @@ class TestInitDb:
 class TestCreateSource:
     async def test_creates_and_returns(self):
         src = await create_source(
-            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://a/b")
+            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://a/b", source_remark="Gate A")
         )
         assert src.id
         assert src.name == "Cam1"
         assert src.rtsp_url == "rtsp://a/b"
+        assert src.source_remark == "Gate A"
         assert src.rois == []
         assert src.created_at
 
@@ -130,6 +131,17 @@ class TestUpdateSource:
         assert updated is not None
         assert updated.name == "New"
         assert updated.rtsp_url == "rtsp://u1"
+
+    async def test_update_source_remark(self):
+        src = await create_source(
+            VideoSourceCreate(name="Remark", rtsp_url="rtsp://remark")
+        )
+        updated = await update_source(
+            src.id,
+            VideoSourceUpdate(source_remark="Door beside loading dock"),
+        )
+        assert updated is not None
+        assert updated.source_remark == "Door beside loading dock"
 
     async def test_update_url(self):
         src = await create_source(

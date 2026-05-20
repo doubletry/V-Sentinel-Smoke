@@ -675,6 +675,85 @@
                     </section>
                   </section>
                 </template>
+                <template v-else-if="currentPluginScene.id === FIRE_DOOR_SCENE_ID">
+                  <section class="settings-section section-card">
+                    <div class="section-card__head">
+                      <div>
+                        <h2>{{ t('settings.fireDoorScene') }}</h2>
+                        <p class="info-tip">{{ currentPluginScene.description }}</p>
+                      </div>
+                      <div class="section-card__actions">
+                        <el-button
+                          :loading="activeRestoreSection === `plugin-${currentPluginScene.id}`"
+                          @click="restoreSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
+                        >
+                          {{ t('settings.restoreSection') }}
+                        </el-button>
+                        <el-button
+                          type="primary"
+                          :loading="activeSaveSection === `plugin-${currentPluginScene.id}`"
+                          @click="saveSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
+                        >
+                          {{ t('settings.savePluginSection') }}
+                        </el-button>
+                      </div>
+                    </div>
+
+                    <div class="settings-form-grid wide-grid">
+                      <el-form-item :label="t('settings.fireDoorClassificationModelName')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_classification_model_name" placeholder="fire-door-classification" />
+                          <p class="form-hint">{{ t('settings.fireDoorClassificationModelNameHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorClassificationConfidence')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_classification_confidence" placeholder="0.50" />
+                          <p class="form-hint">{{ t('settings.fireDoorClassificationConfidenceHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorOpenLabels')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_open_labels" placeholder="open,OPEN,Opened" />
+                          <p class="form-hint">{{ t('settings.fireDoorOpenLabelsHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorClosedLabels')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_closed_labels" placeholder="closed,CLOSED,Close" />
+                          <p class="form-hint">{{ t('settings.fireDoorClosedLabelsHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorAlarmLabels')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_alarm_labels" placeholder="open" />
+                          <p class="form-hint">{{ t('settings.fireDoorAlarmLabelsHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorTemporalConfirmFrames')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_temporal_confirm_frames" placeholder="1" />
+                          <p class="form-hint">{{ t('settings.fireDoorTemporalConfirmFramesHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorTemporalConfirmWindow')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_temporal_confirm_window" placeholder="2.0" />
+                          <p class="form-hint">{{ t('settings.fireDoorTemporalConfirmWindowHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorAlarmHoldTime')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_alarm_hold_time" placeholder="3.0" />
+                          <p class="form-hint">{{ t('settings.fireDoorAlarmHoldTimeHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorEmailCooldownSeconds')">
+                        <el-input v-model="form.fire_door_email_cooldown_seconds" placeholder="300" />
+                      </el-form-item>
+                    </div>
+                  </section>
+                </template>
                 <section v-else class="settings-section section-card">
                   <div class="section-card__head">
                     <div>
@@ -777,6 +856,7 @@ const retentionDayOptions = [7, 15, 21, 30]
 // Also referenced by the template to decide whether to render smoke-specific fields.
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
+const FIRE_DOOR_SCENE_ID = 'fire_door'
 const activePlatformTab = ref('overview')
 const activeNotificationTab = ref('email')
 const activePluginTab = ref('config')
@@ -790,6 +870,14 @@ const DEFAULT_SCENE_DEFINITIONS = [
     default_config: {},
   },
   {
+    id: 'fire_door',
+    label_zh: '消防门检测',
+    label_en: 'Fire Door Detection',
+    description: 'Classifies one or more fire-door ROIs and alerts when a configured open state is confirmed.',
+    default_roi_tags: ['fire_door'],
+    default_config: {},
+  },
+  {
     id: 'template',
     label_zh: '场景模板',
     label_en: 'Scene Template',
@@ -799,7 +887,7 @@ const DEFAULT_SCENE_DEFINITIONS = [
   },
 ]
 const sceneDefinitions = ref(DEFAULT_SCENE_DEFINITIONS)
-const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
+const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks', 'original_image', 'detected_image', 'source_remark', 'source_route_path', 'source_ip', 'roi_id', 'roi_tag', 'door_state'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
   smoke_enable_appearance_filter: 'true',
@@ -836,6 +924,15 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_max_miss_frames',
   'smoke_alarm_hold_time',
   'smoke_email_cooldown_seconds',
+  'fire_door_classification_model_name',
+  'fire_door_classification_confidence',
+  'fire_door_open_labels',
+  'fire_door_closed_labels',
+  'fire_door_alarm_labels',
+  'fire_door_temporal_confirm_frames',
+  'fire_door_temporal_confirm_window',
+  'fire_door_alarm_hold_time',
+  'fire_door_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
 // These keys are saved from the Site Settings UI and also included in
@@ -880,6 +977,7 @@ const NOTIFICATION_EMAIL_KEYS = [
 const NOTIFICATION_RETENTION_KEYS = [
   'message_retention_days',
   'smoke_email_cooldown_seconds',
+  'fire_door_email_cooldown_seconds',
 ]
 const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_detection_model_name',
@@ -892,6 +990,17 @@ const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_alarm_hold_time',
   'smoke_enable_appearance_filter',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
+]
+const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
+  'fire_door_classification_model_name',
+  'fire_door_classification_confidence',
+  'fire_door_open_labels',
+  'fire_door_closed_labels',
+  'fire_door_alarm_labels',
+  'fire_door_temporal_confirm_frames',
+  'fire_door_temporal_confirm_window',
+  'fire_door_alarm_hold_time',
+  'fire_door_email_cooldown_seconds',
 ]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
@@ -997,6 +1106,15 @@ const form = ref({
   smoke_iou_threshold: '0.3',
   smoke_alarm_hold_time: '3.0',
   smoke_email_cooldown_seconds: '300',
+  fire_door_classification_model_name: 'fire-door-classification',
+  fire_door_classification_confidence: '0.50',
+  fire_door_open_labels: 'open',
+  fire_door_closed_labels: 'closed',
+  fire_door_alarm_labels: 'open',
+  fire_door_temporal_confirm_frames: '1',
+  fire_door_temporal_confirm_window: '2.0',
+  fire_door_alarm_hold_time: '3.0',
+  fire_door_email_cooldown_seconds: '300',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
@@ -1114,7 +1232,9 @@ function formatConfigValue(value) {
 }
 
 function pluginSettingKeys(sceneId) {
-  return sceneId === SMOKE_SCENE_ID ? SMOKE_PLUGIN_SETTING_KEYS : []
+  if (sceneId === SMOKE_SCENE_ID) return SMOKE_PLUGIN_SETTING_KEYS
+  if (sceneId === FIRE_DOOR_SCENE_ID) return FIRE_DOOR_PLUGIN_SETTING_KEYS
+  return []
 }
 
 function pickFormValues(keys) {
