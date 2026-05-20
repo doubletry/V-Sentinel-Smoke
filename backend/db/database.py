@@ -228,6 +228,7 @@ async def _get_shared_db() -> aiosqlite.Connection:
 
         if _shared_db is None:
             db = await aiosqlite.connect(_DB_PATH)
+            db.row_factory = aiosqlite.Row
             await _configure_db_connection(db)
             _shared_db = db
             _shared_db_path = _DB_PATH
@@ -682,7 +683,20 @@ async def _get_rois_for_source(db: aiosqlite.Connection, source_id: str) -> list
 def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     """Convert a database row and ROI list to a VideoSource model.
     将数据库行与 ROI 列表转换为 VideoSource 模型。"""
-    source_id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at = row
+    if hasattr(row, "keys"):
+        row_keys = set(row.keys())
+        source_id = row["id"]
+        name = row["name"]
+        rtsp_url = row["rtsp_url"]
+        route_path = row["route_path"] if "route_path" in row_keys else ""
+        source_remark = row["source_remark"] if "source_remark" in row_keys else ""
+        scene_id = row["scene_id"] if "scene_id" in row_keys else DEFAULT_SCENE_ID
+        notification_policy_ids = (
+            row["notification_policy_ids"] if "notification_policy_ids" in row_keys else "[]"
+        )
+        created_at = row["created_at"]
+    else:
+        source_id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at = row
     return VideoSource(
         id=source_id,
         name=name,
