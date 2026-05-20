@@ -141,6 +141,10 @@ class NotificationDispatcher:
     def _html_template_context(self, context: dict[str, str]) -> dict[str, str]:
         passthrough = {"original_image", "detected_image"}
         return {
-            key: (value if key in passthrough else html.escape(str(value)))
+            key: (
+                value
+                if key in passthrough and str(value).startswith("<img ")
+                else ("" if key in passthrough else html.escape(str(value)))
+            )
             for key, value in context.items()
         }

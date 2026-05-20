@@ -682,20 +682,7 @@ async def _get_rois_for_source(db: aiosqlite.Connection, source_id: str) -> list
 def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     """Convert a database row and ROI list to a VideoSource model.
     将数据库行与 ROI 列表转换为 VideoSource 模型。"""
-    # Existing deployments may have rows selected by older code paths without
-    # route_path/source_remark columns, so keep length-based unpacking as a
-    # lightweight compatibility shim during SQLite migrations.
-    if len(row) >= 8:
-        source_id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at = row[:8]
-    elif len(row) >= 7:
-        source_id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at = row[:7]
-        source_remark = ""
-    else:
-        source_id, name, rtsp_url, created_at = row
-        route_path = ""
-        source_remark = ""
-        scene_id = DEFAULT_SCENE_ID
-        notification_policy_ids = "[]"
+    source_id, name, rtsp_url, route_path, source_remark, scene_id, notification_policy_ids, created_at = row
     return VideoSource(
         id=source_id,
         name=name,

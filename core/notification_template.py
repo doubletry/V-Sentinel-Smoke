@@ -43,6 +43,7 @@ NOTIFICATION_TEMPLATE_PLACEHOLDERS: tuple[str, ...] = (
     "source_rtsp_url",
     "source_route_path",
     "source_host",
+    "source_host_or_ip",
     "source_ip",
     "source_port",
     "source_remark",
@@ -117,9 +118,10 @@ def _source_network_context(event: dict[str, Any]) -> dict[str, str]:
     port = str(parsed.port or "")
     return {
         "source_host": host,
-        # RTSP URLs may contain a DNS name or an IP literal.  The source_ip
-        # placeholder intentionally exposes the parsed host value as a
-        # best-effort address for templates.
+        "source_host_or_ip": host,
+        # Kept for the user-facing {source_ip} placeholder requirement. RTSP
+        # URLs may contain a DNS name or an IP literal, so this is the parsed
+        # host/address value rather than a guaranteed numeric IP.
         "source_ip": host,
         "source_port": port,
     }

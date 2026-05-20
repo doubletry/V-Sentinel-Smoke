@@ -887,7 +887,7 @@ const DEFAULT_SCENE_DEFINITIONS = [
   },
 ]
 const sceneDefinitions = ref(DEFAULT_SCENE_DEFINITIONS)
-const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks', 'original_image', 'detected_image', 'source_remark', 'source_route_path', 'source_ip', 'roi_id', 'roi_tag', 'door_state'])
+const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks', 'original_image', 'detected_image', 'source_remark', 'source_route_path', 'source_host_or_ip', 'source_ip', 'roi_id', 'roi_tag', 'door_state'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
   smoke_enable_appearance_filter: 'true',
