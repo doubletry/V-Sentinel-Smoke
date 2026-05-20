@@ -491,13 +491,13 @@
                   <p class="info-tip">{{ scene.description || t('settings.templateSceneHint') }}</p>
                 </div>
                 <div class="section-card__actions">
-                  <el-button type="primary" @click="openPluginSettings(scene.id)">
+                  <el-button type="primary" @click="navigateToPluginSettingsDialog(scene.id)">
                     {{ t('settings.openPluginSettings') }}
                   </el-button>
-                  <el-button plain @click="openPluginSettings(scene.id, 'roi-tags')">
+                  <el-button plain @click="navigateToPluginSettingsDialog(scene.id, 'roi-tags')">
                     {{ t('settings.pluginRoiTags') }}
                   </el-button>
-                  <el-button plain @click="openPluginSettings(scene.id, 'defaults')">
+                  <el-button plain @click="navigateToPluginSettingsDialog(scene.id, 'defaults')">
                     {{ t('settings.pluginDefaultConfig') }}
                   </el-button>
                 </div>
@@ -515,7 +515,7 @@
                 <div class="plugin-launcher-card__group">
                   <span class="plugin-launcher-card__label">{{ t('settings.pluginDefaultConfig') }}</span>
                   <div class="plugin-config-list">
-                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id).slice(0, 4)" :key="item.key" type="info">
+                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id).slice(0, MAX_PREVIEW_CONFIG_ITEMS)" :key="item.key" type="info">
                       {{ item.key }}: {{ item.value }}
                     </el-tag>
                     <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
@@ -745,6 +745,7 @@ const SMOKE_SCENE_ID = 'smoke'
 const activePlatformTab = ref('overview')
 const activeNotificationTab = ref('email')
 const activePluginTab = ref('config')
+const MAX_PREVIEW_CONFIG_ITEMS = 4
 const DEFAULT_SCENE_DEFINITIONS = [
   {
     id: 'smoke',
@@ -1077,7 +1078,7 @@ function navigateToPluginScene(sceneId) {
   router.push({ name: 'ManagementPlugin', params: { sceneId } })
 }
 
-function openPluginSettings(sceneId, tab = 'config') {
+function navigateToPluginSettingsDialog(sceneId, tab = 'config') {
   activePluginTab.value = tab
   navigateToPluginScene(sceneId)
 }
