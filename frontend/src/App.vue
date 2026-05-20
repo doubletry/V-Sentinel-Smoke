@@ -11,6 +11,7 @@
           <span class="brand-desc">{{ appSettingsStore.siteDescription }}</span>
         </div>
         <el-menu
+          v-if="!isManagementRoute"
           mode="horizontal"
           :router="true"
           :default-active="activeHeaderPath"
@@ -27,42 +28,53 @@
             <el-icon><Bell /></el-icon>
             {{ t('nav.messages') }}
           </el-menu-item>
-          <el-menu-item v-if="canSeeProcessingLogs" index="/processing-logs">
-            <el-icon><Document /></el-icon>
-            {{ t('nav.processingLogs') }}
-          </el-menu-item>
-          <el-menu-item v-if="canSeeSettings" :index="settingsEntryPath">
-            <el-icon><Setting /></el-icon>
-            {{ t('nav.settings') }}
-          </el-menu-item>
         </el-menu>
 
         <div class="header-tools">
-          <el-dropdown trigger="click" @command="onAuthCommand">
-            <el-button size="small" plain class="account-button">
-              <span class="account-name">{{ authStore.user?.username }}</span>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu class="account-dropdown-menu">
-                <el-dropdown-item disabled class="account-dropdown-title">
-                  {{ authStore.user?.username || t('auth.accountMenu') }}
-                </el-dropdown-item>
-                <el-dropdown-item disabled>
-                  {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
-                </el-dropdown-item>
-                <el-dropdown-item divided command="locale:zh-CN">
-                  {{ t('language.label') }} · 中文
-                </el-dropdown-item>
-                <el-dropdown-item command="locale:en-US">
-                  {{ t('language.label') }} · English
-                </el-dropdown-item>
-                <el-dropdown-item divided command="change-password">
-                  {{ t('auth.changePassword') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="logout">{{ t('auth.logout') }}</el-dropdown-item>
-              </el-dropdown-menu>
+          <el-button
+            v-if="canSeeManagement"
+            size="small"
+            :type="isManagementRoute ? 'primary' : 'default'"
+            plain
+            class="management-button"
+            @click="goToManagement"
+          >
+            <el-icon><Setting /></el-icon>
+            <span>{{ t('nav.management') }}</span>
+          </el-button>
+          <el-popover
+            v-model:visible="accountMenuVisible"
+            placement="bottom-end"
+            trigger="click"
+            :width="220"
+            popper-class="account-popover"
+          >
+            <template #reference>
+              <el-button size="small" plain class="account-button" aria-haspopup="menu">
+                <span class="account-name">{{ authStore.user?.username }}</span>
+              </el-button>
             </template>
-          </el-dropdown>
+            <div class="account-menu" role="menu">
+              <div class="account-menu__title">{{ authStore.user?.username || t('auth.accountMenu') }}</div>
+              <div class="account-menu__role">
+                {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+              </div>
+              <el-divider class="account-menu__divider" />
+              <button type="button" class="account-menu__item" role="menuitem" @click="onAuthCommand('locale:zh-CN')">
+                {{ t('language.label') }} · 中文
+              </button>
+              <button type="button" class="account-menu__item" role="menuitem" @click="onAuthCommand('locale:en-US')">
+                {{ t('language.label') }} · English
+              </button>
+              <el-divider class="account-menu__divider" />
+              <button type="button" class="account-menu__item" role="menuitem" @click="onAuthCommand('change-password')">
+                {{ t('auth.changePassword') }}
+              </button>
+              <button type="button" class="account-menu__item account-menu__item--danger" role="menuitem" @click="onAuthCommand('logout')">
+                {{ t('auth.logout') }}
+              </button>
+            </div>
+          </el-popover>
         </div>
       </el-header>
       <el-main class="app-main">
@@ -117,15 +129,18 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
+import { canViewProcessingLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
+const accountMenuVisible = ref(false)
 const passwordDialogVisible = ref(false)
 const passwordSubmitting = ref(false)
 const passwordForm = reactive({
@@ -138,17 +153,23 @@ const canSeeVideoWall = computed(() =>
   authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')
 )
 const canSeeMessages = computed(() => authStore.hasPermission('messages:read'))
-const canSeeProcessingLogs = computed(() =>
-  authStore.hasPermission('sources:operate') || authStore.hasPermission('settings:*')
-)
-const canSeeSettings = computed(() => authStore.hasPermission('settings:*') || authStore.hasPermission('users:*'))
+const canSeeProcessingLogs = computed(() => canViewProcessingLogs(
+  authStore.hasPermission('sources:operate'),
+  authStore.hasPermission('settings:*'),
+))
+const canSeeManagement = computed(() => (
+  authStore.hasPermission('settings:*') || authStore.hasPermission('users:*') || canSeeProcessingLogs.value
+))
 const isAuthRoute = computed(() => route.path === '/auth')
-const settingsEntryPath = computed(() => (
-  authStore.hasPermission('settings:*') ? '/settings/platform' : '/settings/users'
+const managementEntryPath = computed(() => getDefaultManagementPath(
+  authStore.hasPermission('settings:*'),
+  authStore.hasPermission('users:*'),
+  canSeeProcessingLogs.value,
 ))
 const activeHeaderPath = computed(() => (
-  route.path.startsWith('/settings') ? settingsEntryPath.value : route.path
+  route.path === '/' || route.path === '/messages' ? route.path : ''
 ))
+const isManagementRoute = computed(() => route.path.startsWith('/management'))
 
 function applyLocale(value) {
   setI18nLocale(value)
@@ -213,6 +234,7 @@ async function submitPasswordChange() {
 }
 
 function onAuthCommand(command) {
+  accountMenuVisible.value = false
   if (command === 'logout') {
     authStore.logout()
     ElMessage.success(t('auth.logoutSuccess'))
@@ -224,6 +246,12 @@ function onAuthCommand(command) {
   }
   if (typeof command === 'string' && command.startsWith('locale:')) {
     applyLocale(command.slice('locale:'.length))
+  }
+}
+
+function goToManagement() {
+  if (managementEntryPath.value) {
+    router.push(managementEntryPath.value)
   }
 }
 
@@ -328,6 +356,34 @@ body {
   min-width: 112px;
   max-width: 180px;
   padding: 0 14px;
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #c7d5ef !important;
+  box-shadow: none !important;
+  transition: color 0.18s ease;
+}
+
+.account-button:hover,
+.account-button:focus {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #79bbff !important;
+}
+
+.management-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: #3b4d7a;
+  background: rgba(64, 158, 255, 0.08);
+  color: #dce7ff;
+}
+
+.management-button.is-plain:hover,
+.management-button.is-plain:focus {
+  border-color: #409eff;
+  color: #79bbff;
+  background: rgba(64, 158, 255, 0.16);
 }
 
 .account-name {
@@ -335,14 +391,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.account-dropdown-menu {
-  min-width: 196px;
-}
-
-.account-dropdown-title {
-  font-weight: 600;
 }
 
 .password-dialog-hint {
@@ -375,5 +423,60 @@ body {
     min-width: 88px;
     max-width: 132px;
   }
+}
+</style>
+
+<style>
+.account-popover {
+  padding: 0 !important;
+}
+
+.account-menu {
+  padding: 10px;
+}
+
+.account-menu__title {
+  color: #1f2d3d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.account-menu__role {
+  color: #7d8796;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.account-menu__divider {
+  margin: 8px 0;
+}
+
+.account-menu__item {
+  appearance: none;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #303133;
+  cursor: pointer;
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.account-menu__item:hover,
+.account-menu__item:focus-visible {
+  background: #ecf5ff;
+  color: #409eff;
+  outline: none;
+}
+
+.account-menu__item--danger:hover,
+.account-menu__item--danger:focus-visible {
+  background: #fef0f0;
+  color: #f56c6c;
 }
 </style>

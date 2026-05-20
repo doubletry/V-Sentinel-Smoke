@@ -65,6 +65,43 @@ class TestCreateSource:
             password="stream-pass",
         )
 
+    async def test_create_uses_active_plugin_setting(self, async_client: AsyncClient):
+        settings_resp = await async_client.put(
+            "/api/settings",
+            json={"active_plugin_id": "template"},
+        )
+        assert settings_resp.status_code == 200
+
+        resp = await async_client.post(
+            "/api/sources",
+            json={
+                "name": "Route Camera",
+                "route_path": "cam-template",
+            },
+        )
+
+        assert resp.status_code == 201
+        assert resp.json()["scene_id"] == "template"
+
+    async def test_create_rejects_mismatched_scene_id(self, async_client: AsyncClient):
+        settings_resp = await async_client.put(
+            "/api/settings",
+            json={"active_plugin_id": "template"},
+        )
+        assert settings_resp.status_code == 200
+
+        resp = await async_client.post(
+            "/api/sources",
+            json={
+                "name": "Route Camera",
+                "route_path": "cam-template",
+                "scene_id": "smoke",
+            },
+        )
+
+        assert resp.status_code == 422
+        assert "scene_id must match active_plugin_id" in resp.json()["detail"]
+
 
 class TestListSources:
     async def test_list_empty(self, async_client: AsyncClient):
@@ -181,6 +218,25 @@ class TestUpdateSource:
             username="stream-user",
             password="stream-pass",
         )
+
+    async def test_update_rejects_mismatched_scene_id(
+        self, async_client: AsyncClient, sample_source_data: dict
+    ):
+        create_resp = await async_client.post("/api/sources", json=sample_source_data)
+        source_id = create_resp.json()["id"]
+
+        settings_resp = await async_client.put(
+            "/api/settings",
+            json={"active_plugin_id": "template"},
+        )
+        assert settings_resp.status_code == 200
+
+        resp = await async_client.put(
+            f"/api/sources/{source_id}",
+            json={"scene_id": "smoke"},
+        )
+        assert resp.status_code == 422
+        assert "scene_id must match active_plugin_id" in resp.json()["detail"]
 
 
 class TestDeleteSource:

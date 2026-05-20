@@ -28,7 +28,7 @@ async def create_source(
     try:
         return await db.create_source(source)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
         if "UNIQUE constraint failed" in str(exc):
             raise HTTPException(
@@ -75,7 +75,7 @@ async def update_source(
     try:
         source = await db.update_source(source_id, data)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc))
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     return source
@@ -170,9 +170,10 @@ async def import_rois_yaml(
     if not isinstance(rois_raw, list):
         raise HTTPException(status_code=400, detail='"rois" must be a list')
 
-    # ROI tags are owned by the bound scene/plugin, not global platform settings.
-    # ROI 标签由当前绑定的场景/插件拥有，而不是平台全局设置。
-    scene = await db.get_scene(source.scene_id)
+    # ROI tags are owned by the globally active plugin for this service instance.
+    # ROI 标签由当前服务实例全局启用的插件拥有。
+    active_plugin_id = await db.get_setting("active_plugin_id") or source.scene_id
+    scene = await db.get_scene(active_plugin_id)
     valid_tags = set(scene.default_roi_tags if scene else [])
 
     # Validate each ROI entry / 验证每个 ROI 条目
@@ -200,7 +201,7 @@ async def import_rois_yaml(
                 status_code=400,
                 detail=(
                     f'ROI at index {idx}: tag "{tag}" is not in the '
-                    f"scene '{source.scene_id}' ROI tag options: {sorted(valid_tags)}"
+                    f"plugin '{active_plugin_id}' ROI tag options: {sorted(valid_tags)}"
                 ),
             )
         points = roi.get("points", [])

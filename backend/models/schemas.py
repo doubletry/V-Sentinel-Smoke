@@ -374,6 +374,7 @@ class AppSettingsUpdate(BaseModel):
     site_title: str | None = None
     site_description: str | None = None
     favicon_url: str | None = None
+    active_plugin_id: str | None = None
 
     vengine_host: str | None = None
     detection_port: str | None = None

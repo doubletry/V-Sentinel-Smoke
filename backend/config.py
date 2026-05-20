@@ -32,6 +32,8 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "site_title": "V-Sentinel",
     "site_description": "AI Video Surveillance Analysis Platform",
     "favicon_url": "/favicon.ico",
+    # Active processing plugin / 当前启用的处理插件
+    "active_plugin_id": "smoke",
     # Shared V-Engine host / 共享 V-Engine 主机
     "vengine_host": "localhost",
     # Per-service ports / 各服务端口

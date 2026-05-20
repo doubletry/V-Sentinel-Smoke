@@ -1,11 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import pinia from '../stores/pinia.js'
 import { useAuthStore } from '../stores/auth.js'
-import { getDefaultSettingsPath } from '../utils/settingsRoutes.js'
+import {
+  canViewProcessingLogs,
+  getDefaultManagementPath,
+  legacySettingsSectionToManagement,
+} from '../utils/settingsRoutes.js'
 
 const VideoWall = () => import('../views/VideoWall.vue')
 const Messages = () => import('../views/Messages.vue')
-const ProcessingLogs = () => import('../views/ProcessingLogs.vue')
 const Settings = () => import('../views/Settings.vue')
 const Auth = () => import('../views/Auth.vue')
 
@@ -23,22 +26,37 @@ const routes = [
   {
     path: '/processing-logs',
     name: 'ProcessingLogs',
-    component: ProcessingLogs,
+    redirect: '/management/logs',
+  },
+  {
+    path: '/management',
+    name: 'ManagementRoot',
+    component: Settings,
+  },
+  {
+    path: '/management/:section(site|users|logs|vengine|notifications|plugins)',
+    name: 'ManagementSection',
+    component: Settings,
+  },
+  {
+    path: '/management/plugins/:sceneId',
+    name: 'ManagementPlugin',
+    component: Settings,
   },
   {
     path: '/settings',
     name: 'SettingsRoot',
-    component: Settings,
+    redirect: '/management',
   },
   {
     path: '/settings/:section(platform|notifications|users)',
     name: 'SettingsSection',
-    component: Settings,
+    redirect: (to) => `/management/${legacySettingsSectionToManagement(to.params.section)}`,
   },
   {
     path: '/settings/plugin/:sceneId',
     name: 'SettingsPlugin',
-    component: Settings,
+    redirect: (to) => `/management/plugins/${to.params.sceneId}`,
   },
   {
     path: '/auth',
@@ -87,10 +105,15 @@ router.beforeEach(async (to) => {
 
   await authStore.ensureRestored()
   if (authStore.isAuthenticated) {
-    if (to.path === '/settings') {
-      const defaultSettingsPath = getDefaultSettingsPath(
+    if (to.path === '/management') {
+      const canViewLogs = canViewProcessingLogs(
+        authStore.hasPermission('sources:operate'),
+        authStore.hasPermission('settings:*'),
+      )
+      const defaultSettingsPath = getDefaultManagementPath(
         authStore.hasPermission('settings:*'),
         authStore.canManageUsers,
+        canViewLogs,
       )
       if (!defaultSettingsPath) {
         return true

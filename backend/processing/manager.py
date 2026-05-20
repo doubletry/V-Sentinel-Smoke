@@ -79,13 +79,12 @@ class ProcessorManager:
             if source is None:
                 raise ValueError(f"Source not found: {source_id}")
 
-            # Each source binds to exactly one scene; the processor is selected
-            # from that source-scoped scene instead of a global plugin setting.
-            # 每个视频源只绑定一个场景；处理器由该视频源绑定的场景选择，
-            # 不再使用全局插件设置。
-            plugin_name = str(source.scene_id or "").strip()
+            # Each service instance loads one globally selected plugin; every
+            # source started in this process uses that active plugin.
+            # 每个服务实例只加载一个全局选择的插件；本进程启动的所有视频源都使用该插件。
+            plugin_name = str(self._app_settings.get("active_plugin_id") or "").strip()
             if not plugin_name:
-                raise ValueError(f"Source {source_id} must have a scene configured")
+                raise ValueError("Active processing plugin is not configured")
             processor_cls = resolve_processor_class(plugin_name)
 
             processor = processor_cls(

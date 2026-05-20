@@ -1,5 +1,5 @@
 <template>
-  <div class="processing-logs-page">
+  <div class="processing-logs-page" :class="{ 'processing-logs-page--embedded': embedded }">
     <div class="page-header">
       <div class="header-left">
         <h2>{{ t('processingLogs.title') }}</h2>
@@ -79,6 +79,13 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.js
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { formatDateTimeWithTimezone } from '../utils/time.js'
 
+defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
+
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const logsLoading = ref(false)
@@ -134,6 +141,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: #0d0d1a;
+}
+
+.processing-logs-page--embedded {
+  min-height: 620px;
+  border: 1px solid #30364d;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .page-header {

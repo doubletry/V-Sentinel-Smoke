@@ -64,6 +64,13 @@ async def update_settings(
     if not updates:
         return await db.get_all_settings()
     _ensure_legacy_mediamtx_credentials_are_consistent(updates)
+    if "active_plugin_id" in updates:
+        plugin_id = str(updates["active_plugin_id"] or "").strip()
+        if not plugin_id:
+            raise HTTPException(status_code=422, detail="Plugin ID cannot be empty")
+        if await db.get_scene(plugin_id) is None:
+            raise HTTPException(status_code=422, detail=f"Plugin not found: {plugin_id}")
+        updates["active_plugin_id"] = plugin_id
 
     previous_settings = await db.get_all_settings()
     result = await db.update_settings(updates)
@@ -92,6 +99,13 @@ async def update_settings(
             new_rtsp_password=result.get("mediamtx_password", ""),
         )
         await db.sync_default_video_gateway_from_settings(result)
+    if (
+        "active_plugin_id" in updates
+        and previous_settings.get("active_plugin_id") != result.get("active_plugin_id")
+    ):
+        await db.update_all_sources_scene(
+            result.get("active_plugin_id", db.DEFAULT_SCENE_ID)
+        )
 
     # Reconnect V-Engine client with new addresses / 使用新地址重连 V-Engine 客户端
     vengine_client = request.app.state.vengine_client

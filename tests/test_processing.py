@@ -179,10 +179,14 @@ class TestBaseVideoProcessor:
 
 
 class TestProcessorManager:
-    def _make_manager(self) -> ProcessorManager:
+    def _make_manager(self, app_settings: dict | None = None) -> ProcessorManager:
         vengine = MagicMock()
         ws = WSManager()
-        return ProcessorManager(vengine_client=vengine, ws_manager=ws, app_settings=dict(DEFAULT_APP_SETTINGS))
+        return ProcessorManager(
+            vengine_client=vengine,
+            ws_manager=ws,
+            app_settings=app_settings or dict(DEFAULT_APP_SETTINGS),
+        )
 
     async def test_status_empty(self):
         mgr = self._make_manager()
@@ -198,15 +202,17 @@ class TestProcessorManager:
         with pytest.raises(ValueError, match="Source not found"):
             await mgr.start_processor("nonexistent")
 
-    async def test_start_processor_uses_source_scene(self, init_db):
+    async def test_start_processor_uses_active_plugin_setting(self, init_db):
         source = await create_source(
             VideoSourceCreate(
                 name="cam-1",
                 rtsp_url="rtsp://localhost:8554/cam1",
-                scene_id="example",
             )
         )
-        mgr = self._make_manager()
+        mgr = self._make_manager({
+            **DEFAULT_APP_SETTINGS,
+            "active_plugin_id": "template",
+        })
 
         processor = MagicMock(status="stopped")
         processor.start = AsyncMock()
@@ -217,11 +223,11 @@ class TestProcessorManager:
 
             result = await mgr.start_processor(source.id)
 
-        resolve.assert_called_once_with("example")
+        resolve.assert_called_once_with("template")
         processor_cls.assert_called_once()
         processor.start.assert_awaited_once()
         assert mgr._processors[source.id] is processor
-        assert result["scene_id"] == "example"
+        assert result["scene_id"] == "template"
 
     async def test_stop_all_empty(self):
         mgr = self._make_manager()
