@@ -1057,7 +1057,7 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
 async def update_all_sources_scene(scene_id: str) -> int:
     """Bind all sources to the active scene and clear stale ROI data.
     将所有视频源绑定到当前启用场景，并清空旧 ROI 数据。"""
-    next_scene_id = str(scene_id or DEFAULT_SCENE_ID).strip() or DEFAULT_SCENE_ID
+    next_scene_id = str(scene_id or DEFAULT_SCENE_ID).strip()
     async with _db_session() as db:
         async with db.execute(
             "SELECT id FROM video_sources WHERE scene_id != ?",

@@ -829,8 +829,8 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
-// Saved from the Site Settings UI, while PROCESSOR_RESTART_SETTING_KEYS also
-// marks it as restart-sensitive so running sources switch to the new plugin.
+// These keys are saved from the Site Settings UI and also included in
+// PROCESSOR_RESTART_SETTING_KEYS so running sources switch to the new plugin.
 const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', ...ACTIVE_PLUGIN_SETTING_KEYS]
 const VENGINE_SETTING_KEYS = [
   'vengine_host',
