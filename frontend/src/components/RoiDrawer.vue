@@ -123,6 +123,7 @@ import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useSourceStore } from '../stores/source.js'
+import { useAppSettingsStore } from '../stores/appSettings.js'
 import { scenesApi, sourcesApi } from '../api/index.js'
 import { localizedSceneLabel, sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 
@@ -139,6 +140,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useSourceStore()
+const appSettingsStore = useAppSettingsStore()
 const { t, locale } = useI18n()
 const DEFAULT_SCENE_ID = 'smoke'
 
@@ -160,8 +162,9 @@ const pointerPos = ref(null)
 const selectionPos = ref({ x: 0, y: 0 })
 
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
+const activePluginId = computed(() => appSettingsStore.activePluginId || DEFAULT_SCENE_ID)
 const boundScene = computed(() =>
-  sceneById.value.get(props.source?.scene_id ?? DEFAULT_SCENE_ID)
+  sceneById.value.get(activePluginId.value)
   || sceneById.value.get(DEFAULT_SCENE_ID)
 )
 const tagOptions = computed(() => boundScene.value?.default_roi_tags || [])
@@ -743,7 +746,7 @@ function loadExistingRois() {
 const resizeObserver = new ResizeObserver(resizeCanvas)
 
 watch(() => props.source?.id, loadExistingRois)
-watch(() => props.source?.scene_id, () => {
+watch(activePluginId, () => {
   selectedIdx.value = null
   clearDrawingState()
   render()
@@ -756,6 +759,11 @@ watch(() => props.readOnly, () => {
 })
 
 onMounted(async () => {
+  if (!appSettingsStore.loaded) {
+    await appSettingsStore.fetchSettings().catch(() => {
+      // Keep fallback defaults when settings API is unavailable.
+    })
+  }
   scenes.value = await scenesApi.list().catch(() => [])
 
   loadExistingRois()

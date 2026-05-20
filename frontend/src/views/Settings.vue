@@ -28,6 +28,10 @@
               <el-tag v-if="authStore.role" size="small" effect="dark" class="management-role-tag">
                 {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
               </el-tag>
+              <el-button class="management-home-button" type="primary" plain @click="returnHome">
+                <el-icon><House /></el-icon>
+                {{ t('management.backToHome') }}
+              </el-button>
               <div class="settings-overview-stats">
                 <div v-for="item in managementOverviewCards" :key="item.key" class="settings-overview-stat">
                   <span class="settings-overview-stat__label">{{ item.label }}</span>
@@ -81,12 +85,6 @@
             </section>
 
             <section v-if="isSitePage" class="settings-page-panel">
-          <div class="settings-page-panel__head">
-            <div>
-              <h2>{{ t('management.siteSettings') }}</h2>
-              <p>{{ t('management.siteSettingsHint') }}</p>
-            </div>
-          </div>
           <el-tabs v-model="activePlatformTab" class="settings-top-tabs">
             <el-tab-pane :label="t('settings.platformSectionInterface')" name="overview">
               <section class="settings-section section-card">
@@ -141,6 +139,19 @@
                       v-model="form.site_description"
                       :placeholder="t('settings.siteDescription')"
                     />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.activePlugin')" class="form-grid-span-full">
+                    <div class="field-stack">
+                      <el-select v-model="form.active_plugin_id" style="width: 100%">
+                        <el-option
+                          v-for="scene in sceneDefinitions"
+                          :key="scene.id"
+                          :label="sceneTabLabel(scene.id)"
+                          :value="scene.id"
+                        />
+                      </el-select>
+                      <p class="form-hint">{{ t('settings.activePluginHint') }}</p>
+                    </div>
                   </el-form-item>
                   <el-form-item :label="t('settings.faviconUrl')" class="form-grid-span-full">
                     <div class="icon-upload-group">
@@ -213,12 +224,6 @@
         </section>
 
             <section v-else-if="isVenginePage" class="settings-page-panel">
-          <div class="settings-page-panel__head">
-            <div>
-              <h2>{{ t('management.vengineSettings') }}</h2>
-              <p>{{ t('settings.serviceToggleTip') }}</p>
-            </div>
-          </div>
           <section class="settings-section section-card">
             <div class="section-card__head">
               <div>
@@ -296,22 +301,10 @@
         </section>
 
             <section v-else-if="isLogsPage" class="settings-page-panel management-logs-panel">
-          <div class="settings-page-panel__head">
-            <div>
-              <h2>{{ t('management.processingLogs') }}</h2>
-              <p>{{ t('processingLogs.subtitle') }}</p>
-            </div>
-          </div>
           <ProcessingLogs embedded />
         </section>
 
             <section v-else-if="isNotificationsPage" class="settings-page-panel">
-          <div class="settings-page-panel__head">
-            <div>
-              <h2>{{ t('settings.notificationManagement') }}</h2>
-              <p>{{ t('settings.subtitle') }}</p>
-            </div>
-          </div>
           <el-tabs v-model="activeNotificationTab" class="settings-top-tabs">
             <el-tab-pane :label="t('settings.notificationEmailSection')" name="email">
               <section class="settings-section section-card">
@@ -449,12 +442,6 @@
         </section>
 
             <section v-else-if="isUsersPage" class="settings-page-panel">
-          <div class="settings-page-panel__head">
-            <div>
-              <h2>{{ t('settings.userManagement') }}</h2>
-              <p>{{ t('settings.userManagementHint') }}</p>
-            </div>
-          </div>
           <div class="settings-split-grid">
             <section class="settings-section section-card">
               <div class="section-card__head">
@@ -503,12 +490,6 @@
         </section>
 
             <section v-else-if="isPluginPage" class="settings-page-panel">
-          <div class="settings-page-panel__head">
-            <div>
-              <h2>{{ t('settings.pluginSettingsOverview') }}</h2>
-              <p>{{ t('settings.pluginSectionHint') }}</p>
-            </div>
-          </div>
           <div class="plugin-launcher-grid">
             <section
               v-for="scene in sceneDefinitions"
@@ -763,7 +744,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
+import { Bell, Crop, Document, House, Monitor, Setting, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
@@ -835,6 +816,7 @@ const SMOKE_ADVANCED_DEFAULTS = {
   smoke_iou_threshold: '0.3',
 }
 const PROCESSOR_RESTART_SETTING_KEYS = [
+  'active_plugin_id',
   'smoke_detection_model_name',
   'smoke_detection_model_version',
   'smoke_detection_confidence',
@@ -846,7 +828,7 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
-const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url']
+const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', 'active_plugin_id']
 const VENGINE_SETTING_KEYS = [
   'vengine_host',
   'detection_port',
@@ -944,6 +926,7 @@ const form = ref({
   site_title: '',
   site_description: '',
   favicon_url: '/favicon.ico',
+  active_plugin_id: SMOKE_SCENE_ID,
   vengine_host: '',
   detection_port: '',
   classification_port: '',
@@ -1077,6 +1060,9 @@ function sceneTabLabel(sceneId) {
 const pluginCardPreviewLimit = 4
 
 function sceneDefaultConfigRows(sceneId) {
+  if (sceneId === SMOKE_SCENE_ID) {
+    return []
+  }
   const config = sceneById(sceneId)?.default_config || {}
   return Object.entries(config).map(([key, value]) => ({
     key,
@@ -1142,6 +1128,10 @@ function replaceSettingsRoute(location) {
 
 function navigateToSettingsPage(pageKey) {
   router.push({ name: 'ManagementSection', params: { section: pageKey } })
+}
+
+function returnHome() {
+  router.push('/')
 }
 
 function navigateToPluginScene(sceneId) {
@@ -1292,6 +1282,10 @@ async function saveSection(sectionId, keys) {
         || String(previousSettings.mediamtx_password || '') !== String(form.value.mediamtx_password || '')
       )
     )
+    const activePluginChanged = (
+      keys.includes('active_plugin_id')
+      && String(previousSettings.active_plugin_id || '') !== String(form.value.active_plugin_id || '')
+    )
     let runningSourceIds = []
     if (processorConfigChanged || mediamtxRtspChanged) {
       await sourceStore.syncProcessorStatus()
@@ -1301,7 +1295,7 @@ async function saveSection(sectionId, keys) {
     const data = await appSettingsStore.updateSettings(pickFormValues(keys))
     Object.assign(form.value, data)
     appSettingsStore.applyLanguage(form.value.ui_language)
-    if (mediamtxRtspChanged || mediamtxWebrtcChanged) {
+    if (mediamtxRtspChanged || mediamtxWebrtcChanged || activePluginChanged) {
       await sourceStore.fetchSources()
       sourceStore.syncAssignedSourceReferences()
     }
@@ -1456,6 +1450,12 @@ onMounted(async () => {
 
 .management-role-tag {
   margin-top: 10px;
+}
+
+.management-home-button {
+  width: 100%;
+  margin-top: 14px;
+  justify-content: center;
 }
 
 .settings-form {
@@ -1682,21 +1682,6 @@ onMounted(async () => {
 
 .management-logs-panel {
   min-height: 720px;
-}
-
-.settings-page-panel__head {
-  padding: 4px 4px 0;
-}
-
-.settings-page-panel__head h2 {
-  margin-bottom: 6px;
-  color: #eef4ff;
-  font-size: 18px;
-}
-
-.settings-page-panel__head p {
-  color: #93a3bf;
-  font-size: 13px;
 }
 
 .settings-section {
@@ -1927,6 +1912,12 @@ onMounted(async () => {
   border: 1px solid #2f3a5b;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.02);
+}
+
+.expert-card > h3 {
+  color: #e5eeff;
+  font-size: 16px;
+  margin-bottom: 14px;
 }
 
 .compact-section {

@@ -65,6 +65,25 @@ class TestCreateSource:
             password="stream-pass",
         )
 
+    async def test_create_uses_active_plugin_setting(self, async_client: AsyncClient):
+        settings_resp = await async_client.put(
+            "/api/settings",
+            json={"active_plugin_id": "template"},
+        )
+        assert settings_resp.status_code == 200
+
+        resp = await async_client.post(
+            "/api/sources",
+            json={
+                "name": "Route Camera",
+                "route_path": "cam-template",
+                "scene_id": "smoke",
+            },
+        )
+
+        assert resp.status_code == 201
+        assert resp.json()["scene_id"] == "template"
+
 
 class TestListSources:
     async def test_list_empty(self, async_client: AsyncClient):

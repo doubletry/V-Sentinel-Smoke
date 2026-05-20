@@ -27,7 +27,7 @@
               />
               {{ source.name }}
             </div>
-            <div class="source-scene">{{ t('sourceList.scene') }}: {{ sceneLabel(source.scene_id) }}</div>
+            <div class="source-scene">{{ t('sourceList.activePlugin') }}: {{ activePluginLabel }}</div>
             <div class="source-url">{{ getSourceRoute(source) }}</div>
           </div>
           <div class="source-actions">
@@ -114,16 +114,9 @@
             :placeholder="t('sourceList.routePlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="t('sourceList.scene')" required>
-          <el-select v-model="form.scene_id" style="width: 100%">
-            <el-option
-              v-for="scene in localizedScenes"
-              :key="scene.id"
-              :label="scene.label"
-              :value="scene.id"
-            />
-          </el-select>
-          <div class="route-hint">{{ t('sourceList.sceneHint') }}</div>
+        <el-form-item :label="t('sourceList.activePlugin')">
+          <el-input :model-value="activePluginLabel" disabled />
+          <div class="route-hint">{{ t('sourceList.activePluginHint') }}</div>
         </el-form-item>
         <div class="route-hint">{{ t('sourceList.routeHint', { base: appSettingsStore.mediamtxRtspAddr }) }}</div>
       </el-form>
@@ -152,16 +145,9 @@
             :placeholder="t('sourceList.routePlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="t('sourceList.scene')" required>
-          <el-select v-model="editForm.scene_id" style="width: 100%">
-            <el-option
-              v-for="scene in localizedScenes"
-              :key="scene.id"
-              :label="scene.label"
-              :value="scene.id"
-            />
-          </el-select>
-          <div class="route-hint">{{ t('sourceList.sceneChangeClearsRois') }}</div>
+        <el-form-item :label="t('sourceList.activePlugin')">
+          <el-input :model-value="activePluginLabel" disabled />
+          <div class="route-hint">{{ t('sourceList.activePluginHint') }}</div>
         </el-form-item>
         <div class="route-hint">{{ t('sourceList.routeHint', { base: appSettingsStore.mediamtxRtspAddr }) }}</div>
       </el-form>
@@ -199,23 +185,13 @@ const editingSourceId = ref('')
 const scenes = ref([])
 const DEFAULT_SCENE_ID = 'smoke'
 
-const form = reactive({ name: '', route_path: '', scene_id: DEFAULT_SCENE_ID })
-const editForm = reactive({ name: '', route_path: '', scene_id: DEFAULT_SCENE_ID })
+const form = reactive({ name: '', route_path: '' })
+const editForm = reactive({ name: '', route_path: '' })
 
-const localizedScenes = computed(() =>
-  scenes.value.map((scene) => ({
-    ...scene,
-    label: sceneLabel(scene.id),
-  }))
-)
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
-
-function defaultSceneId() {
-  return sceneById.value.has(DEFAULT_SCENE_ID)
-    ? DEFAULT_SCENE_ID
-    : (scenes.value[0]?.id ?? DEFAULT_SCENE_ID)
-}
+const activePluginId = computed(() => appSettingsStore.activePluginId || DEFAULT_SCENE_ID)
+const activePluginLabel = computed(() => sceneLabel(activePluginId.value))
 
 function sceneLabel(sceneId) {
   const resolvedSceneId = sceneId ?? DEFAULT_SCENE_ID
@@ -269,11 +245,10 @@ async function addSource() {
 
   addLoading.value = true
   try {
-    await store.createSource({ name: form.name, route_path: routePath, scene_id: form.scene_id })
+    await store.createSource({ name: form.name, route_path: routePath })
     showAddDialog.value = false
     form.name = ''
     form.route_path = ''
-    form.scene_id = defaultSceneId()
     ElMessage.success(t('sourceList.sourceAdded'))
   } catch (err) {
     ElMessage.error(err.message || t('sourceList.failedToAdd'))
@@ -299,7 +274,6 @@ function openEditDialog(source) {
   editingSourceId.value = source.id
   editForm.name = source.name
   editForm.route_path = extractRoutePath(source.rtsp_url, appSettingsStore.mediamtxRtspAddr)
-  editForm.scene_id = source.scene_id || DEFAULT_SCENE_ID
   showEditDialog.value = true
 }
 
@@ -322,7 +296,6 @@ async function saveEdit() {
     await store.updateSource(editingSourceId.value, {
       name: editForm.name,
       route_path: routePath,
-      scene_id: editForm.scene_id,
     })
     showEditDialog.value = false
     ElMessage.success(t('sourceList.sourceUpdated'))
@@ -362,7 +335,6 @@ onMounted(async () => {
     })
   }
   scenes.value = await scenesApi.list().catch(() => [])
-  form.scene_id = defaultSceneId()
 })
 </script>
 

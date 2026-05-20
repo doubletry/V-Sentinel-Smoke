@@ -15,6 +15,7 @@ from backend.db.database import (
     init_db,
     list_sources,
     save_rois,
+    update_all_sources_scene,
     update_settings,
     update_source,
 )
@@ -178,7 +179,7 @@ class TestUpdateSource:
         assert updated.rois[0].tag == "zone"
         assert updated.rois[0].type == "rectangle"
 
-    async def test_scene_change_clears_existing_rois(self):
+    async def test_global_plugin_change_clears_existing_rois(self):
         src = await create_source(
             VideoSourceCreate(name="Scene ROI", rtsp_url="rtsp://scene-roi", scene_id="smoke")
         )
@@ -195,8 +196,10 @@ class TestUpdateSource:
             ),
         )
 
-        updated = await update_source(src.id, VideoSourceUpdate(scene_id="template"))
+        changed = await update_all_sources_scene("template")
+        updated = await get_source(src.id)
 
+        assert changed == 1
         assert updated is not None
         assert updated.scene_id == "template"
         assert updated.rois == []

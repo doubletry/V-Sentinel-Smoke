@@ -27,6 +27,7 @@ class TestSettingsDB:
         assert all_settings["timezone"] == "Asia/Shanghai"
         assert all_settings["site_title"] == "V-Sentinel"
         assert all_settings["favicon_url"] == "/favicon.ico"
+        assert all_settings["active_plugin_id"] == "smoke"
         assert all_settings["vengine_host"] == "localhost"
         assert all_settings["detection_port"] == "50051"
         assert all_settings["ocr_port"] == "50054"
@@ -106,6 +107,7 @@ class TestSettingsAPI:
                 "timezone": "UTC",
                 "detection_port": "9999",
                 "site_title": "My Sentinel",
+                "active_plugin_id": "template",
                 "email_from_address": "sender@example.com",
                 "email_smtp_password": "secret",
                 "email_to_addresses": "to1@example.com,to2@example.com",
@@ -130,6 +132,7 @@ class TestSettingsAPI:
         assert data["timezone"] == "UTC"
         assert data["detection_port"] == "9999"
         assert data["site_title"] == "My Sentinel"
+        assert data["active_plugin_id"] == "template"
         assert data["email_from_address"] == "sender@example.com"
         assert data["email_smtp_password"] == "secret"
         assert data["email_to_addresses"] == "to1@example.com,to2@example.com"
@@ -223,6 +226,36 @@ class TestSettingsAPI:
         assert default_gateway["webrtc_base_url"] == "https://gateway.example.com:8889/live"
         assert default_gateway["username"] == "shared-user"
         assert default_gateway["password"] == "shared-pass"
+
+    async def test_update_active_plugin_rebinds_existing_sources(
+        self,
+        async_client: AsyncClient,
+    ):
+        source = await create_source(
+            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://localhost:8554/cam1")
+        )
+
+        resp = await async_client.put(
+            "/api/settings",
+            json={"active_plugin_id": "template"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["active_plugin_id"] == "template"
+        updated_source = await get_source(source.id)
+        assert updated_source is not None
+        assert updated_source.scene_id == "template"
+
+    async def test_update_active_plugin_rejects_unknown_plugin(
+        self,
+        async_client: AsyncClient,
+    ):
+        resp = await async_client.put(
+            "/api/settings",
+            json={"active_plugin_id": "missing-plugin"},
+        )
+
+        assert resp.status_code == 422
 
     async def test_legacy_mediamtx_protocol_credentials_are_mapped_to_shared_fields(
         self,

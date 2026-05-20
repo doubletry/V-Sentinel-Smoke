@@ -21,6 +21,7 @@ const DEFAULT_UI_SETTINGS = {
   site_title: config.siteName,
   site_description: config.siteDescription,
   favicon_url: '/favicon.ico',
+  active_plugin_id: 'smoke',
   mediamtx_rtsp_addr: 'rtsp://localhost:8554',
   mediamtx_webrtc_addr: config.mediamtxWebrtcUrl || 'http://localhost:8889',
   mediamtx_username: '',
@@ -61,6 +62,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const timeZone = computed(() => settings.value.timezone || DEFAULT_UI_SETTINGS.timezone)
   const faviconUrl = computed(() => settings.value.favicon_url || DEFAULT_UI_SETTINGS.favicon_url)
   const siteIconUrl = computed(() => faviconUrl.value)
+  const activePluginId = computed(() => settings.value.active_plugin_id || DEFAULT_UI_SETTINGS.active_plugin_id)
   const mediamtxRtspAddr = computed(
     () => settings.value.mediamtx_rtsp_addr || DEFAULT_UI_SETTINGS.mediamtx_rtsp_addr
   )
@@ -123,6 +125,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     timeZone,
     faviconUrl,
     siteIconUrl,
+    activePluginId,
     mediamtxRtspAddr,
     mediamtxWebrtcAddr,
     mediamtxUsername,

@@ -759,6 +759,17 @@ async def _get_shared_mediamtx_credentials_from_db(
     return resolved_username, resolved_password
 
 
+async def _get_active_plugin_id_from_db(db: aiosqlite.Connection) -> str:
+    """Resolve the globally active processing plugin.
+    解析当前全局启用的处理插件。"""
+    plugin_id = await _get_setting_from_db(
+        db,
+        "active_plugin_id",
+        DEFAULT_APP_SETTINGS.get("active_plugin_id", DEFAULT_SCENE_ID),
+    )
+    return str(plugin_id or DEFAULT_SCENE_ID).strip() or DEFAULT_SCENE_ID
+
+
 async def _resolve_source_rtsp_url(
     db: aiosqlite.Connection,
     *,
@@ -883,6 +894,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
     source_id = str(uuid.uuid4())
     created_at = _now_iso()
     async with _db_session() as db:
+        active_plugin_id = await _get_active_plugin_id_from_db(db)
         route_path = _normalize_route_path(source.route_path) or extract_source_route_path(
             str(source.rtsp_url or ""),
             await _get_setting_from_db(db, "mediamtx_rtsp_addr", DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", "")),
@@ -901,7 +913,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
                 source.name,
                 resolved_rtsp_url,
                 route_path,
-                source.scene_id or DEFAULT_SCENE_ID,
+                active_plugin_id,
                 _json_dumps(source.notification_policy_ids),
                 created_at,
             ),
@@ -912,7 +924,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         name=source.name,
         rtsp_url=resolved_rtsp_url,
         route_path=route_path,
-        scene_id=source.scene_id or DEFAULT_SCENE_ID,
+        scene_id=active_plugin_id,
         notification_policy_ids=source.notification_policy_ids,
         rois=[],
         created_at=created_at,
@@ -1008,13 +1020,12 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
                 values,
             )
         scene_changed = False
-        if data.scene_id is not None:
-            next_scene_id = data.scene_id or DEFAULT_SCENE_ID
-            cursor = await db.execute(
-                "UPDATE video_sources SET scene_id = ? WHERE id = ? AND scene_id != ?",
-                (next_scene_id, source_id, next_scene_id),
-            )
-            scene_changed = cursor.rowcount > 0
+        active_plugin_id = await _get_active_plugin_id_from_db(db)
+        cursor = await db.execute(
+            "UPDATE video_sources SET scene_id = ? WHERE id = ? AND scene_id != ?",
+            (active_plugin_id, source_id, active_plugin_id),
+        )
+        scene_changed = cursor.rowcount > 0
         if data.rois is not None:
             await _save_rois_in_db(db, source_id, data.rois)
         elif scene_changed:
@@ -1035,6 +1046,28 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             return None
         rois = await _get_rois_for_source(db, source_id)
     return _row_to_source(row, rois)
+
+
+async def update_all_sources_scene(scene_id: str) -> int:
+    """Bind all sources to the active scene and clear stale ROI data.
+    将所有视频源绑定到当前启用场景，并清空旧 ROI 数据。"""
+    next_scene_id = str(scene_id or DEFAULT_SCENE_ID).strip() or DEFAULT_SCENE_ID
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id FROM video_sources WHERE scene_id != ?",
+            (next_scene_id,),
+        ) as cursor:
+            changed_source_ids = [str(row[0]) for row in await cursor.fetchall()]
+        if not changed_source_ids:
+            return 0
+        await db.execute(
+            "UPDATE video_sources SET scene_id = ? WHERE scene_id != ?",
+            (next_scene_id, next_scene_id),
+        )
+        for source_id in changed_source_ids:
+            await db.execute("DELETE FROM rois WHERE source_id = ?", (source_id,))
+        await db.commit()
+        return len(changed_source_ids)
 
 
 async def delete_source(source_id: str) -> bool:
