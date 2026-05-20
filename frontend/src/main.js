@@ -5,12 +5,14 @@ import ElButton, { ElButtonGroup } from 'element-plus/es/components/button/index
 import ElConfigProvider from 'element-plus/es/components/config-provider/index'
 import ElContainer, { ElHeader, ElMain } from 'element-plus/es/components/container/index'
 import ElDialog from 'element-plus/es/components/dialog/index'
+import ElDivider from 'element-plus/es/components/divider/index'
 import ElForm, { ElFormItem } from 'element-plus/es/components/form/index'
 import ElIcon from 'element-plus/es/components/icon/index'
 import ElInput from 'element-plus/es/components/input/index'
 import ElLoading from 'element-plus/es/components/loading/index'
 import ElMenu, { ElMenuItem } from 'element-plus/es/components/menu/index'
 import ElPagination from 'element-plus/es/components/pagination/index'
+import ElPopover from 'element-plus/es/components/popover/index'
 import ElScrollbar from 'element-plus/es/components/scrollbar/index'
 import ElSelect, { ElOption } from 'element-plus/es/components/select/index'
 import ElSwitch from 'element-plus/es/components/switch/index'
@@ -55,6 +57,7 @@ const elementPlusComponents = [
   ElConfigProvider,
   ElContainer,
   ElDialog,
+  ElDivider,
   ElForm,
   ElFormItem,
   ElHeader,
@@ -65,6 +68,7 @@ const elementPlusComponents = [
   ElMenuItem,
   ElOption,
   ElPagination,
+  ElPopover,
   ElScrollbar,
   ElSelect,
   ElSwitch,
