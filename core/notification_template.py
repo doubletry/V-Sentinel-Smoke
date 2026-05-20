@@ -100,17 +100,24 @@ def _image_html(image_base64: str, alt: str) -> str:
     )
 
 
-def _source_parts(event: dict[str, Any]) -> tuple[str, str, str]:
+def _source_network_context(event: dict[str, Any]) -> dict[str, str]:
     raw_url = str(event.get("source_rtsp_url") or event.get("rtsp_url") or "")
     if not raw_url:
-        return "", "", ""
+        return {"source_host": "", "source_ip": "", "source_port": ""}
     try:
         parsed = urlsplit(raw_url)
     except ValueError:
-        return "", "", ""
+        return {"source_host": "", "source_ip": "", "source_port": ""}
     host = parsed.hostname or ""
     port = str(parsed.port or "")
-    return host, host, port
+    return {
+        "source_host": host,
+        # RTSP URLs may contain a DNS name or an IP literal.  The source_ip
+        # placeholder intentionally exposes the parsed host value as a
+        # best-effort address for templates.
+        "source_ip": host,
+        "source_port": port,
+    }
 
 
 def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) -> dict[str, str]:
@@ -139,7 +146,7 @@ def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) 
     detected_image_base64 = str(
         event.get("detected_image_base64") or event.get("image_base64") or ""
     ).strip()
-    source_host, source_ip, source_port = _source_parts(event)
+    source_network = _source_network_context(event)
     return {
         "site_title": product_name(app_settings),
         "timestamp": timestamp,
@@ -163,9 +170,7 @@ def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) 
         "has_detected_image": "true" if detected_image_base64 or event.get("detected_image_url") or event.get("image_url") else "false",
         "source_rtsp_url": str(event.get("source_rtsp_url") or event.get("rtsp_url") or ""),
         "source_route_path": str(event.get("source_route_path") or ""),
-        "source_host": source_host,
-        "source_ip": source_ip,
-        "source_port": source_port,
+        **source_network,
         "source_remark": str(event.get("source_remark") or ""),
         "source_description": str(event.get("source_description") or event.get("source_remark") or ""),
         "roi_id": str(event.get("roi_id") or ""),
