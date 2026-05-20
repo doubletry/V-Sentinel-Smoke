@@ -41,31 +41,39 @@
             <el-icon><Setting /></el-icon>
             <span>{{ t('nav.management') }}</span>
           </el-button>
-          <el-dropdown trigger="click" @command="onAuthCommand">
-            <el-button size="small" plain class="account-button">
-              <span class="account-name">{{ authStore.user?.username }}</span>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu class="account-dropdown-menu">
-                <el-dropdown-item disabled class="account-dropdown-title">
-                  {{ authStore.user?.username || t('auth.accountMenu') }}
-                </el-dropdown-item>
-                <el-dropdown-item disabled>
-                  {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
-                </el-dropdown-item>
-                <el-dropdown-item divided command="locale:zh-CN">
-                  {{ t('language.label') }} · 中文
-                </el-dropdown-item>
-                <el-dropdown-item command="locale:en-US">
-                  {{ t('language.label') }} · English
-                </el-dropdown-item>
-                <el-dropdown-item divided command="change-password">
-                  {{ t('auth.changePassword') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="logout">{{ t('auth.logout') }}</el-dropdown-item>
-              </el-dropdown-menu>
+          <el-popover
+            v-model:visible="accountMenuVisible"
+            placement="bottom-end"
+            trigger="click"
+            :width="220"
+            popper-class="account-popover"
+          >
+            <template #reference>
+              <el-button size="small" plain class="account-button" aria-haspopup="menu">
+                <span class="account-name">{{ authStore.user?.username }}</span>
+              </el-button>
             </template>
-          </el-dropdown>
+            <div class="account-menu" role="menu">
+              <div class="account-menu__title">{{ authStore.user?.username || t('auth.accountMenu') }}</div>
+              <div class="account-menu__role">
+                {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
+              </div>
+              <el-divider class="account-menu__divider" />
+              <button type="button" class="account-menu__item" role="menuitem" @click="onAuthCommand('locale:zh-CN')">
+                {{ t('language.label') }} · 中文
+              </button>
+              <button type="button" class="account-menu__item" role="menuitem" @click="onAuthCommand('locale:en-US')">
+                {{ t('language.label') }} · English
+              </button>
+              <el-divider class="account-menu__divider" />
+              <button type="button" class="account-menu__item" role="menuitem" @click="onAuthCommand('change-password')">
+                {{ t('auth.changePassword') }}
+              </button>
+              <button type="button" class="account-menu__item account-menu__item--danger" role="menuitem" @click="onAuthCommand('logout')">
+                {{ t('auth.logout') }}
+              </button>
+            </div>
+          </el-popover>
         </div>
       </el-header>
       <el-main class="app-main">
@@ -131,6 +139,7 @@ const route = useRoute()
 const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
+const accountMenuVisible = ref(false)
 const passwordDialogVisible = ref(false)
 const passwordSubmitting = ref(false)
 const passwordForm = reactive({
@@ -224,6 +233,7 @@ async function submitPasswordChange() {
 }
 
 function onAuthCommand(command) {
+  accountMenuVisible.value = false
   if (command === 'logout') {
     authStore.logout()
     ElMessage.success(t('auth.logoutSuccess'))
@@ -370,14 +380,6 @@ body {
   white-space: nowrap;
 }
 
-.account-dropdown-menu {
-  min-width: 196px;
-}
-
-.account-dropdown-title {
-  font-weight: 600;
-}
-
 .password-dialog-hint {
   margin-bottom: 16px;
   color: #7d8fb3;
@@ -408,5 +410,60 @@ body {
     min-width: 88px;
     max-width: 132px;
   }
+}
+</style>
+
+<style>
+.account-popover {
+  padding: 0 !important;
+}
+
+.account-menu {
+  padding: 10px;
+}
+
+.account-menu__title {
+  color: #1f2d3d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.account-menu__role {
+  color: #7d8796;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.account-menu__divider {
+  margin: 8px 0;
+}
+
+.account-menu__item {
+  appearance: none;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #303133;
+  cursor: pointer;
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.account-menu__item:hover,
+.account-menu__item:focus-visible {
+  background: #ecf5ff;
+  color: #409eff;
+  outline: none;
+}
+
+.account-menu__item--danger:hover,
+.account-menu__item--danger:focus-visible {
+  background: #fef0f0;
+  color: #f56c6c;
 }
 </style>

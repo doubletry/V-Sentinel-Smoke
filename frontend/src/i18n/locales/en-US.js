@@ -369,6 +369,7 @@ export default {
     smokeIouThreshold: 'IoU Threshold',
     smokeIouThresholdHint: 'Used to match the same target across frames. Higher values require more stable position overlap.',
     threadPools: 'Thread Pools',
+    threadPoolsHint: 'Thread pools are managed alongside V-Engine services and are adjustable in expert mode only.',
     maxPullWorkers: 'Max Pull Workers',
     maxPushWorkers: 'Max Push Workers',
     maxCpuWorkers: 'Max CPU Workers',

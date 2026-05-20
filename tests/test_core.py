@@ -748,6 +748,15 @@ class TestCoreBaseVideoProcessorPipeline:
     def test_observed_fps_estimates_from_decoded_frames(self):
         assert BaseVideoProcessor._observed_fps(26, 1.0) == 25.0
 
+    def test_observed_fps_replaces_inflated_metadata(self):
+        assert BaseVideoProcessor._should_use_observed_fps(50.0, 25.0)
+
+    def test_observed_fps_keeps_close_metadata(self):
+        assert not BaseVideoProcessor._should_use_observed_fps(25.0, 24.0)
+
+    def test_observed_fps_replaces_missing_metadata(self):
+        assert BaseVideoProcessor._should_use_observed_fps(None, 25.0)
+
     def test_build_push_rtsp_url_injects_shared_credentials(self):
         proc = DummyCoreProcessor(
             source_id="s1",

@@ -1,6 +1,13 @@
 <template>
   <div class="settings-page">
     <div class="settings-shell">
+      <div v-if="hasSettingsAccess" class="settings-top-actions">
+        <el-button class="management-home-button" type="primary" plain @click="returnHome">
+          <el-icon><House /></el-icon>
+          {{ t('management.backToHome') }}
+        </el-button>
+      </div>
+
       <div v-if="!hasSettingsAccess" class="settings-section section-card">
         <div class="title-line">
           <el-icon :size="20"><Setting /></el-icon>
@@ -28,10 +35,6 @@
               <el-tag v-if="authStore.role" size="small" effect="dark" class="management-role-tag">
                 {{ t('auth.signedInAs', { role: t(`auth.roles.${authStore.role}`) }) }}
               </el-tag>
-              <el-button class="management-home-button" type="primary" plain @click="returnHome">
-                <el-icon><House /></el-icon>
-                {{ t('management.backToHome') }}
-              </el-button>
               <div class="settings-overview-stats">
                 <div v-for="item in managementOverviewCards" :key="item.key" class="settings-overview-stat">
                   <span class="settings-overview-stat__label">{{ item.label }}</span>
@@ -233,14 +236,14 @@
               <div class="section-card__actions">
                 <el-button
                   :loading="activeRestoreSection === 'platform-vengine'"
-                  @click="restoreSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                  @click="restoreSection('platform-vengine', VENGINE_SERVICE_SETTING_KEYS)"
                 >
                   {{ t('settings.restoreSection') }}
                 </el-button>
                 <el-button
                   type="primary"
                   :loading="activeSaveSection === 'platform-vengine'"
-                  @click="saveSection('platform-vengine', VENGINE_SETTING_KEYS)"
+                  @click="saveSection('platform-vengine', VENGINE_SERVICE_SETTING_KEYS)"
                 >
                   {{ t('settings.saveSection') }}
                 </el-button>
@@ -283,20 +286,40 @@
               </el-form-item>
             </div>
 
-            <section v-if="expertMode" class="expert-card">
-              <h3>{{ t('settings.threadPools') }}</h3>
-              <div class="settings-form-grid compact-grid">
-                <el-form-item :label="t('settings.maxPullWorkers')">
-                  <el-input v-model="form.max_pull_workers" placeholder="20" />
-                </el-form-item>
-                <el-form-item :label="t('settings.maxPushWorkers')">
-                  <el-input v-model="form.max_push_workers" placeholder="10" />
-                </el-form-item>
-                <el-form-item :label="t('settings.maxCpuWorkers')">
-                  <el-input v-model="form.max_cpu_workers" placeholder="16" />
-                </el-form-item>
+          </section>
+          <section v-if="expertMode" class="settings-section section-card">
+            <div class="section-card__head">
+              <div>
+                <h2>{{ t('settings.threadPools') }}</h2>
+                <p class="info-tip">{{ t('settings.threadPoolsHint') }}</p>
               </div>
-            </section>
+              <div class="section-card__actions">
+                <el-button
+                  :loading="activeRestoreSection === 'platform-thread-pools'"
+                  @click="restoreSection('platform-thread-pools', THREAD_POOL_SETTING_KEYS)"
+                >
+                  {{ t('settings.restoreSection') }}
+                </el-button>
+                <el-button
+                  type="primary"
+                  :loading="activeSaveSection === 'platform-thread-pools'"
+                  @click="saveSection('platform-thread-pools', THREAD_POOL_SETTING_KEYS)"
+                >
+                  {{ t('settings.saveSection') }}
+                </el-button>
+              </div>
+            </div>
+            <div class="settings-form-grid compact-grid">
+              <el-form-item :label="t('settings.maxPullWorkers')">
+                <el-input v-model="form.max_pull_workers" placeholder="20" />
+              </el-form-item>
+              <el-form-item :label="t('settings.maxPushWorkers')">
+                <el-input v-model="form.max_push_workers" placeholder="10" />
+              </el-form-item>
+              <el-form-item :label="t('settings.maxCpuWorkers')">
+                <el-input v-model="form.max_cpu_workers" placeholder="16" />
+              </el-form-item>
+            </div>
           </section>
         </section>
 
@@ -832,7 +855,7 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
 // These keys are saved from the Site Settings UI and also included in
 // PROCESSOR_RESTART_SETTING_KEYS so running sources switch to the new plugin.
 const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', ...ACTIVE_PLUGIN_SETTING_KEYS]
-const VENGINE_SETTING_KEYS = [
+const VENGINE_SERVICE_SETTING_KEYS = [
   'vengine_host',
   'detection_port',
   'classification_port',
@@ -844,6 +867,8 @@ const VENGINE_SETTING_KEYS = [
   'action_enabled',
   'ocr_enabled',
   'upload_enabled',
+]
+const THREAD_POOL_SETTING_KEYS = [
   'max_pull_workers',
   'max_push_workers',
   'max_cpu_workers',
@@ -1432,6 +1457,7 @@ onMounted(async () => {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 
 .title-line {
@@ -1453,13 +1479,16 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
+.settings-top-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .management-role-tag {
   margin-top: 10px;
 }
 
 .management-home-button {
-  width: 100%;
-  margin-top: 14px;
   justify-content: center;
 }
 

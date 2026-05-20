@@ -369,6 +369,7 @@ export default {
     smokeIouThreshold: 'IoU 阈值',
     smokeIouThresholdHint: '用于跨帧匹配同一目标；值越大，要求同一目标位置越稳定。',
     threadPools: '线程池',
+    threadPoolsHint: '线程池与 V-Engine 服务同级管理，仅在专家模式下调整。',
     maxPullWorkers: '拉流线程上限',
     maxPushWorkers: '推流线程上限',
     maxCpuWorkers: 'CPU 线程上限',

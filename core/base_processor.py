@@ -285,13 +285,14 @@ class BaseVideoProcessor(ABC):
                 self._update_publish_fps(source_fps)
                 observed_first_frame_at: float | None = None
                 observed_frame_count = 0
+                observed_fps_locked = False
 
                 for frame in container.decode(video=0):
                     if self._stop_event.is_set():
                         break
                     stream_ok = True
                     reconnect_attempts = 0
-                    if source_fps is None:
+                    if not observed_fps_locked:
                         now = time.monotonic()
                         if observed_first_frame_at is None:
                             observed_first_frame_at = now
@@ -303,8 +304,17 @@ class BaseVideoProcessor(ABC):
                                 now - observed_first_frame_at,
                             )
                             if observed_fps is not None:
-                                source_fps = observed_fps
-                                self._update_publish_fps(source_fps)
+                                observed_fps_locked = True
+                                if self._should_use_observed_fps(source_fps, observed_fps):
+                                    if source_fps is not None:
+                                        logger.warning(
+                                            "Correcting metadata FPS {:.3f} to observed FPS {:.3f} for {}",
+                                            source_fps,
+                                            observed_fps,
+                                            self.source_id,
+                                        )
+                                    source_fps = observed_fps
+                                    self._update_publish_fps(source_fps)
                     frame_counter += 1
                     if (
                         FRAME_SAMPLE_INTERVAL > 1
@@ -433,6 +443,19 @@ class BaseVideoProcessor(ABC):
         if 0 < estimated_fps <= MAX_REASONABLE_SOURCE_FPS:
             return float(estimated_fps)
         return None
+
+    @staticmethod
+    def _should_use_observed_fps(reported_fps: float | None, observed_fps: float) -> bool:
+        """Return whether measured frame cadence should replace stream metadata.
+        判断是否用实测帧率替代流元数据帧率。"""
+        if not math.isfinite(observed_fps) or observed_fps <= 0:
+            return False
+        if reported_fps is None or not math.isfinite(reported_fps) or reported_fps <= 0:
+            return True
+        return (
+            observed_fps < reported_fps * 0.75
+            or observed_fps > reported_fps * 1.25
+        )
 
     # ── Abstract method ───────────────────────────────────────────────────
 
