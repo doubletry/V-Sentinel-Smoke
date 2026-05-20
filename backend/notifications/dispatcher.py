@@ -4,7 +4,6 @@ import base64
 import html
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlsplit
 
 from loguru import logger
 
@@ -98,8 +97,11 @@ class NotificationDispatcher:
     def _should_send(self, policy_id: str, cooldown_seconds: int, event: dict[str, Any]) -> bool:
         now_ts = datetime.now(timezone.utc).timestamp()
         last_ts = self._last_sent_at.get(self._cooldown_key(policy_id, event), 0.0)
-        cooldown = event.get("cooldown_seconds", cooldown_seconds)
-        return now_ts - last_ts >= max(0, int(cooldown))
+        try:
+            cooldown = int(event.get("cooldown_seconds", cooldown_seconds))
+        except (TypeError, ValueError):
+            cooldown = int(cooldown_seconds)
+        return now_ts - last_ts >= max(0, cooldown)
 
     def _mark_sent(self, policy_id: str, event: dict[str, Any]) -> None:
         self._last_sent_at[self._cooldown_key(policy_id, event)] = datetime.now(timezone.utc).timestamp()
@@ -109,14 +111,16 @@ class NotificationDispatcher:
         safe_timestamp = timestamp.replace(":", "-")
         event_type = str(event.get("event_type") or "event").replace("/", "_")
         attachments: list[tuple[str, bytes, str]] = []
+        seen_payloads: set[str] = set()
         for key, suffix in (
             ("original_image_base64", "original"),
             ("detected_image_base64", "detected"),
             ("image_base64", "image"),
         ):
             image_base64 = str(event.get(key) or "").strip()
-            if not image_base64:
+            if not image_base64 or image_base64 in seen_payloads:
                 continue
+            seen_payloads.add(image_base64)
             try:
                 image_bytes = base64.b64decode(image_base64, validate=True)
             except Exception:
