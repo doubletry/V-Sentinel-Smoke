@@ -532,20 +532,6 @@
                   >
                     {{ t('settings.openPluginSettings') }}
                   </el-button>
-                  <el-button
-                    plain
-                    :aria-label="`${t('settings.pluginRoiTags')} - ${sceneTabLabel(scene.id)}`"
-                    @click="navigateToPluginSettingsDialog(scene.id, 'roi-tags')"
-                  >
-                    {{ t('settings.pluginRoiTags') }}
-                  </el-button>
-                  <el-button
-                    plain
-                    :aria-label="`${t('settings.pluginDefaultConfig')} - ${sceneTabLabel(scene.id)}`"
-                    @click="navigateToPluginSettingsDialog(scene.id, 'defaults')"
-                  >
-                    {{ t('settings.pluginDefaultConfig') }}
-                  </el-button>
                 </div>
               </div>
               <div class="plugin-launcher-card__summary">
@@ -1882,6 +1868,42 @@ onMounted(async () => {
   color: #8f9fbe;
   font-size: 13px;
   line-height: 1.5;
+}
+
+:global(.plugin-settings-dialog) {
+  border: 1px solid #2b3550;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(20, 28, 48, 0.98), rgba(12, 18, 33, 0.98));
+  box-shadow: 0 24px 60px rgba(5, 10, 24, 0.45);
+  overflow: hidden;
+}
+
+:global(.plugin-settings-dialog .el-dialog__header) {
+  margin: 0;
+  padding: 18px 22px;
+  border-bottom: 1px solid #2b3550;
+  background: rgba(12, 18, 33, 0.92);
+}
+
+:global(.plugin-settings-dialog .el-dialog__title) {
+  color: #eef4ff;
+  font-weight: 700;
+}
+
+:global(.plugin-settings-dialog .el-dialog__headerbtn .el-dialog__close) {
+  color: #9fb0cf;
+}
+
+:global(.plugin-settings-dialog .el-dialog__headerbtn:hover .el-dialog__close) {
+  color: #79bbff;
+}
+
+:global(.plugin-settings-dialog .el-dialog__body) {
+  padding: 20px 22px 24px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(64, 158, 255, 0.10), transparent 40%),
+    rgba(12, 18, 33, 0.98);
+  color: #dbe7ff;
 }
 
 .settings-split-grid {

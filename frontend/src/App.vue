@@ -355,6 +355,18 @@ body {
   min-width: 112px;
   max-width: 180px;
   padding: 0 14px;
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #c7d5ef !important;
+  box-shadow: none !important;
+  transition: color 0.18s ease;
+}
+
+.account-button:hover,
+.account-button:focus {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #79bbff !important;
 }
 
 .management-button {
