@@ -109,7 +109,7 @@ class FireDoorProcessor(BaseVideoProcessor):
             {
                 "shape": shape,
                 "image_bytes": encoded,
-                "roi": points,
+                "image_roi": self._bounded_roi_points(points, shape),
             }
             for _, _, points in fire_rois
         ]
@@ -237,3 +237,16 @@ class FireDoorProcessor(BaseVideoProcessor):
                 cv2.LINE_AA,
             )
         return out
+
+    @staticmethod
+    def _bounded_roi_points(
+        points: list[dict],
+        shape: tuple[int, int, int],
+    ) -> list[dict[str, int]]:
+        height, width = shape[:2]
+        bounded: list[dict[str, int]] = []
+        for point in points:
+            x = min(max(int(point.get("x", 0)), 0), max(width - 1, 0))
+            y = min(max(int(point.get("y", 0)), 0), max(height - 1, 0))
+            bounded.append({"x": x, "y": y})
+        return bounded

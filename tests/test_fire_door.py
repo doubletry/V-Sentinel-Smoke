@@ -107,11 +107,35 @@ async def test_multiple_rois_batch_classification_alerts_when_any_roi_is_open():
     result = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
 
     vengine.classify.assert_awaited_once()
-    assert len(vengine.classify.await_args.kwargs["images"]) == 2
+    images = vengine.classify.await_args.kwargs["images"]
+    assert len(images) == 2
+    assert images[0]["image_roi"] == roi_points[0]
+    assert images[1]["image_roi"] == roi_points[1]
+    assert "roi" not in images[0]
     assert result.messages
     assert result.extra["email_event"]["roi_id"] == "r2"
     assert result.annotated_frame is not None
     assert result.annotated_frame.sum() > 0
+
+
+async def test_classification_roi_uses_absolute_pixel_points_clamped_to_frame():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "closed", "confidence": 0.95, "class_id": 0}]
+    processor = _processor(vengine)
+    frame = np.zeros((100, 200, 3), dtype=np.uint8)
+    roi_points = [[{"x": -5, "y": 10}, {"x": 205, "y": 10}, {"x": 205, "y": 120}, {"x": -5, "y": 120}]]
+
+    await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+
+    image = vengine.classify.await_args.kwargs["images"][0]
+    assert image["shape"] == frame.shape
+    assert image["image_bytes"] == b"frame"
+    assert image["image_roi"] == [
+        {"x": 0, "y": 10},
+        {"x": 199, "y": 10},
+        {"x": 199, "y": 99},
+        {"x": 0, "y": 99},
+    ]
 
 
 async def test_temporal_confirmation_requires_configured_frames():
@@ -161,4 +185,3 @@ def test_fire_door_email_template_context_has_images_source_and_roi_fields():
     assert context["has_detected_image"] == "true"
     assert "<img" in context["original_image"]
     assert "<img" in context["detected_image"]
-

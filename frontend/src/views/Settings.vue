@@ -544,15 +544,6 @@
                     <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
                   </div>
                 </div>
-                <div class="plugin-launcher-card__group">
-                  <span class="plugin-launcher-card__label">{{ t('settings.pluginDefaultConfig') }}</span>
-                  <div class="plugin-config-list">
-                    <el-tag v-for="item in previewConfigRowsByScene[scene.id] || []" :key="item.key" type="info">
-                      {{ item.key }}: {{ item.value }}
-                    </el-tag>
-                    <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
-                  </div>
-                </div>
               </div>
             </section>
           </div>
@@ -803,24 +794,6 @@
                 </section>
               </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.pluginDefaultConfig')" name="defaults">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
-                      <p v-if="currentPluginScene.id !== SMOKE_SCENE_ID" class="info-tip">
-                        {{ currentPluginScene.description || t('settings.templateSceneHint') }}
-                      </p>
-                    </div>
-                  </div>
-                  <div class="plugin-config-list">
-                    <el-tag v-for="item in sceneDefaultConfigRows(currentPluginScene.id)" :key="item.key" type="info">
-                      {{ item.key }}: {{ item.value }}
-                    </el-tag>
-                    <span v-if="!sceneDefaultConfigRows(currentPluginScene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
-                  </div>
-                </section>
-              </el-tab-pane>
             </el-tabs>
           </template>
         </el-dialog>
@@ -1189,46 +1162,12 @@ function sceneTabLabel(sceneId) {
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
-const pluginCardPreviewLimit = 4
-
-function sceneDefaultConfigRows(sceneId) {
-  // Smoke exposes these same parameters in the editable configuration tab, so
-  // repeating its scene defaults here adds noise without giving users new controls.
-  if (sceneId === SMOKE_SCENE_ID) {
-    return []
-  }
-  const config = sceneById(sceneId)?.default_config || {}
-  return Object.entries(config).map(([key, value]) => ({
-    key,
-    value: formatConfigValue(value),
-  }))
-}
-
-const previewConfigRowsByScene = computed(() => (
-  Object.fromEntries(
-    sceneDefinitions.value.map((scene) => [
-      scene.id,
-      sceneDefaultConfigRows(scene.id).slice(0, pluginCardPreviewLimit),
-    ])
-  )
-))
-
 function roiTagLabel(scene, tag) {
   return sceneScopedRoiTagLabel(scene, tag, locale.value)
 }
 
 function formatCreatedAt(value) {
   return formatTimeWithTimezone(value, appSettingsStore.timeZone)
-}
-
-function formatConfigValue(value) {
-  if (value === null || value === undefined) {
-    return ''
-  }
-  if (typeof value === 'object') {
-    return JSON.stringify(value)
-  }
-  return String(value)
 }
 
 function pluginSettingKeys(sceneId) {

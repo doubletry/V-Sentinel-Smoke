@@ -12,7 +12,7 @@
 
       <el-scrollbar class="sources-scroll">
         <div
-          v-for="source in store.sources"
+          v-for="(source, sourceIndex) in store.sources"
           :key="source.id"
           class="source-item"
           draggable="true"
@@ -25,6 +25,7 @@
                 is-dot
                 class="status-dot"
               />
+              <span class="source-index">#{{ sourceIndex + 1 }}</span>
               {{ source.name }}
             </div>
             <div class="source-scene">{{ t('sourceList.activePlugin') }}: {{ activePluginLabel }}</div>
@@ -75,7 +76,7 @@
 
       <el-scrollbar class="sources-scroll">
         <div
-          v-for="rs in resultStreams"
+          v-for="(rs, resultIndex) in resultStreams"
           :key="rs.id"
           class="source-item result-item"
           draggable="true"
@@ -84,6 +85,7 @@
           <div class="source-info">
             <div class="source-name result-name">
               <el-badge type="success" is-dot class="status-dot" />
+              <span class="source-index">#{{ resultIndex + 1 }}</span>
               {{ rs.name }}
             </div>
             <div class="source-url">{{ rs.streamPath }}</div>
@@ -436,6 +438,19 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
+}
+
+.source-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(64, 158, 255, 0.16);
+  color: #8cc5ff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .result-name {
