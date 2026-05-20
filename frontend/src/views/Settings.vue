@@ -815,8 +815,9 @@ const SMOKE_ADVANCED_DEFAULTS = {
   smoke_static_max_area_change_ratio: '0.08',
   smoke_iou_threshold: '0.3',
 }
+const ACTIVE_PLUGIN_SETTING_KEYS = ['active_plugin_id']
 const PROCESSOR_RESTART_SETTING_KEYS = [
-  'active_plugin_id',
+  ...ACTIVE_PLUGIN_SETTING_KEYS,
   'smoke_detection_model_name',
   'smoke_detection_model_version',
   'smoke_detection_confidence',
@@ -828,9 +829,9 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
-// active_plugin_id lives in the Site UI section, but changing it also requires
-// running processors to restart so every source uses the newly loaded plugin.
-const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', 'active_plugin_id']
+// Saved from the Site Settings UI, while PROCESSOR_RESTART_SETTING_KEYS also
+// marks it as restart-sensitive so running sources switch to the new plugin.
+const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', ...ACTIVE_PLUGIN_SETTING_KEYS]
 const VENGINE_SETTING_KEYS = [
   'vengine_host',
   'detection_port',
