@@ -244,9 +244,11 @@ class FireDoorProcessor(BaseVideoProcessor):
         shape: tuple[int, int, int],
     ) -> list[dict[str, int]]:
         height, width = shape[:2]
+        max_x = width - 1 if width > 0 else 0
+        max_y = height - 1 if height > 0 else 0
         bounded: list[dict[str, int]] = []
         for point in points:
-            x = min(max(int(point.get("x", 0)), 0), max(width - 1, 0))
-            y = min(max(int(point.get("y", 0)), 0), max(height - 1, 0))
+            x = max(0, min(int(point.get("x", 0)), max_x))
+            y = max(0, min(int(point.get("y", 0)), max_y))
             bounded.append({"x": x, "y": y})
         return bounded
