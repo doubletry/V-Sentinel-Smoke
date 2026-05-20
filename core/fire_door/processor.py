@@ -135,7 +135,7 @@ class FireDoorProcessor(BaseVideoProcessor):
             raw_label = str(item.get("label") or "")
             state = self._door_state(raw_label)
             confidence = float(item.get("confidence") or 0.0)
-            is_alarm_label = state in alarm_labels or self._normalize_label(raw_label) in alarm_labels
+            is_alarm_label = state in alarm_labels
             qualifies = confidence >= confidence_threshold and is_alarm_label
             roi_id = str(getattr(roi, "id", "") or f"roi-{roi_index + 1}")
             alert = qualifies and self._temporal_alarm_confirmed(roi_id, now_ts)
@@ -237,4 +237,3 @@ class FireDoorProcessor(BaseVideoProcessor):
                 cv2.LINE_AA,
             )
         return out
-

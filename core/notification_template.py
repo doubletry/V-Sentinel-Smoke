@@ -10,6 +10,7 @@ helpers instead of depending on a channel-specific client.
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timezone
 import html
 from string import Formatter
@@ -92,6 +93,10 @@ def safe_float(value: Any) -> float:
 def _image_html(image_base64: str, alt: str) -> str:
     payload = str(image_base64 or "").strip()
     if not payload:
+        return ""
+    try:
+        base64.b64decode(payload, validate=True)
+    except Exception:
         return ""
     safe_alt = html.escape(alt, quote=True)
     return (
