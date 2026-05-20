@@ -1053,11 +1053,6 @@ const currentSettingsNavItem = computed(() => (
 ))
 const managementOverviewCards = computed(() => ([
   {
-    key: 'current',
-    label: t('settings.currentSection'),
-    value: currentSettingsNavItem.value?.label || t('management.title'),
-  },
-  {
     key: 'sections',
     label: t('settings.availableModules'),
     value: String(settingsNavItems.value.length),
@@ -1507,7 +1502,7 @@ onMounted(async () => {
 
 .settings-overview-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
   margin-top: 16px;
 }
