@@ -527,7 +527,7 @@
                 <div class="plugin-launcher-card__group">
                   <span class="plugin-launcher-card__label">{{ t('settings.pluginDefaultConfig') }}</span>
                   <div class="plugin-config-list">
-                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id).slice(0, PLUGIN_CARD_PREVIEW_LIMIT)" :key="item.key" type="info">
+                    <el-tag v-for="item in previewConfigRowsByScene[scene.id] || []" :key="item.key" type="info">
                       {{ item.key }}: {{ item.value }}
                     </el-tag>
                     <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
@@ -1026,7 +1026,7 @@ function sceneTabLabel(sceneId) {
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
-const PLUGIN_CARD_PREVIEW_LIMIT = 4
+const pluginCardPreviewLimit = 4
 
 function sceneDefaultConfigRows(sceneId) {
   const config = sceneById(sceneId)?.default_config || {}
@@ -1035,6 +1035,15 @@ function sceneDefaultConfigRows(sceneId) {
     value: formatConfigValue(value),
   }))
 }
+
+const previewConfigRowsByScene = computed(() => (
+  Object.fromEntries(
+    sceneDefinitions.value.map((scene) => [
+      scene.id,
+      sceneDefaultConfigRows(scene.id).slice(0, pluginCardPreviewLimit),
+    ])
+  )
+))
 
 function roiTagLabel(scene, tag) {
   return sceneScopedRoiTagLabel(scene, tag, locale.value)
@@ -1092,9 +1101,9 @@ function navigateToPluginScene(sceneId) {
 }
 
 function navigateToPluginSettingsDialog(sceneId, tab = 'config') {
+  navigateToPluginScene(sceneId)
   activePluginTab.value = tab
   pluginDialogVisible.value = true
-  navigateToPluginScene(sceneId)
 }
 
 function handlePluginDialogClosed() {
