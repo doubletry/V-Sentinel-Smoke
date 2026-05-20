@@ -527,7 +527,7 @@
                 <div class="plugin-launcher-card__group">
                   <span class="plugin-launcher-card__label">{{ t('settings.pluginDefaultConfig') }}</span>
                   <div class="plugin-config-list">
-                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id).slice(0, MAX_PREVIEW_CONFIG_ITEMS)" :key="item.key" type="info">
+                    <el-tag v-for="item in sceneDefaultConfigRows(scene.id).slice(0, PLUGIN_CARD_PREVIEW_LIMIT)" :key="item.key" type="info">
                       {{ item.key }}: {{ item.value }}
                     </el-tag>
                     <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
@@ -757,7 +757,6 @@ const SMOKE_SCENE_ID = 'smoke'
 const activePlatformTab = ref('overview')
 const activeNotificationTab = ref('email')
 const activePluginTab = ref('config')
-const MAX_PREVIEW_CONFIG_ITEMS = 4
 const DEFAULT_SCENE_DEFINITIONS = [
   {
     id: 'smoke',
@@ -1027,6 +1026,8 @@ function sceneTabLabel(sceneId) {
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
+const PLUGIN_CARD_PREVIEW_LIMIT = 4
+
 function sceneDefaultConfigRows(sceneId) {
   const config = sceneById(sceneId)?.default_config || {}
   return Object.entries(config).map(([key, value]) => ({
@@ -1092,6 +1093,7 @@ function navigateToPluginScene(sceneId) {
 
 function navigateToPluginSettingsDialog(sceneId, tab = 'config') {
   activePluginTab.value = tab
+  pluginDialogVisible.value = true
   navigateToPluginScene(sceneId)
 }
 
@@ -1356,6 +1358,10 @@ onMounted(async () => {
 
 <style scoped>
 .settings-page {
+  --management-nav-card-bg-start: rgba(14, 21, 40, 0.92);
+  --management-nav-card-bg-end: rgba(11, 17, 31, 0.78);
+  --management-nav-card-active-start: rgba(34, 74, 148, 0.85);
+  --management-nav-card-active-end: rgba(15, 28, 58, 0.95);
   height: 100%;
   overflow-y: auto;
   padding: 24px 28px 32px;
@@ -1453,7 +1459,7 @@ onMounted(async () => {
   padding: 14px 16px;
   border: 1px solid #2f3a5b;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(14, 21, 40, 0.92), rgba(11, 17, 31, 0.78));
+  background: linear-gradient(135deg, var(--management-nav-card-bg-start), var(--management-nav-card-bg-end));
   color: #dbe7ff;
   text-align: left;
   cursor: pointer;
@@ -1468,7 +1474,7 @@ onMounted(async () => {
 
 .settings-page-nav__button.is-active {
   border-color: rgba(64, 158, 255, 0.7);
-  background: linear-gradient(135deg, rgba(34, 74, 148, 0.85), rgba(15, 28, 58, 0.95));
+  background: linear-gradient(135deg, var(--management-nav-card-active-start), var(--management-nav-card-active-end));
   box-shadow: 0 16px 32px rgba(19, 50, 103, 0.3);
 }
 
@@ -1638,7 +1644,7 @@ onMounted(async () => {
 
 .plugin-launcher-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
@@ -1814,6 +1820,10 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .settings-page {
     padding: 14px 14px 24px;
+  }
+
+  .plugin-launcher-grid {
+    grid-template-columns: 1fr;
   }
 
   .settings-form {
