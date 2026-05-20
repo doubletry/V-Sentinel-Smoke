@@ -1021,11 +1021,17 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             )
         scene_changed = False
         active_plugin_id = await _get_active_plugin_id_from_db(db)
-        cursor = await db.execute(
-            "UPDATE video_sources SET scene_id = ? WHERE id = ? AND scene_id != ?",
-            (active_plugin_id, source_id, active_plugin_id),
-        )
-        scene_changed = cursor.rowcount > 0
+        async with db.execute(
+            "SELECT scene_id FROM video_sources WHERE id = ?",
+            (source_id,),
+        ) as cursor:
+            current_scene_row = await cursor.fetchone()
+        if current_scene_row is not None and str(current_scene_row[0] or "") != active_plugin_id:
+            await db.execute(
+                "UPDATE video_sources SET scene_id = ? WHERE id = ?",
+                (active_plugin_id, source_id),
+            )
+            scene_changed = True
         if data.rois is not None:
             await _save_rois_in_db(db, source_id, data.rois)
         elif scene_changed:
@@ -1060,9 +1066,10 @@ async def update_all_sources_scene(scene_id: str) -> int:
             changed_source_ids = [str(row[0]) for row in await cursor.fetchall()]
         if not changed_source_ids:
             return 0
+        placeholders = ", ".join("?" for _ in changed_source_ids)
         await db.execute(
-            "UPDATE video_sources SET scene_id = ? WHERE scene_id != ?",
-            (next_scene_id, next_scene_id),
+            f"UPDATE video_sources SET scene_id = ? WHERE id IN ({placeholders})",
+            (next_scene_id, *changed_source_ids),
         )
         for source_id in changed_source_ids:
             await db.execute("DELETE FROM rois WHERE source_id = ?", (source_id,))

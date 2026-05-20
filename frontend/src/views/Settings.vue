@@ -828,6 +828,8 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
+// active_plugin_id lives in the Site UI section, but changing it also requires
+// running processors to restart so every source uses the newly loaded plugin.
 const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', 'active_plugin_id']
 const VENGINE_SETTING_KEYS = [
   'vengine_host',
@@ -1060,6 +1062,8 @@ function sceneTabLabel(sceneId) {
 const pluginCardPreviewLimit = 4
 
 function sceneDefaultConfigRows(sceneId) {
+  // Smoke exposes these same parameters in the editable configuration tab, so
+  // repeating its scene defaults here adds noise without giving users new controls.
   if (sceneId === SMOKE_SCENE_ID) {
     return []
   }

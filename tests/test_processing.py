@@ -179,10 +179,14 @@ class TestBaseVideoProcessor:
 
 
 class TestProcessorManager:
-    def _make_manager(self) -> ProcessorManager:
+    def _make_manager(self, app_settings: dict | None = None) -> ProcessorManager:
         vengine = MagicMock()
         ws = WSManager()
-        return ProcessorManager(vengine_client=vengine, ws_manager=ws, app_settings=dict(DEFAULT_APP_SETTINGS))
+        return ProcessorManager(
+            vengine_client=vengine,
+            ws_manager=ws,
+            app_settings=app_settings or dict(DEFAULT_APP_SETTINGS),
+        )
 
     async def test_status_empty(self):
         mgr = self._make_manager()
@@ -205,13 +209,10 @@ class TestProcessorManager:
                 rtsp_url="rtsp://localhost:8554/cam1",
             )
         )
-        app_settings = dict(DEFAULT_APP_SETTINGS)
-        app_settings["active_plugin_id"] = "template"
-        mgr = ProcessorManager(
-            vengine_client=MagicMock(),
-            ws_manager=WSManager(),
-            app_settings=app_settings,
-        )
+        mgr = self._make_manager({
+            **DEFAULT_APP_SETTINGS,
+            "active_plugin_id": "template",
+        })
 
         processor = MagicMock(status="stopped")
         processor.start = AsyncMock()
