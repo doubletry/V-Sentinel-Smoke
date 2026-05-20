@@ -1049,7 +1049,7 @@ const settingsNavItems = computed(() => {
   return items
 })
 const currentSettingsNavItem = computed(() => (
-  settingsNavItems.value.find((item) => item.key === currentSettingsPage.value) || settingsNavItems.value[0] || null
+  settingsNavItems.value.find((item) => item.key === currentSettingsPage.value) || null
 ))
 const managementOverviewCards = computed(() => ([
   {
@@ -1478,6 +1478,9 @@ onMounted(async () => {
   gap: 16px;
   position: sticky;
   top: 0;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .settings-main {
@@ -1739,6 +1742,11 @@ onMounted(async () => {
 
 .settings-top-tabs :deep(.el-tabs__active-bar) {
   display: none;
+}
+
+.settings-top-tabs :deep(.el-tabs__item:focus-visible) {
+  outline: 2px solid rgba(124, 194, 255, 0.6);
+  outline-offset: 2px;
 }
 
 .settings-form-grid {
@@ -2008,6 +2016,9 @@ onMounted(async () => {
 
   .settings-sidebar {
     position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .settings-overview-stats {
