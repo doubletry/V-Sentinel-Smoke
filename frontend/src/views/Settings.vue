@@ -1831,7 +1831,6 @@ onMounted(async () => {
 
 .plugin-launcher-card {
   margin-bottom: 0;
-  min-height: 100%;
 }
 
 .plugin-launcher-card__summary {

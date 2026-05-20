@@ -240,7 +240,7 @@ export default {
     expertMode: 'Expert Mode',
     expertModeHint: 'When off, advanced thresholds and thread pools are hidden. Enable it only for administrator tuning.',
     currentSection: 'Current Section',
-    availableModules: 'Available Sections',
+    availableModules: 'Available Modules',
     pluginSceneCount: 'Plugin Scenes',
     quickNavigation: 'Quick Navigation',
     quickNavigationHint: 'Keep section switching fixed on the left, then review, edit, and save from the workspace on the right.',
