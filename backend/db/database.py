@@ -895,6 +895,12 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
     created_at = _now_iso()
     async with _db_session() as db:
         active_plugin_id = await _get_active_plugin_id_from_db(db)
+        if "scene_id" in source.model_fields_set:
+            requested_scene_id = str(source.scene_id or "").strip() or DEFAULT_SCENE_ID
+            if requested_scene_id != active_plugin_id:
+                raise ValueError(
+                    f"scene_id must match active_plugin_id '{active_plugin_id}'"
+                )
         route_path = _normalize_route_path(source.route_path) or extract_source_route_path(
             str(source.rtsp_url or ""),
             await _get_setting_from_db(db, "mediamtx_rtsp_addr", DEFAULT_APP_SETTINGS.get("mediamtx_rtsp_addr", "")),
@@ -983,6 +989,13 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
     """Update a video source's fields and/or ROIs.
     更新视频源的字段和/或 ROI。"""
     async with _db_session() as db:
+        active_plugin_id = await _get_active_plugin_id_from_db(db)
+        if data.scene_id is not None:
+            requested_scene_id = str(data.scene_id or "").strip() or DEFAULT_SCENE_ID
+            if requested_scene_id != active_plugin_id:
+                raise ValueError(
+                    f"scene_id must match active_plugin_id '{active_plugin_id}'"
+                )
         fields: list[str] = []
         values: list[str] = []
         if data.name is not None:
@@ -1020,7 +1033,6 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
                 values,
             )
         scene_changed = False
-        active_plugin_id = await _get_active_plugin_id_from_db(db)
         async with db.execute(
             "SELECT scene_id FROM video_sources WHERE id = ?",
             (source_id,),

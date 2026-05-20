@@ -103,7 +103,9 @@ async def update_settings(
         "active_plugin_id" in updates
         and previous_settings.get("active_plugin_id") != result.get("active_plugin_id")
     ):
-        await db.update_all_sources_scene(result.get("active_plugin_id", "smoke"))
+        await db.update_all_sources_scene(
+            result.get("active_plugin_id", db.DEFAULT_SCENE_ID)
+        )
 
     # Reconnect V-Engine client with new addresses / 使用新地址重连 V-Engine 客户端
     vengine_client = request.app.state.vengine_client

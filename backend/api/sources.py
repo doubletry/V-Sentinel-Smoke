@@ -28,7 +28,7 @@ async def create_source(
     try:
         return await db.create_source(source)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
         if "UNIQUE constraint failed" in str(exc):
             raise HTTPException(
@@ -75,7 +75,7 @@ async def update_source(
     try:
         source = await db.update_source(source_id, data)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc))
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     return source
@@ -172,8 +172,7 @@ async def import_rois_yaml(
 
     # ROI tags are owned by the globally active plugin for this service instance.
     # ROI 标签由当前服务实例全局启用的插件拥有。
-    settings = await db.get_all_settings()
-    active_plugin_id = settings.get("active_plugin_id") or source.scene_id
+    active_plugin_id = await db.get_setting("active_plugin_id") or source.scene_id
     scene = await db.get_scene(active_plugin_id)
     valid_tags = set(scene.default_roi_tags if scene else [])
 

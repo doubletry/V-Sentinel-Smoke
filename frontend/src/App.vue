@@ -2,7 +2,7 @@
   <el-config-provider>
     <router-view v-if="isAuthRoute" />
     <el-container v-else class="app-container">
-      <el-header v-if="!isManagementRoute" class="app-header">
+      <el-header class="app-header">
         <div class="header-brand">
           <el-avatar :size="22" shape="square" :src="appSettingsStore.siteIconUrl" class="site-icon">
             <el-icon><VideoCamera /></el-icon>
@@ -11,6 +11,7 @@
           <span class="brand-desc">{{ appSettingsStore.siteDescription }}</span>
         </div>
         <el-menu
+          v-if="!isManagementRoute"
           mode="horizontal"
           :router="true"
           :default-active="activeHeaderPath"
