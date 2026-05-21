@@ -265,6 +265,28 @@ class TestMessagesAPI:
         assert event["message"] == "persisted alert"
         assert send_event.await_args.kwargs["force"] is True
 
+    async def test_resend_notification_endpoint_reports_failed_provider_result(self, async_client: AsyncClient):
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted alert",
+            }
+        )
+
+        with patch(
+            "backend.main.notification_dispatcher.send_event",
+            new=AsyncMock(return_value=[{"status": "ERROR", "message": "SMTP host is required"}]),
+        ):
+            resp = await async_client.post(f"/api/messages/{message_id}/resend-notification")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "failed"
+        assert data["results"][0]["message"] == "SMTP host is required"
+
     async def test_resend_notification_endpoint_returns_404(self, async_client: AsyncClient):
         resp = await async_client.post("/api/messages/missing/resend-notification")
 

@@ -43,30 +43,35 @@ class NotificationDispatcher:
         providers = {provider.id: provider for provider in await db.list_notification_providers()}
         templates = {template.id: template for template in await db.list_notification_templates()}
 
-        results: list[dict[str, str]] = []
-        for policy_id in policy_ids:
-            policy = policies.get(policy_id)
-            if policy is None or not policy.enabled:
-                continue
-            if not force and not self._should_send(policy_id, policy.cooldown_seconds, event):
-                continue
-            template = templates.get(str(policy.template_id or ""))
+        def build_payload(template_id: str | None) -> NotificationPayload:
+            template = templates.get(str(template_id or ""))
             context = build_template_context(app_settings, self._enrich_event(event, source))
             subject_template = template.subject_template if template else "{event_label} alert from {source_name}"
             body_template = template.body_template if template else "{local_time} {event_label} {source_name}"
             rendered_body = render_template(body_template, context)
             html_context = self._html_template_context(context)
-            payload = NotificationPayload(
+            return NotificationPayload(
                 subject=render_template(subject_template, context),
                 body=rendered_body,
                 html_body="<br>".join(render_template(body_template, html_context).splitlines()),
                 context=context,
                 attachments=self._build_attachments(event),
             )
+
+        results: list[dict[str, str]] = []
+        attempted_provider_ids: set[str] = set()
+        for policy_id in policy_ids:
+            policy = policies.get(policy_id)
+            if policy is None or not policy.enabled:
+                continue
+            if not force and not self._should_send(policy_id, policy.cooldown_seconds, event):
+                continue
+            payload = build_payload(policy.template_id)
             for provider_id in policy.provider_ids:
                 provider = providers.get(provider_id)
                 if provider is None or not provider.enabled:
                     continue
+                attempted_provider_ids.add(provider_id)
                 try:
                     results.append(await self._send_provider(provider.type, provider.config, payload))
                 except Exception as exc:  # pragma: no cover - side-effect logging
@@ -75,7 +80,33 @@ class NotificationDispatcher:
                         provider_id,
                         exc,
                     )
+                    results.append({"status": "ERROR", "message": str(exc)})
             self._mark_sent(policy_id, event)
+        if force and not any(result.get("status") == "SUCCESS" for result in results):
+            payload = build_payload(None)
+            fallback_providers = [
+                provider
+                for provider_id, provider in providers.items()
+                if provider.enabled and provider_id not in attempted_provider_ids
+            ]
+            for provider in fallback_providers:
+                try:
+                    results.append(await self._send_provider(provider.type, provider.config, payload))
+                except Exception as exc:  # pragma: no cover - side-effect logging
+                    logger.warning(
+                        "Failed to send manual notification via fallback provider {}: {}",
+                        provider.id,
+                        exc,
+                    )
+                    results.append({"status": "ERROR", "message": str(exc)})
+            if not fallback_providers and not attempted_provider_ids:
+                legacy_email_config = self._legacy_email_config(app_settings)
+                if legacy_email_config:
+                    try:
+                        results.append(await self._send_provider("email", legacy_email_config, payload))
+                    except Exception as exc:  # pragma: no cover - side-effect logging
+                        logger.warning("Failed to send manual notification via legacy email settings: {}", exc)
+                        results.append({"status": "ERROR", "message": str(exc)})
         return results
 
     async def _send_provider(
@@ -127,6 +158,24 @@ class NotificationDispatcher:
                 continue
             attachments.append((f"{event_type}-{safe_timestamp}-{suffix}.jpg", image_bytes, "image/jpeg"))
         return attachments
+
+    def _legacy_email_config(self, app_settings: dict[str, str]) -> dict[str, Any] | None:
+        smtp_host = str(app_settings.get("email_smtp_host") or "").strip()
+        from_address = str(app_settings.get("email_from_address") or "").strip()
+        to_addresses = str(app_settings.get("email_to_addresses") or "").strip()
+        cc_addresses = str(app_settings.get("email_cc_addresses") or "").strip()
+        if not smtp_host or not from_address or not (to_addresses or cc_addresses):
+            return None
+        return {
+            "smtp_host": smtp_host,
+            "smtp_port": str(app_settings.get("email_smtp_port") or "587"),
+            "smtp_username": str(app_settings.get("email_smtp_username") or "").strip(),
+            "smtp_password": str(app_settings.get("email_smtp_password") or ""),
+            "from_address": from_address,
+            "to_addresses": to_addresses,
+            "cc_addresses": cc_addresses,
+            "use_tls": str(app_settings.get("email_smtp_use_tls", "true")).lower() in {"1", "true", "yes", "on"},
+        }
 
     def _enrich_event(self, event: dict[str, Any], source: Any) -> dict[str, Any]:
         enriched = dict(event)

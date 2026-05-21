@@ -128,6 +128,10 @@ async function handleResendNotification(message) {
   resendingMessageIds.value = { ...resendingMessageIds.value, [message.id]: true }
   try {
     const result = await store.resendNotification(message.id)
+    if (result.status !== 'sent') {
+      const detail = result.results?.[0]?.message || result.status || 'unknown'
+      throw new Error(detail)
+    }
     ElMessage.success(t('messages.resendNotificationSuccess', { status: result.status || 'sent' }))
   } catch (err) {
     ElMessage.error(t('messages.resendNotificationFailed', { message: err.message }))

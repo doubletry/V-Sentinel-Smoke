@@ -27,6 +27,7 @@
             store.isRunning(source.id),
             actionLoading[source.id],
             activePluginLabel,
+            activePluginAlarmConfidenceThreshold,
           ]"
           @dragstart="onDragStart($event, source)"
         >
@@ -154,7 +155,7 @@
           <div class="field-stack">
             <el-input
               v-model="form.alarm_confidence_threshold"
-              :placeholder="t('sourceList.alarmConfidenceThresholdPlaceholder')"
+              :placeholder="alarmConfidenceThresholdPlaceholder"
             />
             <div class="route-hint">{{ t('sourceList.alarmConfidenceThresholdHint') }}</div>
           </div>
@@ -208,7 +209,7 @@
           <div class="field-stack">
             <el-input
               v-model="editForm.alarm_confidence_threshold"
-              :placeholder="t('sourceList.alarmConfidenceThresholdPlaceholder')"
+              :placeholder="alarmConfidenceThresholdPlaceholder"
             />
             <div class="route-hint">{{ t('sourceList.alarmConfidenceThresholdHint') }}</div>
           </div>
@@ -272,6 +273,20 @@ const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, 
 const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
 const activePluginId = computed(() => appSettingsStore.activePluginId || DEFAULT_SCENE_ID)
 const activePluginLabel = computed(() => sceneLabel(activePluginId.value))
+const activePluginAlarmConfidenceThreshold = computed(() => {
+  const settings = appSettingsStore.settings || {}
+  const raw = activePluginId.value === 'fire_door'
+    ? settings.fire_door_classification_confidence
+    : settings.smoke_detection_confidence
+  const fallback = activePluginId.value === 'fire_door' ? '0.50' : '0.35'
+  const value = Number(String(raw ?? fallback).trim())
+  return Number.isFinite(value) ? value.toFixed(2) : fallback
+})
+const alarmConfidenceThresholdPlaceholder = computed(() => (
+  t('sourceList.alarmConfidenceThresholdPlaceholder', {
+    value: activePluginAlarmConfidenceThreshold.value,
+  })
+))
 
 function sceneLabel(sceneId) {
   const resolvedSceneId = sceneId ?? DEFAULT_SCENE_ID
@@ -445,7 +460,9 @@ function normalizeAlarmThreshold(value) {
 
 function formatAlarmThreshold(value) {
   if (value === null || value === undefined || value === '') {
-    return t('sourceList.globalDefault')
+    return t('sourceList.globalDefaultWithValue', {
+      value: activePluginAlarmConfidenceThreshold.value,
+    })
   }
   return Number(value).toFixed(2)
 }

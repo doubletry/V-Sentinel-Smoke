@@ -67,9 +67,10 @@ async def resend_message_notification(
     from backend.main import notification_dispatcher  # avoid circular import
 
     results = await notification_dispatcher.send_event(message, force=True)
+    has_success = any(result.get("status") == "SUCCESS" for result in results)
     return {
         "id": message_id,
-        "status": "sent" if results else "no_enabled_provider",
+        "status": "sent" if has_success else ("failed" if results else "no_enabled_provider"),
         "results": results,
     }
 

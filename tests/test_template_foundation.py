@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock
 from unittest.mock import patch
 from httpx import AsyncClient
 
-from backend.db.database import create_notification_policy, create_notification_provider, create_source
+from backend.db.database import (
+    create_notification_policy,
+    create_notification_provider,
+    create_source,
+    update_settings,
+)
 from backend.models.schemas import (
     NotificationPolicyCreate,
     NotificationProviderCreate,
@@ -366,3 +371,66 @@ class TestNotificationDispatcher:
         assert skipped == []
         assert forced == [{"status": "SUCCESS", "message": "sent"}]
         assert send.await_count == 2
+
+    async def test_dispatcher_force_uses_enabled_provider_without_source_policy(self, init_db):
+        await create_notification_provider(
+            NotificationProviderCreate(
+                name="SMTP",
+                type="email",
+                enabled=True,
+                config={
+                    "smtp_host": "smtp.example.com",
+                    "from_address": "sender@example.com",
+                    "to_addresses": ["ops@example.com"],
+                },
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send:
+            results = await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": "persisted-source",
+                    "source_name": "Persisted Cam",
+                    "event_type": "message",
+                    "event_label": "Persisted alert",
+                },
+                force=True,
+            )
+
+        assert results == [{"status": "SUCCESS", "message": "sent"}]
+        send.assert_awaited_once()
+
+    async def test_dispatcher_force_uses_legacy_email_settings_when_no_provider_enabled(self, init_db):
+        await update_settings(
+            {
+                "email_smtp_host": "smtp.example.com",
+                "email_from_address": "sender@example.com",
+                "email_to_addresses": "ops@example.com",
+            }
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send:
+            results = await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": "persisted-source",
+                    "source_name": "Persisted Cam",
+                    "event_type": "message",
+                    "event_label": "Persisted alert",
+                },
+                force=True,
+            )
+
+        assert results == [{"status": "SUCCESS", "message": "sent"}]
+        send.assert_awaited_once()
+        payload = send.await_args.args[0]
+        assert payload.subject == "Persisted alert alert from Persisted Cam"

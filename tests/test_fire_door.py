@@ -113,6 +113,27 @@ async def test_source_confidence_override_controls_alarm_threshold():
     assert result.classifications[0]["confidence"] == 0.91
 
 
+async def test_empty_source_confidence_uses_plugin_alarm_threshold():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.71, "class_id": 1}]
+    processor = _processor(
+        vengine,
+        settings={"fire_door_classification_confidence": "0.72"},
+        source_threshold=None,
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    result = await processor.process_frame(
+        frame,
+        b"frame",
+        frame.shape,
+        [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+    )
+
+    assert result.messages == []
+    assert result.classifications[0]["confidence"] == 0.71
+
+
 async def test_multiple_rois_batch_classification_alerts_when_any_roi_is_open():
     vengine = AsyncMock()
     vengine.classify.return_value = [

@@ -39,8 +39,10 @@ const DEFAULT_UI_SETTINGS = {
   email_event_body_template: DEFAULT_EVENT_EMAIL_BODY_TEMPLATE,
   smoke_detection_model_name: 'smoke-fire-detection',
   smoke_detection_model_version: '',
+  smoke_detection_confidence: '0.35',
   smoke_temporal_confirm_frames: '3',
   smoke_email_cooldown_seconds: '300',
+  fire_door_classification_confidence: '0.50',
   message_retention_days: '7',
 }
 
