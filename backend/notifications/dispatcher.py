@@ -8,6 +8,10 @@ from typing import Any
 from loguru import logger
 
 from backend.db import database as db
+from backend.notifications.email_config import (
+    build_email_settings_smtp_config,
+    has_email_settings_recipients,
+)
 from core.notification_client import (
     NotificationPayload,
     SmtpNotificationProvider,
@@ -160,22 +164,10 @@ class NotificationDispatcher:
         return attachments
 
     def _legacy_email_config(self, app_settings: dict[str, str]) -> dict[str, Any] | None:
-        smtp_host = str(app_settings.get("email_smtp_host") or "").strip()
-        from_address = str(app_settings.get("email_from_address") or "").strip()
-        to_addresses = str(app_settings.get("email_to_addresses") or "").strip()
-        cc_addresses = str(app_settings.get("email_cc_addresses") or "").strip()
-        if not smtp_host or not from_address or not (to_addresses or cc_addresses):
+        config = build_email_settings_smtp_config(app_settings)
+        if not has_email_settings_recipients(config):
             return None
-        return {
-            "smtp_host": smtp_host,
-            "smtp_port": str(app_settings.get("email_smtp_port") or "587"),
-            "smtp_username": str(app_settings.get("email_smtp_username") or "").strip(),
-            "smtp_password": str(app_settings.get("email_smtp_password") or ""),
-            "from_address": from_address,
-            "to_addresses": to_addresses,
-            "cc_addresses": cc_addresses,
-            "use_tls": str(app_settings.get("email_smtp_use_tls", "true")).lower() in {"1", "true", "yes", "on"},
-        }
+        return config
 
     def _enrich_event(self, event: dict[str, Any], source: Any) -> dict[str, Any]:
         enriched = dict(event)

@@ -410,15 +410,17 @@ class TestNotificationDispatcher:
             {
                 "email_smtp_host": "smtp.example.com",
                 "email_from_address": "sender@example.com",
+                "email_smtp_password": "secret",
                 "email_to_addresses": "ops@example.com",
             }
         )
 
         dispatcher = NotificationDispatcher()
-        with patch(
-            "core.notification_client.SmtpNotificationProvider.send",
+        with patch.object(
+            dispatcher,
+            "_send_provider",
             new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
-        ) as send:
+        ) as send_provider:
             results = await dispatcher.send_event(
                 {
                     "timestamp": "2026-01-01T00:00:00+00:00",
@@ -431,6 +433,9 @@ class TestNotificationDispatcher:
             )
 
         assert results == [{"status": "SUCCESS", "message": "sent"}]
-        send.assert_awaited_once()
-        payload = send.await_args.args[0]
+        send_provider.assert_awaited_once()
+        provider_type, config, payload = send_provider.await_args.args
+        assert provider_type == "email"
+        assert config["smtp_username"] == "sender@example.com"
+        assert config["smtp_password"] == "secret"
         assert payload.subject == "Persisted alert alert from Persisted Cam"

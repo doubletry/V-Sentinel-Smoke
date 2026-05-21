@@ -164,10 +164,17 @@ class TestSettingsAPI:
         assert "vengine_host" in data
 
     async def test_email_test_endpoint(self, async_client: AsyncClient):
+        captured_config = {}
+
+        async def fake_send(provider, payload):
+            del payload
+            captured_config.update(provider.config)
+            return {"status": "SUCCESS", "message": "ok"}
+
         with patch(
             "core.notification_client.SmtpNotificationProvider.send",
-            new=AsyncMock(return_value={"status": "SUCCESS", "message": "ok"}),
-        ) as send:
+            new=fake_send,
+        ):
             resp = await async_client.post(
                 "/api/settings/email/test",
                 json={
@@ -183,7 +190,8 @@ class TestSettingsAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "SUCCESS"
-        send.assert_awaited_once()
+        assert captured_config["smtp_username"] == "sender@example.com"
+        assert captured_config["smtp_password"] == "secret"
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,
