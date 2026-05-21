@@ -135,7 +135,7 @@ function openPreview(imageSrc) {
 function messageKey(message, idx) {
   return (
     message?.id
-    || `${message?.timestamp || 'no-timestamp'}-${message?.source_id || message?.source_name || 'no-source'}-${message?.level || 'no-level'}-${idx}`
+    || `${message?.timestamp || 'no-timestamp'}-${message?.source_id || message?.source_name || 'no-source'}-${message?.level || 'no-level'}-${message?.message || 'no-message'}-${idx}`
   )
 }
 </script>

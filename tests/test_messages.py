@@ -190,10 +190,11 @@ class TestMessagesAPI:
         assert len(data["items"]) == 5
 
     async def test_list_persisted_messages_caps_to_latest_twenty_pages(self, async_client: AsyncClient):
+        base_timestamp = datetime.now(timezone.utc).replace(microsecond=0)
         for index in range(405):
             await save_analysis_message(
                 {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": (base_timestamp + timedelta(seconds=index)).isoformat(),
                     "source_name": "Cam1",
                     "source_id": "s1",
                     "level": "info",
