@@ -53,7 +53,7 @@
                 @click="toggleRoiEditor(cellIdx)"
               >
                 <el-icon><Edit /></el-icon>
-                {{ roiCellIndex === cellIdx ? t('roi.exitEdit') : t('videoGrid.editRoi') }}
+                {{ roiCellIndex === cellIdx ? t('videoGrid.exitEdit') : t('videoGrid.editRoi') }}
               </el-button>
             </template>
             <el-button

@@ -127,6 +127,7 @@ export default {
     layout16: '16',
     roi: 'ROI',
     editRoi: 'Edit ROI',
+    exitEdit: 'Exit Editing',
     showRoi: 'Show ROI',
     hideRoi: 'Hide ROI',
     removeSource: 'Remove Source',

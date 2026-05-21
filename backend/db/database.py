@@ -1945,6 +1945,9 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
     return message_id
 
 
+MAX_VISIBLE_MESSAGE_PAGES = 20
+
+
 async def list_analysis_messages(
     *,
     limit: int | None = None,
@@ -1955,7 +1958,6 @@ async def list_analysis_messages(
 ) -> dict[str, object]:
     """List persisted analysis messages ordered newest-first.
     按时间倒序列出持久化分析消息。"""
-    max_visible_pages = 20
     safe_page = max(1, int(page))
     safe_size = min(100, max(1, int(page_size)))
     if limit is not None:
@@ -1978,7 +1980,7 @@ async def list_analysis_messages(
             visible_total_pages = 1 if total else 0
             visible_total = min(total, safe_size)
         else:
-            visible_total_pages = min(total_pages, max_visible_pages)
+            visible_total_pages = min(total_pages, MAX_VISIBLE_MESSAGE_PAGES)
             visible_total = min(total, visible_total_pages * safe_size)
         safe_page = min(safe_page, visible_total_pages) if visible_total_pages else 1
         offset = (safe_page - 1) * safe_size

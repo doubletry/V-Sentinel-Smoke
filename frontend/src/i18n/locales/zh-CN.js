@@ -127,6 +127,7 @@ export default {
     layout16: '16',
     roi: 'ROI',
     editRoi: '编辑ROI',
+    exitEdit: '退出编辑',
     showRoi: '显示ROI',
     hideRoi: '隐藏ROI',
     removeSource: '移除源',
