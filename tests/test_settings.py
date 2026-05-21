@@ -192,6 +192,7 @@ class TestSettingsAPI:
         assert data["status"] == "SUCCESS"
         assert captured_config["smtp_username"] == "sender@example.com"
         assert captured_config["smtp_password"] == "secret"
+        assert captured_config["use_tls"] is True
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,

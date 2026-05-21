@@ -6,6 +6,7 @@ from typing import Any
 def build_email_settings_smtp_config(settings: dict[str, Any]) -> dict[str, Any]:
     """Build SMTP provider config from DB-backed email settings."""
     from_address = str(settings.get("email_from_address") or "").strip()
+    use_tls = str(settings.get("email_smtp_use_tls", "true")).lower() in {"1", "true", "yes", "on"}
     return {
         "smtp_host": settings.get("email_smtp_host") or settings.get("vengine_host", ""),
         "smtp_port": settings.get("email_smtp_port") or "587",
@@ -14,7 +15,7 @@ def build_email_settings_smtp_config(settings: dict[str, Any]) -> dict[str, Any]
         "from_address": from_address,
         "to_addresses": settings.get("email_to_addresses", ""),
         "cc_addresses": settings.get("email_cc_addresses", ""),
-        "use_tls": settings.get("email_smtp_use_tls", "true"),
+        "use_tls": use_tls,
     }
 
 

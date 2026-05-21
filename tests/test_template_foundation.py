@@ -438,4 +438,5 @@ class TestNotificationDispatcher:
         assert provider_type == "email"
         assert config["smtp_username"] == "sender@example.com"
         assert config["smtp_password"] == "secret"
+        assert config["use_tls"] is True
         assert payload.subject == "Persisted alert alert from Persisted Cam"
