@@ -140,6 +140,10 @@ export const useMessageStore = defineStore('message', () => {
     return result
   }
 
+  async function resendNotification(messageId) {
+    return messagesApi.resendNotification(messageId)
+  }
+
   return {
     messages,
     loading,
@@ -159,5 +163,6 @@ export const useMessageStore = defineStore('message', () => {
     setFalsePositiveOnly,
     markFalsePositive,
     unmarkFalsePositive,
+    resendNotification,
   }
 })

@@ -410,10 +410,32 @@
                         :rows="8"
                       />
                       <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
-                      <div class="placeholder-tags">
-                        <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
-                          {{ '{' + item + '}' }}
-                        </el-tag>
+                      <div class="placeholder-group-list">
+                        <div
+                          v-for="group in emailTemplatePlaceholderGroups"
+                          :key="group.key"
+                          class="placeholder-group"
+                        >
+                          <div class="placeholder-group__title">{{ group.label }}</div>
+                          <div class="placeholder-tags">
+                            <el-tooltip
+                              v-for="item in group.items"
+                              :key="item"
+                              effect="dark"
+                              placement="top"
+                              :content="placeholderDescription(item)"
+                            >
+                              <el-tag
+                                size="small"
+                                effect="dark"
+                                :type="placeholderTagType(group.key)"
+                                class="placeholder-tag"
+                              >
+                                {{ '{' + item + '}' }}
+                              </el-tag>
+                            </el-tooltip>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </el-form-item>
@@ -860,7 +882,9 @@ const DEFAULT_SCENE_DEFINITIONS = [
   },
 ]
 const sceneDefinitions = ref(DEFAULT_SCENE_DEFINITIONS)
-const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks', 'original_image', 'detected_image', 'source_remark', 'source_route_path', 'source_host_or_ip', 'source_ip', 'roi_id', 'roi_tag', 'door_state'])
+const emailTemplatePlaceholders = ref(['site_title', 'timestamp', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'message', 'labels', 'confidence', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks', 'original_image', 'detected_image', 'original_image_url', 'detected_image_url', 'has_original_image', 'has_detected_image', 'source_rtsp_url', 'source_route_path', 'source_host', 'source_host_or_ip', 'source_ip', 'source_port', 'source_remark', 'source_description', 'roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
+const SMOKE_PLACEHOLDERS = new Set(['detection_count', 'frame_id', 'active_tracks'])
+const FIRE_DOOR_PLACEHOLDERS = new Set(['roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
   smoke_enable_appearance_filter: 'true',
@@ -908,6 +932,34 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'fire_door_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
+const emailTemplatePlaceholderGroups = computed(() => {
+  const groups = [
+    { key: 'common', label: t('settings.placeholderCategoryCommon'), items: [] },
+    { key: 'smoke', label: t('settings.placeholderCategorySmoke'), items: [] },
+    { key: 'fireDoor', label: t('settings.placeholderCategoryFireDoor'), items: [] },
+  ]
+  for (const item of emailTemplatePlaceholders.value) {
+    if (FIRE_DOOR_PLACEHOLDERS.has(item)) {
+      groups[2].items.push(item)
+    } else if (SMOKE_PLACEHOLDERS.has(item)) {
+      groups[1].items.push(item)
+    } else {
+      groups[0].items.push(item)
+    }
+  }
+  return groups.filter((group) => group.items.length)
+})
+
+function placeholderDescription(item) {
+  const translated = t(`settings.placeholderDescriptions.${item}`)
+  return translated === `settings.placeholderDescriptions.${item}` ? item : translated
+}
+
+function placeholderTagType(groupKey) {
+  if (groupKey === 'smoke') return 'warning'
+  if (groupKey === 'fireDoor') return 'success'
+  return 'info'
+}
 // These keys are saved from the Site Settings UI and also included in
 // PROCESSOR_RESTART_SETTING_KEYS so running sources switch to the new plugin.
 const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', ...ACTIVE_PLUGIN_SETTING_KEYS]
@@ -1880,6 +1932,28 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.placeholder-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.placeholder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.placeholder-group__title {
+  color: #9aa6c0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.placeholder-tag {
+  cursor: help;
 }
 
 .plugin-tag-list,

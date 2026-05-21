@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from backend.auth.dependencies import require_permission
 from backend.db.database import (
     get_analysis_message_image_path,
+    get_analysis_message_for_notification,
     list_analysis_messages,
     mark_analysis_message_false_positive,
     unmark_analysis_message_false_positive,
@@ -50,6 +51,27 @@ async def mark_message_false_positive(
     if result is None:
         raise HTTPException(status_code=404, detail="Message not found")
     return result
+
+
+@router.post("/{message_id}/resend-notification")
+async def resend_message_notification(
+    message_id: str,
+    _role: str = Depends(require_permission("messages:annotate")),
+) -> dict[str, object]:
+    """Manually resend notifications for one persisted analysis message.
+    手动为一条已持久化分析消息再次触发通知。"""
+    message = await get_analysis_message_for_notification(message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    from backend.main import notification_dispatcher  # avoid circular import
+
+    results = await notification_dispatcher.send_event(message, force=True)
+    return {
+        "id": message_id,
+        "status": "sent" if results else "no_enabled_provider",
+        "results": results,
+    }
 
 
 @router.delete("/{message_id}/false-positive")

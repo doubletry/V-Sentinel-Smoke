@@ -23,7 +23,7 @@ class NotificationDispatcher:
     def __init__(self) -> None:
         self._last_sent_at: dict[str, float] = {}
 
-    async def send_event(self, event: dict[str, Any]) -> list[dict[str, str]]:
+    async def send_event(self, event: dict[str, Any], *, force: bool = False) -> list[dict[str, str]]:
         """Send one event to the source-bound policies or the default policy.
         将事件发送到视频源绑定策略；未绑定时使用默认策略。"""
         app_settings = await db.get_all_settings()
@@ -48,7 +48,7 @@ class NotificationDispatcher:
             policy = policies.get(policy_id)
             if policy is None or not policy.enabled:
                 continue
-            if not self._should_send(policy_id, policy.cooldown_seconds, event):
+            if not force and not self._should_send(policy_id, policy.cooldown_seconds, event):
                 continue
             template = templates.get(str(policy.template_id or ""))
             context = build_template_context(app_settings, self._enrich_event(event, source))

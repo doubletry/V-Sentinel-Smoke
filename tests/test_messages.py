@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 
 from backend.db.database import (
     build_analysis_message_image_url,
+    get_analysis_message_for_notification,
     list_analysis_messages,
     save_analysis_message,
     update_settings,
@@ -75,6 +77,29 @@ class TestMessagePersistence:
         assert detected_resp.status_code == 200
         assert original_resp.content == b"original-bytes"
         assert detected_resp.content == b"detected-bytes"
+
+    async def test_get_message_for_notification_includes_images(self, init_db):
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "door open",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
+        )
+
+        message = await get_analysis_message_for_notification(message_id)
+
+        assert message is not None
+        assert message["message"] == "door open"
+        assert message["event_label"] == "door open"
+        assert message["original_image_base64"] == original
+        assert message["detected_image_base64"] == detected
 
     async def test_retention_prunes_old_messages(self, init_db):
         await update_settings({"message_retention_days": "1"})
@@ -214,3 +239,33 @@ class TestMessagesAPI:
         assert filtered.status_code == 200
         filtered_data = filtered.json()
         assert filtered_data["items"] == []
+
+    async def test_resend_notification_endpoint_forwards_persisted_message(self, async_client: AsyncClient):
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted alert",
+            }
+        )
+
+        with patch(
+            "backend.main.notification_dispatcher.send_event",
+            new=AsyncMock(return_value=[{"status": "SUCCESS", "message": "sent"}]),
+        ) as send_event:
+            resp = await async_client.post(f"/api/messages/{message_id}/resend-notification")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "sent"
+        send_event.assert_awaited_once()
+        event = send_event.await_args.args[0]
+        assert event["message"] == "persisted alert"
+        assert send_event.await_args.kwargs["force"] is True
+
+    async def test_resend_notification_endpoint_returns_404(self, async_client: AsyncClient):
+        resp = await async_client.post("/api/messages/missing/resend-notification")
+
+        assert resp.status_code == 404

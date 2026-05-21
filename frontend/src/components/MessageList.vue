@@ -37,6 +37,16 @@
       </div>
       <div class="msg-actions">
         <el-button
+          v-if="canAnnotateMessages && msg.id"
+          size="small"
+          type="primary"
+          plain
+          :loading="Boolean(resendingMessageIds[msg.id])"
+          @click="emit('resend-notification', msg)"
+        >
+          {{ t('messageList.resendNotification') }}
+        </el-button>
+        <el-button
           v-if="canAnnotateMessages && msg.id && !msg.false_positive"
           size="small"
           type="warning"
@@ -80,8 +90,12 @@ defineProps({
     type: Array,
     default: () => [],
   },
+  resendingMessageIds: {
+    type: Object,
+    default: () => ({}),
+  },
 })
-const emit = defineEmits(['mark-false-positive', 'unmark-false-positive'])
+const emit = defineEmits(['mark-false-positive', 'unmark-false-positive', 'resend-notification'])
 
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
@@ -216,6 +230,8 @@ function openPreview(imageSrc) {
   margin-top: 10px;
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .preview-image {

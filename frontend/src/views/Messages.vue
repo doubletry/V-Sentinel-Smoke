@@ -46,8 +46,10 @@
     <el-scrollbar ref="scrollbar" class="messages-scroll">
       <MessageList
         :messages="store.messages"
+        :resending-message-ids="resendingMessageIds"
         @mark-false-positive="handleMarkFalsePositive"
         @unmark-false-positive="handleUnmarkFalsePositive"
+        @resend-notification="handleResendNotification"
       />
     </el-scrollbar>
     <div class="messages-pagination">
@@ -68,6 +70,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ElMessage from 'element-plus/es/components/message/index'
 import { useMessageStore } from '../stores/message.js'
 import { useSourceStore } from '../stores/source.js'
 import MessageList from '../components/MessageList.vue'
@@ -77,6 +80,7 @@ const sourceStore = useSourceStore()
 const { t } = useI18n()
 const filterSource = ref('')
 const scrollbar = ref(null)
+const resendingMessageIds = ref({})
 
 // Auto-scroll to top (newest first)
 watch(
@@ -117,6 +121,21 @@ async function handleMarkFalsePositive(message) {
 async function handleUnmarkFalsePositive(message) {
   await store.unmarkFalsePositive(message.id)
   await store.fetchMessages(store.page, store.pageSize)
+}
+
+async function handleResendNotification(message) {
+  if (!message?.id) return
+  resendingMessageIds.value = { ...resendingMessageIds.value, [message.id]: true }
+  try {
+    const result = await store.resendNotification(message.id)
+    ElMessage.success(t('messages.resendNotificationSuccess', { status: result.status || 'sent' }))
+  } catch (err) {
+    ElMessage.error(t('messages.resendNotificationFailed', { message: err.message }))
+  } finally {
+    const next = { ...resendingMessageIds.value }
+    delete next[message.id]
+    resendingMessageIds.value = next
+  }
 }
 
 onMounted(() => {

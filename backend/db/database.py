@@ -1971,6 +1971,65 @@ async def list_analysis_messages(
     }
 
 
+def _read_message_image_base64(stored_url: str | None) -> str:
+    path = _message_image_path_from_stored_value(stored_url)
+    if path is None or not path.is_file():
+        return ""
+    try:
+        return base64.b64encode(path.read_bytes()).decode("ascii")
+    except Exception as exc:  # pragma: no cover - best effort resend enrichment
+        logger.warning("Failed to read message image {} for resend: {}", path, exc)
+        return ""
+
+
+async def get_analysis_message_for_notification(message_id: str) -> dict[str, object] | None:
+    """Return one persisted message enriched for manual notification resend."""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, timestamp, source_name, source_id, level, message, "
+            "image_url, original_image_url, detected_image_url, false_positive "
+            "FROM analysis_messages WHERE id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    if row is None:
+        return None
+    (
+        row_id,
+        timestamp,
+        source_name,
+        source_id,
+        level,
+        message,
+        legacy_image_url,
+        original_image_url,
+        detected_image_url,
+        false_positive,
+    ) = row
+    detected_stored_url = detected_image_url or legacy_image_url
+    return {
+        "id": row_id,
+        "timestamp": timestamp,
+        "source_name": source_name,
+        "source_id": source_id,
+        "level": level,
+        "message": message,
+        "event_type": level or "message",
+        "event_label": message or str(level or "message").upper(),
+        "labels": [level] if level else [],
+        "image_url": build_analysis_message_image_url(row_id) if detected_stored_url else "",
+        "detected_image_url": build_analysis_message_image_url(row_id) if detected_stored_url else "",
+        "original_image_url": (
+            build_analysis_message_image_url(row_id, kind="original") if original_image_url else ""
+        ),
+        "image_base64": _read_message_image_base64(detected_stored_url),
+        "detected_image_base64": _read_message_image_base64(detected_stored_url),
+        "original_image_base64": _read_message_image_base64(original_image_url),
+        "false_positive": bool(false_positive),
+        "manual_resend": True,
+    }
+
+
 async def mark_analysis_message_false_positive(message_id: str) -> dict[str, object] | None:
     """Flag one persisted message as false positive and export its images.
     将单条已持久化消息标记为误报并导出图片。"""
