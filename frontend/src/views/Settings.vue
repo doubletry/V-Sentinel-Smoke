@@ -933,6 +933,7 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
 const emailTemplatePlaceholderGroups = computed(() => {
+  const activePluginId = String(form.value.active_plugin_id || SMOKE_SCENE_ID)
   const groups = [
     { key: 'common', label: t('settings.placeholderCategoryCommon'), items: [] },
     { key: 'smoke', label: t('settings.placeholderCategorySmoke'), items: [] },
@@ -940,9 +941,13 @@ const emailTemplatePlaceholderGroups = computed(() => {
   ]
   for (const item of emailTemplatePlaceholders.value) {
     if (FIRE_DOOR_PLACEHOLDERS.has(item)) {
-      groups[2].items.push(item)
+      if (activePluginId === FIRE_DOOR_SCENE_ID) {
+        groups[2].items.push(item)
+      }
     } else if (SMOKE_PLACEHOLDERS.has(item)) {
-      groups[1].items.push(item)
+      if (activePluginId === SMOKE_SCENE_ID) {
+        groups[1].items.push(item)
+      }
     } else {
       groups[0].items.push(item)
     }
