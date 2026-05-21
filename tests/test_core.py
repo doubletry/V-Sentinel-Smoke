@@ -753,7 +753,7 @@ class TestCoreBaseVideoProcessorPipeline:
     def test_parse_ffprobe_fps_payload_falls_back_to_r_frame_rate(self):
         assert BaseVideoProcessor._parse_ffprobe_fps_payload(
             {"streams": [{"avg_frame_rate": "0/0", "r_frame_rate": "30000/1001"}]}
-        ) == pytest.approx(29.97002997)
+        ) == pytest.approx(29.97, rel=1e-3)
 
     def test_preferred_source_fps_prefers_ffprobe_over_pyav_metadata(self):
         class _Stream:

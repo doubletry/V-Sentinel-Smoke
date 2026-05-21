@@ -436,7 +436,10 @@ class BaseVideoProcessor(ABC):
         if value is None:
             return None
         try:
-            text = str(value).strip()
+            if isinstance(value, str):
+                text = value.strip()
+            else:
+                text = ""
             if "/" in text:
                 numerator, denominator = text.split("/", 1)
                 rate_value = float(numerator) / float(denominator)
@@ -527,7 +530,7 @@ class BaseVideoProcessor(ABC):
             or elapsed_seconds < OBSERVED_FPS_ESTIMATE_WINDOW_SEC
         ):
             return None
-        estimated_fps = (frame_count - 1) / elapsed_seconds  # N frames contain N-1 frame intervals.
+        estimated_fps = (frame_count - 1) / elapsed_seconds  # frame_count frames contain frame_count-1 intervals.
         if 0 < estimated_fps <= MAX_REASONABLE_SOURCE_FPS:
             return round(estimated_fps, 3)
         return None
