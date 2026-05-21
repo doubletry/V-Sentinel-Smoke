@@ -166,8 +166,7 @@ class TestSettingsAPI:
     async def test_email_test_endpoint(self, async_client: AsyncClient):
         captured_config = {}
 
-        async def fake_send(provider, payload):
-            del payload
+        async def fake_send(provider, _payload):
             captured_config.update(provider.config)
             return {"status": "SUCCESS", "message": "ok"}
 
