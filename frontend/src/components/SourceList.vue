@@ -96,17 +96,17 @@
 
       <el-scrollbar class="sources-scroll">
         <div
-          v-for="(rs, resultIndex) in resultStreams"
+          v-for="rs in resultStreams"
           :key="rs.id"
           class="source-item result-item"
           draggable="true"
-          v-memo="[rs.id, rs.name, rs.streamPath]"
+           v-memo="[rs.id, rs.name, rs.streamPath, rs.sourceIndex]"
           @dragstart="onResultDragStart($event, rs)"
         >
           <div class="source-info">
             <div class="source-name result-name">
               <el-badge type="success" is-dot class="status-dot" />
-              <span class="source-index">#{{ resultIndex + 1 }}</span>
+              <span class="source-index">#{{ rs.sourceIndex }}</span>
               {{ rs.name }}
             </div>
             <div class="source-url">{{ rs.streamPath }}</div>
@@ -302,8 +302,9 @@ function sceneLabel(sceneId) {
  */
 const resultStreams = computed(() => {
   return store.sources
-    .filter((s) => store.isRunning(s.id) && s.push_result_stream !== false)
-    .map((s) => {
+    .map((source, index) => ({ source, sourceIndex: index + 1 }))
+    .filter(({ source }) => store.isRunning(source.id) && source.push_result_stream !== false)
+    .map(({ source: s, sourceIndex }) => {
       const route = getSourceRoute(s)
       return {
         id: `result_${s.id}`,
@@ -311,6 +312,7 @@ const resultStreams = computed(() => {
         streamPath: `${route}_processed`,
         isResult: true,
         originalSourceId: s.id,
+        sourceIndex,
       }
     })
 })

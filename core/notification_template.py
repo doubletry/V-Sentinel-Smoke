@@ -198,3 +198,12 @@ def render_template(template: str, context: dict[str, str]) -> str:
     """Render a template while preserving unknown placeholders.
     渲染模板；未知占位符会原样保留，避免配置错误导致通知失败。"""
     return Formatter().vformat(template, (), _SafeTemplateValues(context))
+
+
+def referenced_placeholders(template: str) -> set[str]:
+    """Return placeholder field names referenced by a template string."""
+    fields: set[str] = set()
+    for _, field_name, _, _ in Formatter().parse(str(template or "")):
+        if field_name:
+            fields.add(field_name.split(".", 1)[0].split("[", 1)[0])
+    return fields

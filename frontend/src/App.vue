@@ -32,15 +32,26 @@
 
         <div class="header-tools">
           <el-button
-            v-if="canSeeManagement"
+            v-if="canSeeManagement && !isManagementRoute"
             size="small"
-            :type="isManagementRoute ? 'primary' : 'default'"
+            type="default"
             plain
             class="management-button"
             @click="goToManagement"
           >
             <el-icon><Setting /></el-icon>
             <span>{{ t('nav.management') }}</span>
+          </el-button>
+          <el-button
+            v-else-if="isManagementRoute"
+            size="small"
+            type="default"
+            plain
+            class="management-button"
+            @click="goHome"
+          >
+            <el-icon><House /></el-icon>
+            <span>{{ t('nav.returnHome') }}</span>
           </el-button>
           <el-popover
             v-model:visible="accountMenuVisible"
@@ -255,6 +266,10 @@ function goToManagement() {
   }
 }
 
+function goHome() {
+  router.push('/')
+}
+
 onMounted(async () => {
   try {
     await appSettingsStore.fetchSettings()
@@ -346,6 +361,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -357,17 +373,19 @@ body {
   max-width: 180px;
   padding: 0 14px;
   border-color: transparent !important;
-  background: transparent !important;
-  color: #c7d5ef !important;
+  background: rgba(64, 158, 255, 0.08) !important;
+  color: #dce7ff !important;
   box-shadow: none !important;
-  transition: color 0.18s ease;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
 .account-button:hover,
 .account-button:focus {
-  border-color: transparent !important;
-  background: transparent !important;
+  border-color: rgba(64, 158, 255, 0.38) !important;
+  background: rgba(64, 158, 255, 0.16) !important;
   color: #79bbff !important;
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.22) inset !important;
 }
 
 .management-button {

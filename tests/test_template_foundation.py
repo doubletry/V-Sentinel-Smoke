@@ -8,12 +8,14 @@ from httpx import AsyncClient
 from backend.db.database import (
     create_notification_policy,
     create_notification_provider,
+    create_notification_template,
     create_source,
     update_settings,
 )
 from backend.models.schemas import (
     NotificationPolicyCreate,
     NotificationProviderCreate,
+    NotificationTemplateCreate,
     VideoSourceCreate,
 )
 from backend.auth.security import create_access_token
@@ -405,13 +407,15 @@ class TestNotificationDispatcher:
         assert results == [{"status": "SUCCESS", "message": "sent"}]
         send.assert_awaited_once()
 
-    async def test_dispatcher_force_uses_legacy_email_settings_when_no_provider_enabled(self, init_db):
+    async def test_dispatcher_uses_settings_email_for_default_provider(self, init_db):
         await update_settings(
             {
                 "email_smtp_host": "smtp.example.com",
                 "email_from_address": "sender@example.com",
                 "email_smtp_password": "test-password-do-not-use",
                 "email_to_addresses": "ops@example.com",
+                "email_event_subject_template": "Door {door_state} at {source_name}",
+                "email_event_body_template": "Source: {source_name}\nMessage: {message}",
             }
         )
 
@@ -428,6 +432,8 @@ class TestNotificationDispatcher:
                     "source_name": "Persisted Cam",
                     "event_type": "message",
                     "event_label": "Persisted alert",
+                    "message": "door open",
+                    "door_state": "open",
                 },
                 force=True,
             )
@@ -439,4 +445,146 @@ class TestNotificationDispatcher:
         assert config["smtp_username"] == "sender@example.com"
         assert config["smtp_password"] == "test-password-do-not-use"
         assert config["use_tls"] is True
-        assert payload.subject == "Persisted alert alert from Persisted Cam"
+        assert payload.subject == "Door open at Persisted Cam"
+        assert payload.body == "Source: Persisted Cam\nMessage: door open"
+
+    async def test_dispatcher_requires_complete_settings_email_provider(self, init_db):
+        await update_settings(
+            {
+                "email_smtp_host": "",
+                "email_from_address": "sender@example.com",
+                "email_to_addresses": "ops@example.com",
+            }
+        )
+
+        dispatcher = NotificationDispatcher()
+        results = await dispatcher.send_event(
+            {
+                "timestamp": "2026-01-01T00:00:00+00:00",
+                "source_id": "persisted-source",
+                "source_name": "Persisted Cam",
+                "event_type": "message",
+                "event_label": "Persisted alert",
+            },
+            force=True,
+        )
+
+        assert results == []
+
+    async def test_dispatcher_attaches_images_only_when_body_references_image_placeholders(self, init_db):
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="SMTP",
+                type="email",
+                enabled=True,
+                config={
+                    "smtp_host": "smtp.example.com",
+                    "from_address": "sender@example.com",
+                    "to_addresses": ["ops@example.com"],
+                },
+            )
+        )
+        template = await create_notification_template(
+            NotificationTemplateCreate(
+                name="Image Template",
+                channel="email",
+                subject_template="Image {source_name}",
+                body_template="Detected:\n{detected_image}",
+            )
+        )
+        policy = await create_notification_policy(
+            NotificationPolicyCreate(
+                name="Policy",
+                cooldown_seconds=0,
+                provider_ids=[provider.id],
+                template_id=template.id,
+            )
+        )
+        source = await create_source(
+            VideoSourceCreate(
+                name="Cam",
+                rtsp_url="rtsp://localhost:8554/cam",
+                notification_policy_ids=[policy.id],
+            )
+        )
+
+        image_base64 = "aW1hZ2UtYnl0ZXM="
+        dispatcher = NotificationDispatcher()
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send:
+            await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": source.id,
+                    "source_name": source.name,
+                    "event_type": "message",
+                    "event_label": "Message",
+                    "detected_image_base64": image_base64,
+                    "original_image_base64": "b3JpZ2luYWw=",
+                },
+            )
+
+        payload = send.await_args.args[0]
+        assert len(payload.attachments) == 1
+        assert payload.attachments[0][0].endswith("-detected.jpg")
+        assert payload.attachments[0][1] == b"image-bytes"
+
+    async def test_dispatcher_skips_images_when_template_does_not_reference_images(self, init_db):
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="SMTP",
+                type="email",
+                enabled=True,
+                config={
+                    "smtp_host": "smtp.example.com",
+                    "from_address": "sender@example.com",
+                    "to_addresses": ["ops@example.com"],
+                },
+            )
+        )
+        template = await create_notification_template(
+            NotificationTemplateCreate(
+                name="Text Template",
+                channel="email",
+                subject_template="Text {source_name}",
+                body_template="Message: {message}",
+            )
+        )
+        policy = await create_notification_policy(
+            NotificationPolicyCreate(
+                name="Policy",
+                cooldown_seconds=0,
+                provider_ids=[provider.id],
+                template_id=template.id,
+            )
+        )
+        source = await create_source(
+            VideoSourceCreate(
+                name="Cam",
+                rtsp_url="rtsp://localhost:8554/cam",
+                notification_policy_ids=[policy.id],
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch(
+            "core.notification_client.SmtpNotificationProvider.send",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send:
+            await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": source.id,
+                    "source_name": source.name,
+                    "event_type": "message",
+                    "event_label": "Message",
+                    "message": "plain text",
+                    "detected_image_base64": "aW1hZ2UtYnl0ZXM=",
+                },
+            )
+
+        payload = send.await_args.args[0]
+        assert payload.body == "Message: plain text"
+        assert payload.attachments == []

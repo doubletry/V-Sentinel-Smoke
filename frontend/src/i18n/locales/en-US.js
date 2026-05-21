@@ -5,6 +5,7 @@ export default {
     processingLogs: 'Processing Logs',
     settings: 'Settings',
     management: 'Management',
+    returnHome: 'Back Home',
   },
   language: {
     label: 'Language',

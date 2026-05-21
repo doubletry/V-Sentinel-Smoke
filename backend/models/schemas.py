@@ -113,6 +113,7 @@ class VideoSource(BaseModel):
     alarm_confidence_threshold: float | None = None
     scene_id: str = "smoke"
     notification_policy_ids: list[str] = []
+    desired_analysis_enabled: bool = False
     rois: list[ROI] = []
     created_at: str
 

@@ -9,7 +9,7 @@ import pytest
 
 from backend.api.ws import WSManager
 from backend.config import DEFAULT_APP_SETTINGS
-from backend.db.database import create_source
+from backend.db.database import create_source, get_source, set_source_desired_analysis_enabled
 from backend.models.schemas import AnalysisMessage, ROI, ROIPoint
 from backend.models.schemas import VideoSourceCreate
 from backend.processing.base import AnalysisResult, BaseVideoProcessor
@@ -250,6 +250,79 @@ class TestProcessorManager:
         processor.start.assert_awaited_once()
         assert mgr._processors[source.id] is processor
         assert result["scene_id"] == "template"
+        persisted = await get_source(source.id)
+        assert persisted is not None
+        assert persisted.desired_analysis_enabled is True
+
+    async def test_stop_processor_clears_desired_analysis_flag(self, init_db):
+        source = await create_source(
+            VideoSourceCreate(
+                name="cam-stop",
+                rtsp_url="rtsp://localhost:8554/cam-stop",
+            )
+        )
+        await set_source_desired_analysis_enabled(source.id, True)
+        mgr = self._make_manager()
+        processor = MagicMock(status="running")
+        processor.stop = AsyncMock()
+        mgr._processors[source.id] = processor
+
+        result = await mgr.stop_processor(source.id)
+
+        assert result["status"] == "stopped"
+        persisted = await get_source(source.id)
+        assert persisted is not None
+        assert persisted.desired_analysis_enabled is False
+
+    async def test_stop_all_preserves_desired_analysis_flag_for_restart_restore(self, init_db):
+        source = await create_source(
+            VideoSourceCreate(
+                name="cam-shutdown",
+                rtsp_url="rtsp://localhost:8554/cam-shutdown",
+            )
+        )
+        await set_source_desired_analysis_enabled(source.id, True)
+        mgr = self._make_manager()
+        processor = MagicMock(status="running")
+        processor.stop = AsyncMock()
+        mgr._processors[source.id] = processor
+
+        await mgr.stop_all()
+
+        persisted = await get_source(source.id)
+        assert persisted is not None
+        assert persisted.desired_analysis_enabled is True
+
+    async def test_restore_desired_processors_starts_sources_gradually(self, init_db):
+        first = await create_source(
+            VideoSourceCreate(name="cam-1", rtsp_url="rtsp://localhost:8554/cam-1")
+        )
+        second = await create_source(
+            VideoSourceCreate(name="cam-2", rtsp_url="rtsp://localhost:8554/cam-2")
+        )
+        await set_source_desired_analysis_enabled(first.id, True)
+        await set_source_desired_analysis_enabled(second.id, True)
+        mgr = self._make_manager({
+            **DEFAULT_APP_SETTINGS,
+            "active_plugin_id": "template",
+        })
+        processors = []
+
+        def make_processor(*args, **kwargs):
+            del args, kwargs
+            processor = MagicMock(status="stopped")
+            processor.start = AsyncMock()
+            processors.append(processor)
+            return processor
+
+        with patch("backend.processing.manager.resolve_processor_class") as resolve:
+            resolve.return_value = make_processor
+            result = await mgr.restore_desired_processors(delay_seconds=0)
+
+        assert result["restored"] == 2
+        assert result["failed"] == []
+        assert set(mgr._processors) == {first.id, second.id}
+        assert len(processors) == 2
 
     async def test_stop_all_empty(self):
         mgr = self._make_manager()

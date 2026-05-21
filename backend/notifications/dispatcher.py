@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import html
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from loguru import logger
@@ -17,7 +18,11 @@ from core.notification_client import (
     SmtpNotificationProvider,
     WebhookNotificationProvider,
 )
-from core.notification_template import build_template_context, render_template
+from core.notification_template import (
+    build_template_context,
+    referenced_placeholders,
+    render_template,
+)
 
 
 class NotificationDispatcher:
@@ -46,6 +51,19 @@ class NotificationDispatcher:
         }
         providers = {provider.id: provider for provider in await db.list_notification_providers()}
         templates = {template.id: template for template in await db.list_notification_templates()}
+        settings_email_config = build_email_settings_smtp_config(app_settings)
+        if has_email_settings_recipients(settings_email_config):
+            providers["default-email"] = SimpleNamespace(
+                id="default-email",
+                type="email",
+                enabled=True,
+                config=settings_email_config,
+            )
+        templates["default-event-email"] = SimpleNamespace(
+            id="default-event-email",
+            subject_template=app_settings.get("email_event_subject_template", ""),
+            body_template=app_settings.get("email_event_body_template", ""),
+        )
 
         def build_payload(template_id: str | None) -> NotificationPayload:
             template = templates.get(str(template_id or ""))
@@ -54,12 +72,13 @@ class NotificationDispatcher:
             body_template = template.body_template if template else "{local_time} {event_label} {source_name}"
             rendered_body = render_template(body_template, context)
             html_context = self._html_template_context(context)
+            rendered_html_body = "<br>".join(render_template(body_template, html_context).splitlines())
             return NotificationPayload(
                 subject=render_template(subject_template, context),
                 body=rendered_body,
-                html_body="<br>".join(render_template(body_template, html_context).splitlines()),
+                html_body=rendered_html_body,
                 context=context,
-                attachments=self._build_attachments(event),
+                attachments=self._build_attachments(event, body_template),
             )
 
         results: list[dict[str, str]] = []
@@ -87,7 +106,7 @@ class NotificationDispatcher:
                     results.append({"status": "ERROR", "message": str(exc)})
             self._mark_sent(policy_id, event)
         if force and not any(result.get("status") == "SUCCESS" for result in results):
-            payload = build_payload(None)
+            payload = build_payload("default-event-email")
             fallback_providers = [
                 provider
                 for provider_id, provider in providers.items()
@@ -103,14 +122,6 @@ class NotificationDispatcher:
                         exc,
                     )
                     results.append({"status": "ERROR", "message": str(exc)})
-            if not fallback_providers and not attempted_provider_ids:
-                legacy_email_config = self._legacy_email_config(app_settings)
-                if legacy_email_config:
-                    try:
-                        results.append(await self._send_provider("email", legacy_email_config, payload))
-                    except Exception as exc:  # pragma: no cover - side-effect logging
-                        logger.warning("Failed to send manual notification via legacy email settings: {}", exc)
-                        results.append({"status": "ERROR", "message": str(exc)})
         return results
 
     async def _send_provider(
@@ -141,17 +152,23 @@ class NotificationDispatcher:
     def _mark_sent(self, policy_id: str, event: dict[str, Any]) -> None:
         self._last_sent_at[self._cooldown_key(policy_id, event)] = datetime.now(timezone.utc).timestamp()
 
-    def _build_attachments(self, event: dict[str, Any]) -> list[tuple[str, bytes, str]]:
+    def _build_attachments(self, event: dict[str, Any], body_template: str) -> list[tuple[str, bytes, str]]:
+        placeholders = referenced_placeholders(body_template)
+        include_original = "original_image" in placeholders
+        include_detected = "detected_image" in placeholders
+        if not include_original and not include_detected:
+            return []
         timestamp = str(event.get("timestamp") or datetime.now(timezone.utc).isoformat())[:19]
         safe_timestamp = timestamp.replace(":", "-")
         event_type = str(event.get("event_type") or "event").replace("/", "_")
         attachments: list[tuple[str, bytes, str]] = []
         seen_payloads: set[str] = set()
-        for key, suffix in (
-            ("original_image_base64", "original"),
-            ("detected_image_base64", "detected"),
-            ("image_base64", "image"),
-        ):
+        image_keys: list[tuple[str, str]] = []
+        if include_original:
+            image_keys.append(("original_image_base64", "original"))
+        if include_detected:
+            image_keys.extend((("detected_image_base64", "detected"), ("image_base64", "detected")))
+        for key, suffix in image_keys:
             image_base64 = str(event.get(key) or "").strip()
             if not image_base64 or image_base64 in seen_payloads:
                 continue
@@ -162,12 +179,6 @@ class NotificationDispatcher:
                 continue
             attachments.append((f"{event_type}-{safe_timestamp}-{suffix}.jpg", image_bytes, "image/jpeg"))
         return attachments
-
-    def _legacy_email_config(self, app_settings: dict[str, str]) -> dict[str, Any] | None:
-        config = build_email_settings_smtp_config(app_settings)
-        if not has_email_settings_recipients(config):
-            return None
-        return config
 
     def _enrich_event(self, event: dict[str, Any], source: Any) -> dict[str, Any]:
         enriched = dict(event)

@@ -420,9 +420,11 @@
                           <div class="placeholder-tags">
                             <el-tooltip
                               v-for="item in group.items"
-                              :key="item"
+                              :key="`${group.key}-${item}`"
                               effect="dark"
                               placement="top"
+                              trigger="hover"
+                              :show-after="120"
                               :content="placeholderDescription(item)"
                             >
                               <el-tag
@@ -430,6 +432,8 @@
                                 effect="dark"
                                 :type="placeholderTagType(group.key)"
                                 class="placeholder-tag"
+                                tabindex="0"
+                                :title="placeholderDescription(item)"
                               >
                                 {{ '{' + item + '}' }}
                               </el-tag>

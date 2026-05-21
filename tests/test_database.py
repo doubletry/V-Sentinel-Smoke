@@ -13,8 +13,10 @@ from backend.db.database import (
     get_source,
     get_source_by_rtsp,
     init_db,
+    list_desired_analysis_sources,
     list_sources,
     save_rois,
+    set_source_desired_analysis_enabled,
     update_all_sources_scene,
     update_settings,
     update_source,
@@ -53,6 +55,7 @@ class TestCreateSource:
         assert src.source_remark == "Gate A"
         assert src.push_result_stream is True
         assert src.alarm_confidence_threshold is None
+        assert src.desired_analysis_enabled is False
         assert src.rois == []
         assert src.created_at
 
@@ -71,6 +74,17 @@ class TestCreateSource:
         assert found is not None
         assert found.push_result_stream is False
         assert found.alarm_confidence_threshold == 0.82
+
+    async def test_desired_analysis_sources_are_listed_in_source_order(self):
+        first = await create_source(VideoSourceCreate(name="First", rtsp_url="rtsp://first"))
+        second = await create_source(VideoSourceCreate(name="Second", rtsp_url="rtsp://second"))
+        await set_source_desired_analysis_enabled(second.id, True)
+        await set_source_desired_analysis_enabled(first.id, True)
+
+        result = await list_desired_analysis_sources()
+
+        assert [source.id for source in result] == [first.id, second.id]
+        assert all(source.desired_analysis_enabled for source in result)
 
     async def test_unique_rtsp_url(self):
         await create_source(VideoSourceCreate(name="A", rtsp_url="rtsp://x"))

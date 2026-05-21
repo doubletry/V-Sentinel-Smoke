@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS video_sources (
     alarm_confidence_threshold REAL,
     scene_id TEXT NOT NULL DEFAULT 'smoke',
     notification_policy_ids TEXT NOT NULL DEFAULT '[]',
+    desired_analysis_enabled INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 """
@@ -282,6 +283,12 @@ async def init_db() -> None:
             "video_sources",
             "notification_policy_ids",
             "TEXT NOT NULL DEFAULT '[]'",
+        )
+        await _ensure_column_exists(
+            db,
+            "video_sources",
+            "desired_analysis_enabled",
+            "INTEGER NOT NULL DEFAULT 0",
         )
         await _ensure_column_exists(db, "analysis_messages", "image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "original_image_url", "TEXT")
@@ -727,6 +734,9 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
         notification_policy_ids = (
             row["notification_policy_ids"] if "notification_policy_ids" in row_keys else "[]"
         )
+        desired_analysis_enabled = (
+            row["desired_analysis_enabled"] if "desired_analysis_enabled" in row_keys else 0
+        )
         created_at = row["created_at"]
     else:
         (
@@ -739,6 +749,7 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
             alarm_confidence_threshold,
             scene_id,
             notification_policy_ids,
+            desired_analysis_enabled,
             created_at,
         ) = row
     return VideoSource(
@@ -758,6 +769,7 @@ def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
         ),
         scene_id=str(scene_id or DEFAULT_SCENE_ID),
         notification_policy_ids=[str(item) for item in _json_list(notification_policy_ids)],
+        desired_analysis_enabled=_normalize_bool_db_value(desired_analysis_enabled),
         rois=rois,
         created_at=created_at,
     )
@@ -1001,8 +1013,8 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         await db.execute(
             "INSERT INTO video_sources "
             "(id, name, rtsp_url, route_path, source_remark, push_result_stream, "
-            "alarm_confidence_threshold, scene_id, notification_policy_ids, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 source_id,
                 source.name,
@@ -1013,6 +1025,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
                 source.alarm_confidence_threshold,
                 active_plugin_id,
                 _json_dumps(source.notification_policy_ids),
+                0,
                 created_at,
             ),
         )
@@ -1027,6 +1040,7 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         alarm_confidence_threshold=source.alarm_confidence_threshold,
         scene_id=active_plugin_id,
         notification_policy_ids=source.notification_policy_ids,
+        desired_analysis_enabled=False,
         rois=[],
         created_at=created_at,
     )
@@ -1038,7 +1052,7 @@ async def get_source(source_id: str) -> VideoSource | None:
     async with _db_session() as db:
         async with db.execute(
             "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
-            "alarm_confidence_threshold, scene_id, notification_policy_ids, created_at "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
@@ -1055,7 +1069,7 @@ async def get_source_by_rtsp(rtsp_url: str) -> VideoSource | None:
     async with _db_session() as db:
         async with db.execute(
             "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
-            "alarm_confidence_threshold, scene_id, notification_policy_ids, created_at "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources WHERE rtsp_url = ?",
             (rtsp_url,),
         ) as cursor:
@@ -1072,7 +1086,7 @@ async def list_sources() -> list[VideoSource]:
     async with _db_session() as db:
         async with db.execute(
             "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
-            "alarm_confidence_threshold, scene_id, notification_policy_ids, created_at "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources ORDER BY created_at"
         ) as cursor:
             rows = await cursor.fetchall()
@@ -1166,7 +1180,7 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
         await db.commit()
         async with db.execute(
             "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
-            "alarm_confidence_threshold, scene_id, notification_policy_ids, created_at "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
@@ -1175,6 +1189,35 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             return None
         rois = await _get_rois_for_source(db, source_id)
     return _row_to_source(row, rois)
+
+
+async def set_source_desired_analysis_enabled(source_id: str, enabled: bool) -> bool:
+    """Persist whether a source should be restored after process restart."""
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE video_sources SET desired_analysis_enabled = ? WHERE id = ?",
+            (1 if enabled else 0, source_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def list_desired_analysis_sources() -> list[VideoSource]:
+    """List sources that should be automatically restarted after app startup."""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
+            "FROM video_sources WHERE desired_analysis_enabled = 1 ORDER BY created_at"
+        ) as cursor:
+            rows = await cursor.fetchall()
+        source_ids = [str(row["id"] if hasattr(row, "keys") else row[0]) for row in rows]
+        rois_by_source = await _get_rois_for_sources(db, source_ids)
+        sources: list[VideoSource] = []
+        for row in rows:
+            source_id = str(row["id"] if hasattr(row, "keys") else row[0])
+            sources.append(_row_to_source(row, rois_by_source.get(source_id, [])))
+    return sources
 
 
 async def update_all_sources_scene(scene_id: str) -> int:

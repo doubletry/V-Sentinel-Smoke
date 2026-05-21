@@ -11,7 +11,7 @@ def build_email_settings_smtp_config(settings: dict[str, Any]) -> dict[str, Any]
     from_address = str(settings.get("email_from_address") or "").strip()
     use_tls = str(settings.get("email_smtp_use_tls", "true")).lower() in TRUTHY_SETTING_VALUES
     return {
-        "smtp_host": settings.get("email_smtp_host") or settings.get("vengine_host", ""),
+        "smtp_host": settings.get("email_smtp_host", ""),
         "smtp_port": settings.get("email_smtp_port") or "587",
         "smtp_username": from_address,
         "smtp_password": settings.get("email_smtp_password", ""),

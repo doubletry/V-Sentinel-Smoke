@@ -5,6 +5,7 @@ export default {
     processingLogs: '处理日志',
     settings: '设置',
     management: '管理',
+    returnHome: '返回主页',
   },
   language: {
     label: '语言',

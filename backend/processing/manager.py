@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from backend.db.database import get_source
+from backend.db.database import (
+    get_source,
+    list_desired_analysis_sources,
+    set_source_desired_analysis_enabled,
+)
 from backend.models.schemas import ProcessorStatus
 from backend.processing.agent import AnalysisAgent
 from backend.processing.base import BaseVideoProcessor
@@ -102,6 +106,7 @@ class ProcessorManager:
             )
             await processor.start()
             self._processors[source_id] = processor
+            await set_source_desired_analysis_enabled(source_id, True)
             logger.info(
                 "ProcessorManager: started {} processor for {}",
                 plugin_name,
@@ -114,7 +119,7 @@ class ProcessorManager:
                 "scene_id": plugin_name,
             }
 
-    async def stop_processor(self, source_id: str) -> dict:
+    async def stop_processor(self, source_id: str, *, persist_desired: bool = True) -> dict:
         """Stop the processor for the given source_id.
         停止指定 source_id 的处理器。"""
         async with self._lock:
@@ -122,8 +127,31 @@ class ProcessorManager:
             if proc is None:
                 return {"status": "not_running", "source_id": source_id}
             await proc.stop()
+            if persist_desired:
+                await set_source_desired_analysis_enabled(source_id, False)
             logger.info("ProcessorManager: stopped processor for {}", source_id)
             return {"status": "stopped", "source_id": source_id}
+
+    async def restore_desired_processors(self, *, delay_seconds: float = 1.0) -> dict:
+        """Gradually restart sources that were running before process shutdown."""
+        sources = await list_desired_analysis_sources()
+        restored = 0
+        failed: list[dict[str, str]] = []
+        for index, source in enumerate(sources):
+            if index > 0 and delay_seconds > 0:
+                await asyncio.sleep(delay_seconds)
+            try:
+                result = await self.start_processor(source.id)
+                if result.get("status") in {"started", "already_running"}:
+                    restored += 1
+            except Exception as exc:
+                logger.warning(
+                    "ProcessorManager: failed to restore processor for {}: {}",
+                    source.id,
+                    exc,
+                )
+                failed.append({"source_id": source.id, "reason": str(exc)})
+        return {"status": "restored", "restored": restored, "failed": failed}
 
     async def _stop_all_processors(self) -> dict:
         """Stop all currently running processors for application shutdown.
@@ -138,7 +166,7 @@ class ProcessorManager:
         failed: list[dict[str, str]] = []
         for source_id in source_ids:
             try:
-                result = await self.stop_processor(source_id)
+                result = await self.stop_processor(source_id, persist_desired=False)
                 if result["status"] == "stopped":
                     stopped += 1
             except Exception as exc:
