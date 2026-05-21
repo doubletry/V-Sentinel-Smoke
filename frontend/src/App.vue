@@ -50,7 +50,6 @@
             class="management-button"
             @click="goHome"
           >
-            <el-icon><House /></el-icon>
             <span>{{ t('nav.returnHome') }}</span>
           </el-button>
           <el-popover

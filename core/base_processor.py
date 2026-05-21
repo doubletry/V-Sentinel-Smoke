@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import math
 import queue
 import re
@@ -46,15 +47,15 @@ LOW_LATENCY_ANALYZEDURATION = "0"
 STREAM_TIMEOUT_MICROSECONDS = "5000000"
 OUTPUT_QUEUE_TIMEOUT_SEC = 0.2
 MAX_REASONABLE_SOURCE_FPS = 120.0
-OBSERVED_FPS_ESTIMATE_WINDOW_SEC = 1.0
+OBSERVED_FPS_ESTIMATE_WINDOW_SEC = 5.0
+OBSERVED_FPS_MIN_FRAMES = 20
 FPS_CHANGE_THRESHOLD = 0.01
-OBSERVED_FPS_LOWER_RATIO = 0.75
-OBSERVED_FPS_UPPER_RATIO = 1.25
 GOP_DIVISOR = 2
 PUSH_STARTUP_CHECK_DELAY = 0.3
 PUSH_RETRY_BASE_COOLDOWN = 2.0
 PUSH_RETRY_MAX_COOLDOWN = 30.0
 MAX_STDERR_LOG_CHARS = 500
+FFPROBE_TIMEOUT_SEC = 8.0
 
 try:
     from turbojpeg import TurboJPEG, TJPF_RGB
@@ -290,7 +291,7 @@ class BaseVideoProcessor(ABC):
                         f"No video track found in stream {self.rtsp_url}"
                     )
                 video_stream.thread_type = "AUTO"
-                source_fps = self._stream_fps(video_stream)
+                source_fps = self._preferred_source_fps(video_stream, self.rtsp_url)
                 self._update_publish_fps(source_fps)
                 observed_first_frame_at: float | None = None
                 observed_frame_count = 0
@@ -315,13 +316,11 @@ class BaseVideoProcessor(ABC):
                             if observed_fps is not None:
                                 observed_fps_locked = True
                                 if self._should_use_observed_fps(source_fps, observed_fps):
-                                    if source_fps is not None:
-                                        logger.warning(
-                                            "Correcting metadata FPS {:.3f} to observed FPS {:.3f} for {}",
-                                            source_fps,
-                                            observed_fps,
-                                            self.source_id,
-                                        )
+                                    logger.info(
+                                        "Using stable observed FPS {:.3f} for {} because source metadata was unavailable",
+                                        observed_fps,
+                                        self.source_id,
+                                    )
                                     source_fps = observed_fps
                                     self._update_publish_fps(source_fps)
                     frame_counter += 1
@@ -396,23 +395,12 @@ class BaseVideoProcessor(ABC):
         # encoder-declared cadence (for example 25 instead of a guessed 50).
         # 在低延迟模式下 average_rate 可能为空，而 guessed/base rate 可能偏大；
         # codec_context.framerate 通常更接近编码器声明的真实帧率。
-        def _safe_rate(value: Any) -> float | None:
-            if value is None:
-                return None
-            try:
-                rate_value = float(value)
-            except (TypeError, ValueError, ZeroDivisionError):
-                return None
-            if math.isfinite(rate_value) and 0 < rate_value <= MAX_REASONABLE_SOURCE_FPS:
-                return rate_value
-            return None
-
-        average_rate = _safe_rate(getattr(video_stream, "average_rate", None))
-        codec_framerate = _safe_rate(
+        average_rate = BaseVideoProcessor._safe_fps_value(getattr(video_stream, "average_rate", None))
+        codec_framerate = BaseVideoProcessor._safe_fps_value(
             getattr(codec_context, "framerate", None) if codec_context else None
         )
-        base_rate = _safe_rate(getattr(video_stream, "base_rate", None))
-        guessed_rate = _safe_rate(getattr(video_stream, "guessed_rate", None))
+        base_rate = BaseVideoProcessor._safe_fps_value(getattr(video_stream, "base_rate", None))
+        guessed_rate = BaseVideoProcessor._safe_fps_value(getattr(video_stream, "guessed_rate", None))
 
         if (
             average_rate is not None
@@ -439,32 +427,97 @@ class BaseVideoProcessor(ABC):
         return None
 
     @staticmethod
+    def _safe_fps_value(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+            if "/" in text:
+                numerator, denominator = text.split("/", 1)
+                rate_value = float(numerator) / float(denominator)
+            else:
+                rate_value = float(value)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+        if math.isfinite(rate_value) and 0 < rate_value <= MAX_REASONABLE_SOURCE_FPS:
+            return rate_value
+        return None
+
+    @staticmethod
+    def _parse_ffprobe_fps_payload(payload: dict[str, Any]) -> float | None:
+        streams = payload.get("streams")
+        if not isinstance(streams, list):
+            return None
+        for stream in streams:
+            if not isinstance(stream, dict):
+                continue
+            for key in ("avg_frame_rate", "r_frame_rate"):
+                value = BaseVideoProcessor._safe_fps_value(stream.get(key))
+                if value is not None:
+                    return value
+        return None
+
+    @staticmethod
+    def _probe_stream_fps(rtsp_url: str) -> float | None:
+        """Probe a RTSP stream with ffprobe for a more stable FPS reading."""
+        command = [
+            "ffprobe",
+            "-v", "error",
+            "-rtsp_transport", INPUT_RTSP_TRANSPORT,
+            "-rw_timeout", STREAM_TIMEOUT_MICROSECONDS,
+            "-select_streams", "v:0",
+            "-show_entries", "stream=avg_frame_rate,r_frame_rate",
+            "-of", "json",
+            rtsp_url,
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=FFPROBE_TIMEOUT_SEC,
+                check=False,
+            )
+        except (FileNotFoundError, subprocess.SubprocessError):
+            return None
+        if result.returncode != 0 or not str(result.stdout).strip():
+            return None
+        try:
+            return BaseVideoProcessor._parse_ffprobe_fps_payload(json.loads(result.stdout))
+        except json.JSONDecodeError:
+            return None
+
+    @classmethod
+    def _preferred_source_fps(cls, video_stream: Any, rtsp_url: str) -> float | None:
+        """Prefer ffprobe/RTSP metadata, fall back to in-process PyAV metadata."""
+        probed_fps = cls._probe_stream_fps(rtsp_url)
+        stream_fps = cls._stream_fps(video_stream)
+        if probed_fps is not None:
+            return probed_fps
+        return stream_fps
+
+    @staticmethod
     def _observed_fps(frame_count: int, elapsed_seconds: float) -> float | None:
-        """Estimate rounded FPS from observed decoded frames over time.
-        基于一段时间内观察到的解码帧估算取整后的 FPS。"""
+        """Estimate a stable fallback FPS from observed decoded frames over time.
+        基于较稳定观测窗口内的解码帧估算回退 FPS。"""
         if (
-            frame_count < 2
+            frame_count < OBSERVED_FPS_MIN_FRAMES
             or not math.isfinite(elapsed_seconds)
             or elapsed_seconds < OBSERVED_FPS_ESTIMATE_WINDOW_SEC
         ):
             return None
-        estimated_fps = round((frame_count - 1) / elapsed_seconds)
+        estimated_fps = (frame_count - 1) / elapsed_seconds
         if 0 < estimated_fps <= MAX_REASONABLE_SOURCE_FPS:
-            return float(estimated_fps)
+            return round(float(estimated_fps), 3)
         return None
 
     @staticmethod
     def _should_use_observed_fps(reported_fps: float | None, observed_fps: float) -> bool:
-        """Return whether measured frame cadence should replace stream metadata.
-        判断是否用实测帧率替代流元数据帧率。"""
+        """Use measured FPS only as a fallback when metadata is unavailable.
+        仅在元数据不可用时才使用实测 FPS 作为回退。"""
         if not math.isfinite(observed_fps) or observed_fps <= 0:
             return False
-        if reported_fps is None or not math.isfinite(reported_fps) or reported_fps <= 0:
-            return True
-        return (
-            observed_fps < reported_fps * OBSERVED_FPS_LOWER_RATIO
-            or observed_fps > reported_fps * OBSERVED_FPS_UPPER_RATIO
-        )
+        return reported_fps is None or not math.isfinite(reported_fps) or reported_fps <= 0
 
     # ── Abstract method ───────────────────────────────────────────────────
 

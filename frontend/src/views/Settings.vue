@@ -1,13 +1,6 @@
 <template>
   <div class="settings-page">
     <div class="settings-shell">
-      <div v-if="hasSettingsAccess" class="settings-top-actions">
-        <el-button class="management-home-button" type="primary" plain @click="returnHome">
-          <el-icon><House /></el-icon>
-          {{ t('management.backToHome') }}
-        </el-button>
-      </div>
-
       <div v-if="!hasSettingsAccess" class="settings-section section-card">
         <div class="title-line">
           <el-icon :size="20"><Setting /></el-icon>
@@ -831,7 +824,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Crop, Document, House, Monitor, Setting, User } from '@element-plus/icons-vue'
+import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
@@ -1266,10 +1259,6 @@ function navigateToSettingsPage(pageKey) {
   router.push({ name: 'ManagementSection', params: { section: pageKey } })
 }
 
-function returnHome() {
-  router.push('/')
-}
-
 function navigateToPluginScene(sceneId) {
   router.push({ name: 'ManagementPlugin', params: { sceneId } })
 }
@@ -1585,17 +1574,8 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
-.settings-top-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
 .management-role-tag {
   margin-top: 10px;
-}
-
-.management-home-button {
-  justify-content: center;
 }
 
 .settings-form {
