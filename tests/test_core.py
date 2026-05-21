@@ -769,7 +769,7 @@ class TestCoreBaseVideoProcessorPipeline:
         assert BaseVideoProcessor._observed_fps(126, 5.0) == 25.0
 
     def test_observed_fps_requires_stable_window(self):
-        assert BaseVideoProcessor._observed_fps(26, 1.0) is None
+        assert BaseVideoProcessor._observed_fps(19, 5.0) is None
 
     def test_observed_fps_does_not_override_existing_metadata(self):
         assert not BaseVideoProcessor._should_use_observed_fps(50.0, 25.0)

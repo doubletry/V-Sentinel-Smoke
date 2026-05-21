@@ -519,7 +519,7 @@ class BaseVideoProcessor(ABC):
             return None
         estimated_fps = (frame_count - 1) / elapsed_seconds
         if 0 < estimated_fps <= MAX_REASONABLE_SOURCE_FPS:
-            return round(float(estimated_fps), 3)
+            return round(estimated_fps, 3)
         return None
 
     @staticmethod
