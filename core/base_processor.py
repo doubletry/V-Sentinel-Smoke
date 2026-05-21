@@ -48,6 +48,11 @@ STREAM_TIMEOUT_MICROSECONDS = "5000000"
 OUTPUT_QUEUE_TIMEOUT_SEC = 0.2
 MAX_REASONABLE_SOURCE_FPS = 120.0
 OBSERVED_FPS_ESTIMATE_WINDOW_SEC = 5.0
+# Require enough decoded frames across the longer window so temporary startup
+# stalls (common when RTSP sessions first begin buffering) do not skew the
+# fallback FPS too low. At 5 fps this still settles within about 4 seconds once
+# frames are flowing, while 20+ fps streams satisfy the sample requirement well
+# before the 5-second window expires.
 OBSERVED_FPS_MIN_FRAMES = 20
 FPS_CHANGE_THRESHOLD = 0.01
 GOP_DIVISOR = 2
@@ -499,7 +504,13 @@ class BaseVideoProcessor(ABC):
     @staticmethod
     def _observed_fps(frame_count: int, elapsed_seconds: float) -> float | None:
         """Estimate a stable fallback FPS from observed decoded frames over time.
-        基于较稳定观测窗口内的解码帧估算回退 FPS。"""
+        基于较稳定观测窗口内的解码帧估算回退 FPS。
+
+        Keep fractional values (for example 29.970) instead of rounding to an
+        integer so the publish cadence stays closer to the actual source timing
+        when metadata is unavailable.
+        保留小数 FPS（例如 29.970）而不是强制取整，这样在缺少元数据时，
+        推流节奏仍能更贴近真实源时序。"""
         if (
             frame_count < OBSERVED_FPS_MIN_FRAMES
             or not math.isfinite(elapsed_seconds)
