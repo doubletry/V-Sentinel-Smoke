@@ -189,6 +189,28 @@ class TestMessagesAPI:
         assert data["total"] == 25
         assert len(data["items"]) == 5
 
+    async def test_list_persisted_messages_caps_to_latest_twenty_pages(self, async_client: AsyncClient):
+        for index in range(405):
+            await save_analysis_message(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "source_name": "Cam1",
+                    "source_id": "s1",
+                    "level": "info",
+                    "message": f"persisted-{index}",
+                    "image_base64": None,
+                }
+            )
+
+        resp = await async_client.get("/api/messages", params={"page": 21, "page_size": 20})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["page"] == 20
+        assert data["page_size"] == 20
+        assert data["total_pages"] == 20
+        assert data["total"] == 400
+        assert len(data["items"]) == 20
+
     async def test_mark_false_positive_exports_images_and_can_filter(self, async_client: AsyncClient, _tmp_db: str):
         original = base64.b64encode(b"original-bytes").decode("ascii")
         detected = base64.b64encode(b"detected-bytes").decode("ascii")

@@ -3,9 +3,10 @@
     <div class="page-header">
       <div class="header-left">
         <h2>{{ t('messages.title') }}</h2>
-        <el-tag :type="store.wsConnected ? 'success' : 'danger'" size="small" effect="dark">
-          {{ store.wsConnected ? t('messages.connected') : t('messages.disconnected') }}
+        <el-tag type="info" size="small" effect="dark">
+          {{ t('messages.manualMode') }}
         </el-tag>
+        <span class="messages-updated-at">{{ t('messages.lastUpdated', { time: lastUpdatedLabel }) }}</span>
       </div>
       <div class="header-right">
         <el-select
@@ -31,13 +32,8 @@
             @change="handleFalsePositiveFilterChange"
           />
         </div>
-        <el-button
-          v-if="store.pendingCount > 0"
-          size="small"
-          type="warning"
-          @click="jumpToLatest"
-        >
-          {{ t('messages.newMessages', { count: store.pendingCount }) }}
+        <el-button size="small" type="primary" @click="handleManualRefresh">
+          {{ t('messages.refresh') }}
         </el-button>
         <el-button size="small" @click="store.clearMessages">{{ t('messages.clear') }}</el-button>
       </div>
@@ -60,15 +56,19 @@
         :page-size="store.pageSize"
         :current-page="store.page"
         :total="store.total"
+        :pager-count="21"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
       />
+      <span v-if="store.totalPages >= store.maxPageWindow" class="messages-pagination__hint">
+        {{ t('messages.latestPageWindow', { count: store.maxPageWindow }) }}
+      </span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useMessageStore } from '../stores/message.js'
@@ -81,6 +81,10 @@ const { t } = useI18n()
 const filterSource = ref('')
 const scrollbar = ref(null)
 const resendingMessageIds = ref({})
+const lastUpdatedLabel = computed(() => {
+  if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
+  return new Date(store.lastUpdatedAt).toLocaleString()
+})
 
 // Auto-scroll to top (newest first)
 watch(
@@ -109,8 +113,8 @@ async function handleFalsePositiveFilterChange(value) {
   await store.fetchMessages(1, store.pageSize)
 }
 
-async function jumpToLatest() {
-  await store.fetchMessages(1, store.pageSize)
+async function handleManualRefresh() {
+  await store.fetchMessages(store.page, store.pageSize)
 }
 
 async function handleMarkFalsePositive(message) {
@@ -144,14 +148,9 @@ async function handleResendNotification(message) {
 
 onMounted(() => {
   store.fetchMessages(1, store.pageSize)
-  store.connectWS()
   if (!sourceStore.sources.length) {
     sourceStore.fetchSources()
   }
-})
-
-onBeforeUnmount(() => {
-  store.disconnectWS()
 })
 </script>
 
@@ -178,6 +177,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .header-left h2 {
@@ -191,6 +191,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .false-positive-filter {
@@ -202,6 +204,13 @@ onBeforeUnmount(() => {
 .false-positive-filter__label {
   color: #c8d5f0;
   font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.messages-updated-at {
+  color: #8ea3c8;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -224,10 +233,19 @@ onBeforeUnmount(() => {
 
 .messages-pagination {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 8px 12px 12px;
   border-top: 1px solid #26314d;
   background: #131a2e;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.messages-pagination__hint {
+  color: #8ea3c8;
+  font-size: 12px;
+  font-weight: 600;
 }
 </style>

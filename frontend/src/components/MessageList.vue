@@ -2,7 +2,7 @@
   <div class="message-list">
     <div
       v-for="(msg, idx) in messages"
-      :key="idx"
+      :key="messageKey(msg, idx)"
       class="message-card"
       :class="[`level-${msg.level}`, { 'agent-summary': msg.source_id === '__agent__' }]"
     >
@@ -131,6 +131,10 @@ function openPreview(imageSrc) {
   previewImage.value = imageSrc
   previewVisible.value = true
 }
+
+function messageKey(message, idx) {
+  return message?.id || `${message?.timestamp || 'message'}-${message?.source_id || 'source'}-${idx}`
+}
 </script>
 
 <style scoped>
@@ -146,6 +150,8 @@ function openPreview(imageSrc) {
   border-radius: 6px;
   padding: 10px 14px;
   border-left: 4px solid #555;
+  border: 1px solid rgba(69, 83, 117, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .message-card.level-info {
@@ -224,6 +230,8 @@ function openPreview(imageSrc) {
   object-fit: contain;
   cursor: zoom-in;
   image-rendering: auto;
+  border: 1px solid rgba(69, 83, 117, 0.55);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
 .msg-actions {

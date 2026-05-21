@@ -61,6 +61,9 @@
           >
             <template #reference>
               <el-button size="small" plain class="account-button" aria-haspopup="menu">
+                <span v-if="authStore.role" class="account-role-chip">
+                  {{ t(`auth.roles.${authStore.role}`) }}
+                </span>
                 <span class="account-name">{{ authStore.user?.username }}</span>
               </el-button>
             </template>
@@ -368,23 +371,38 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 112px;
-  max-width: 180px;
+  gap: 8px;
+  min-width: 132px;
+  max-width: 240px;
   padding: 0 14px;
-  border-color: transparent !important;
+  border-color: #3b4d7a !important;
   background: rgba(64, 158, 255, 0.08) !important;
   color: #dce7ff !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 1px rgba(59, 77, 122, 0.16) inset !important;
   cursor: pointer;
-  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .account-button:hover,
 .account-button:focus {
-  border-color: rgba(64, 158, 255, 0.38) !important;
+  border-color: #409eff !important;
   background: rgba(64, 158, 255, 0.16) !important;
   color: #79bbff !important;
   box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.22) inset !important;
+}
+
+.account-role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(121, 187, 255, 0.4);
+  background: rgba(64, 158, 255, 0.14);
+  color: #bcd8ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .management-button {
@@ -438,7 +456,7 @@ body {
 
   .account-button {
     min-width: 88px;
-    max-width: 132px;
+    max-width: 180px;
   }
 }
 </style>

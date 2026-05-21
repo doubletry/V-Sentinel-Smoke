@@ -1955,12 +1955,12 @@ async def list_analysis_messages(
 ) -> dict[str, object]:
     """List persisted analysis messages ordered newest-first.
     按时间倒序列出持久化分析消息。"""
+    max_visible_pages = 20
     safe_page = max(1, int(page))
     safe_size = min(100, max(1, int(page_size)))
     if limit is not None:
         safe_page = 1
         safe_size = min(100, max(1, int(limit)))
-    offset = (safe_page - 1) * safe_size
     where_clauses: list[str] = []
     query_values: list[object] = []
     if source_id:
@@ -1970,24 +1970,26 @@ async def list_analysis_messages(
         where_clauses.append("false_positive = 1")
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     async with _db_session() as db:
+        count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
+        async with db.execute(count_query, tuple(query_values)) as cursor:
+            total = int((await cursor.fetchone())[0])
+        total_pages = (total + safe_size - 1) // safe_size if total else 0
+        if limit is not None:
+            visible_total_pages = 1 if total else 0
+            visible_total = min(total, safe_size)
+        else:
+            visible_total_pages = min(total_pages, max_visible_pages)
+            visible_total = min(total, visible_total_pages * safe_size)
+        safe_page = min(safe_page, visible_total_pages) if visible_total_pages else 1
+        offset = (safe_page - 1) * safe_size
         listing_query = (
             "SELECT id, timestamp, source_name, source_id, level, message, image_url, "
-            "original_image_url, detected_image_url, image_base64, false_positive, "
-            "COUNT(*) OVER() AS total_count "
+            "original_image_url, detected_image_url, image_base64, false_positive "
             f"FROM analysis_messages{where_sql} "
             "ORDER BY created_at DESC LIMIT ? OFFSET ?"
         )
-        async with db.execute(
-            listing_query,
-            (*query_values, safe_size, offset),
-        ) as cursor:
+        async with db.execute(listing_query, (*query_values, safe_size, offset)) as cursor:
             rows = await cursor.fetchall()
-        if rows:
-            total = int(rows[0][11])
-        else:
-            count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
-            async with db.execute(count_query, tuple(query_values)) as cursor:
-                total = int((await cursor.fetchone())[0])
     items = [
         {
             "id": row[0],
@@ -2004,13 +2006,12 @@ async def list_analysis_messages(
         }
         for row in rows
     ]
-    total_pages = (total + safe_size - 1) // safe_size if total else 0
     return {
         "items": items,
         "page": safe_page,
         "page_size": safe_size,
-        "total": total,
-        "total_pages": total_pages,
+        "total": visible_total,
+        "total_pages": visible_total_pages,
     }
 
 

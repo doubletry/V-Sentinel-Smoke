@@ -13,7 +13,10 @@ export const useMessageStore = defineStore('message', () => {
   const page = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const total = ref(0)
+  const totalPages = ref(0)
+  const lastUpdatedAt = ref('')
   const pendingCount = ref(0)
+  const maxPageWindow = 20
   let _ws = null
   let _reconnectTimer = null
 
@@ -31,7 +34,9 @@ export const useMessageStore = defineStore('message', () => {
       page.value = Number(data.page || nextPage)
       pageSize.value = Number(data.page_size || nextPageSize)
       total.value = Number(data.total || 0)
+      totalPages.value = Number(data.total_pages || 0)
       messages.value = Array.isArray(data.items) ? data.items : []
+      lastUpdatedAt.value = new Date().toISOString()
       pendingCount.value = 0
       return messages.value
     } finally {
@@ -150,7 +155,10 @@ export const useMessageStore = defineStore('message', () => {
     page,
     pageSize,
     total,
+    totalPages,
+    lastUpdatedAt,
     pendingCount,
+    maxPageWindow,
     pageSizeOptions,
     wsConnected,
     filterSource,
