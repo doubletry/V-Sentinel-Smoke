@@ -438,11 +438,11 @@ class BaseVideoProcessor(ABC):
         try:
             if isinstance(value, str):
                 text = value.strip()
-            else:
-                text = ""
-            if "/" in text:
-                numerator, denominator = text.split("/", 1)
-                rate_value = float(numerator) / float(denominator)
+                if "/" in text:
+                    numerator, denominator = text.split("/", 1)
+                    rate_value = float(numerator) / float(denominator)
+                else:
+                    rate_value = float(text)
             else:
                 rate_value = float(value)
         except (TypeError, ValueError, ZeroDivisionError):
