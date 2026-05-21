@@ -17,6 +17,7 @@ from backend.db.database import (
     update_settings,
 )
 from backend.models.schemas import VideoSourceCreate
+from core.notification_client import NotificationPayload
 
 
 class TestSettingsDB:
@@ -166,7 +167,8 @@ class TestSettingsAPI:
     async def test_email_test_endpoint(self, async_client: AsyncClient):
         captured_config = {}
 
-        async def fake_send(provider, _payload):
+        async def fake_send(provider, payload):
+            assert isinstance(payload, NotificationPayload)
             captured_config.update(provider.config)
             return {"status": "SUCCESS", "message": "ok"}
 
@@ -180,7 +182,7 @@ class TestSettingsAPI:
                     "email_smtp_host": "smtp.example.com",
                     "email_smtp_port": "587",
                     "email_from_address": "sender@example.com",
-                    "email_smtp_password": "secret",
+                    "email_smtp_password": "test-password-do-not-use",
                     "email_to_addresses": "to@example.com",
                     "email_cc_addresses": "cc@example.com",
                 },
@@ -190,7 +192,7 @@ class TestSettingsAPI:
         data = resp.json()
         assert data["status"] == "SUCCESS"
         assert captured_config["smtp_username"] == "sender@example.com"
-        assert captured_config["smtp_password"] == "secret"
+        assert captured_config["smtp_password"] == "test-password-do-not-use"
         assert captured_config["use_tls"] is True
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(

@@ -410,7 +410,7 @@ class TestNotificationDispatcher:
             {
                 "email_smtp_host": "smtp.example.com",
                 "email_from_address": "sender@example.com",
-                "email_smtp_password": "secret",
+                "email_smtp_password": "test-password-do-not-use",
                 "email_to_addresses": "ops@example.com",
             }
         )
@@ -437,6 +437,6 @@ class TestNotificationDispatcher:
         provider_type, config, payload = send_provider.await_args.args
         assert provider_type == "email"
         assert config["smtp_username"] == "sender@example.com"
-        assert config["smtp_password"] == "secret"
+        assert config["smtp_password"] == "test-password-do-not-use"
         assert config["use_tls"] is True
         assert payload.subject == "Persisted alert alert from Persisted Cam"
