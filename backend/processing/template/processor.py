@@ -39,6 +39,8 @@ class TemplateSceneProcessor(BaseVideoProcessor):
         app_settings: dict[str, str],
         agent: "AnalysisAgent | None" = None,
         source_remark: str = "",
+        push_result_stream: bool = True,
+        source_alarm_confidence_threshold: float | None = None,
     ) -> None:
         super().__init__(
             source_id=source_id,
@@ -50,6 +52,8 @@ class TemplateSceneProcessor(BaseVideoProcessor):
             app_settings=app_settings,
             agent=agent,
             source_remark=source_remark,
+            push_result_stream=push_result_stream,
+            source_alarm_confidence_threshold=source_alarm_confidence_threshold,
         )
         self._frame_count = 0
 

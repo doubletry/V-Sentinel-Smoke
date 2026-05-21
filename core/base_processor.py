@@ -119,6 +119,8 @@ class BaseVideoProcessor(ABC):
         source_name: str = "standalone",
         rtsp_url: str = "",
         source_remark: str = "",
+        push_result_stream: bool = True,
+        source_alarm_confidence_threshold: float | None = None,
         rois: list[ROI] | None = None,
         vengine_client: Any = None,
         app_settings: dict[str, str] | None = None,
@@ -127,6 +129,8 @@ class BaseVideoProcessor(ABC):
         self.source_name = source_name
         self.rtsp_url = rtsp_url
         self.source_remark = source_remark
+        self.push_result_stream = bool(push_result_stream)
+        self.source_alarm_confidence_threshold = source_alarm_confidence_threshold
         self.rois: list[ROI] = rois or []
         self.vengine = vengine_client
         self.app_settings: dict[str, str] = app_settings or {}
@@ -176,7 +180,8 @@ class BaseVideoProcessor(ABC):
         self._output_stop.clear()
         self._push_consecutive_failures = 0
         self._push_retry_after = 0.0
-        self._start_output_worker()
+        if self.push_result_stream:
+            self._start_output_worker()
         self.status = "running"
         self._task = asyncio.create_task(
             self._run_loop(), name=f"processor-{self.source_id}"
@@ -766,7 +771,13 @@ class BaseVideoProcessor(ABC):
     def _should_display_result(self, result: AnalysisResult) -> bool:
         """Return whether a result should be drawn/pushed to the output stream."""
         del result
-        return True
+        return self.push_result_stream
+
+    def _source_confidence_threshold(self, fallback: float) -> float:
+        """Return per-source confidence override when configured."""
+        if self.source_alarm_confidence_threshold is None:
+            return fallback
+        return min(max(float(self.source_alarm_confidence_threshold), 0.0), 1.0)
 
     def _start_output_worker(self) -> None:
         """Start the unified output worker thread if it is not running."""

@@ -83,6 +83,34 @@ class TestCreateSource:
         assert resp.status_code == 201
         assert resp.json()["scene_id"] == "template"
 
+    async def test_create_with_stream_and_threshold_settings(self, async_client: AsyncClient):
+        resp = await async_client.post(
+            "/api/sources",
+            json={
+                "name": "Door Camera",
+                "route_path": "door-camera",
+                "push_result_stream": False,
+                "alarm_confidence_threshold": 0.86,
+            },
+        )
+
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["push_result_stream"] is False
+        assert data["alarm_confidence_threshold"] == 0.86
+
+    async def test_create_rejects_invalid_alarm_threshold(self, async_client: AsyncClient):
+        resp = await async_client.post(
+            "/api/sources",
+            json={
+                "name": "Door Camera",
+                "route_path": "door-invalid",
+                "alarm_confidence_threshold": 1.5,
+            },
+        )
+
+        assert resp.status_code == 422
+
     async def test_create_rejects_mismatched_scene_id(self, async_client: AsyncClient):
         settings_resp = await async_client.put(
             "/api/settings",
@@ -167,6 +195,25 @@ class TestUpdateSource:
         )
         assert resp.status_code == 200
         assert resp.json()["name"] == "Updated Name"
+
+    async def test_update_stream_and_threshold_settings(
+        self, async_client: AsyncClient, sample_source_data: dict
+    ):
+        create_resp = await async_client.post("/api/sources", json=sample_source_data)
+        source_id = create_resp.json()["id"]
+
+        resp = await async_client.put(
+            f"/api/sources/{source_id}",
+            json={
+                "push_result_stream": False,
+                "alarm_confidence_threshold": 0.74,
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["push_result_stream"] is False
+        assert data["alarm_confidence_threshold"] == 0.74
 
     async def test_update_with_rois(
         self,

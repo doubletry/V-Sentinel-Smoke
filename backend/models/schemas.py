@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 def _has_text(value: str | None) -> bool:
@@ -41,6 +41,8 @@ class VideoSourceCreate(BaseModel):
     rtsp_url: str | None = None
     route_path: str | None = None
     source_remark: str = ""
+    push_result_stream: bool = True
+    alarm_confidence_threshold: float | None = None
     scene_id: str = "smoke"
     notification_policy_ids: list[str] = []
 
@@ -54,6 +56,16 @@ class VideoSourceCreate(BaseModel):
             raise ValueError("Either rtsp_url or route_path is required")
         return self
 
+    @field_validator("alarm_confidence_threshold", mode="before")
+    @classmethod
+    def validate_alarm_confidence_threshold(cls, value: object) -> object:
+        if value is None or value == "":
+            return None
+        threshold = float(value)
+        if threshold < 0 or threshold > 1:
+            raise ValueError("alarm_confidence_threshold must be between 0 and 1")
+        return threshold
+
 
 class VideoSourceUpdate(BaseModel):
     """Schema for partially updating a video source.
@@ -63,6 +75,8 @@ class VideoSourceUpdate(BaseModel):
     rtsp_url: str | None = None
     route_path: str | None = None
     source_remark: str | None = None
+    push_result_stream: bool | None = None
+    alarm_confidence_threshold: float | None = None
     scene_id: str | None = None
     notification_policy_ids: list[str] | None = None
     rois: list[ROICreate] | None = None
@@ -75,6 +89,16 @@ class VideoSourceUpdate(BaseModel):
             raise ValueError("Use either rtsp_url or route_path, not both")
         return self
 
+    @field_validator("alarm_confidence_threshold", mode="before")
+    @classmethod
+    def validate_alarm_confidence_threshold(cls, value: object) -> object:
+        if value is None or value == "":
+            return None
+        threshold = float(value)
+        if threshold < 0 or threshold > 1:
+            raise ValueError("alarm_confidence_threshold must be between 0 and 1")
+        return threshold
+
 
 class VideoSource(BaseModel):
     """Full video source model with ROIs and metadata.
@@ -85,6 +109,8 @@ class VideoSource(BaseModel):
     rtsp_url: str
     route_path: str = ""
     source_remark: str = ""
+    push_result_stream: bool = True
+    alarm_confidence_threshold: float | None = None
     scene_id: str = "smoke"
     notification_policy_ids: list[str] = []
     rois: list[ROI] = []

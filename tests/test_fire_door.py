@@ -23,7 +23,7 @@ def _roi(roi_id: str = "r1", tag: str = "fire_door") -> ROI:
     )
 
 
-def _processor(vengine, *, rois=None, settings=None) -> FireDoorProcessor:
+def _processor(vengine, *, rois=None, settings=None, source_threshold=None) -> FireDoorProcessor:
     return FireDoorProcessor(
         source_id="s1",
         source_name="DoorCam",
@@ -31,6 +31,7 @@ def _processor(vengine, *, rois=None, settings=None) -> FireDoorProcessor:
         source_remark="North stairwell",
         rois=rois if rois is not None else [_roi()],
         vengine_client=vengine,
+        source_alarm_confidence_threshold=source_threshold,
         app_settings={
             "fire_door_temporal_confirm_frames": "1",
             "fire_door_alarm_hold_time": "0",
@@ -89,6 +90,27 @@ async def test_low_confidence_open_does_not_alert():
     )
 
     assert result.messages == []
+
+
+async def test_source_confidence_override_controls_alarm_threshold():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _processor(
+        vengine,
+        settings={"fire_door_classification_confidence": "0.50"},
+        source_threshold=0.95,
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    result = await processor.process_frame(
+        frame,
+        b"frame",
+        frame.shape,
+        [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+    )
+
+    assert result.messages == []
+    assert result.classifications[0]["confidence"] == 0.91
 
 
 async def test_multiple_rois_batch_classification_alerts_when_any_roi_is_open():

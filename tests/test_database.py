@@ -51,8 +51,26 @@ class TestCreateSource:
         assert src.name == "Cam1"
         assert src.rtsp_url == "rtsp://a/b"
         assert src.source_remark == "Gate A"
+        assert src.push_result_stream is True
+        assert src.alarm_confidence_threshold is None
         assert src.rois == []
         assert src.created_at
+
+    async def test_creates_with_stream_and_threshold_settings(self):
+        src = await create_source(
+            VideoSourceCreate(
+                name="Door",
+                rtsp_url="rtsp://door",
+                push_result_stream=False,
+                alarm_confidence_threshold=0.82,
+            )
+        )
+
+        found = await get_source(src.id)
+
+        assert found is not None
+        assert found.push_result_stream is False
+        assert found.alarm_confidence_threshold == 0.82
 
     async def test_unique_rtsp_url(self):
         await create_source(VideoSourceCreate(name="A", rtsp_url="rtsp://x"))
@@ -142,6 +160,30 @@ class TestUpdateSource:
         )
         assert updated is not None
         assert updated.source_remark == "Door beside loading dock"
+
+    async def test_update_stream_and_threshold_settings(self):
+        src = await create_source(
+            VideoSourceCreate(name="Settings", rtsp_url="rtsp://settings")
+        )
+
+        updated = await update_source(
+            src.id,
+            VideoSourceUpdate(
+                push_result_stream=False,
+                alarm_confidence_threshold=0.73,
+            ),
+        )
+
+        assert updated is not None
+        assert updated.push_result_stream is False
+        assert updated.alarm_confidence_threshold == 0.73
+
+        reset = await update_source(
+            src.id,
+            VideoSourceUpdate(alarm_confidence_threshold=None),
+        )
+        assert reset is not None
+        assert reset.alarm_confidence_threshold is None
 
     async def test_update_url(self):
         src = await create_source(

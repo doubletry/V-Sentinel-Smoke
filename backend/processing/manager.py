@@ -92,6 +92,8 @@ class ProcessorManager:
                 source_name=source.name,
                 rtsp_url=source.rtsp_url,
                 source_remark=source.source_remark,
+                push_result_stream=source.push_result_stream,
+                source_alarm_confidence_threshold=source.alarm_confidence_threshold,
                 rois=source.rois,
                 vengine_client=self._vengine,
                 ws_manager=self._ws_manager,

@@ -120,7 +120,9 @@ class FireDoorProcessor(BaseVideoProcessor):
                 or DEFAULT_CLASSIFICATION_MODEL
             ),
         )
-        confidence_threshold = self._setting_float("fire_door_classification_confidence", 0.5)
+        confidence_threshold = self._source_confidence_threshold(
+            self._setting_float("fire_door_classification_confidence", 0.5)
+        )
         alarm_labels = self._setting_labels("fire_door_alarm_labels", DEFAULT_ALARM_LABELS)
         classifications: list[dict[str, Any]] = []
         now_ts = time.monotonic()

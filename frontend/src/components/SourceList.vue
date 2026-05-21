@@ -16,6 +16,18 @@
           :key="source.id"
           class="source-item"
           draggable="true"
+          v-memo="[
+            source.id,
+            source.name,
+            source.rtsp_url,
+            source.route_path,
+            source.source_remark,
+            source.push_result_stream,
+            source.alarm_confidence_threshold,
+            store.isRunning(source.id),
+            actionLoading[source.id],
+            activePluginLabel,
+          ]"
           @dragstart="onDragStart($event, source)"
         >
           <div class="source-info">
@@ -29,6 +41,13 @@
               {{ source.name }}
             </div>
             <div class="source-scene">{{ t('sourceList.activePlugin') }}: {{ activePluginLabel }}</div>
+            <div class="source-settings-line">
+              {{ t('sourceList.pushResultStream') }}:
+              {{ source.push_result_stream === false ? t('common.no') : t('common.yes') }}
+              <span class="settings-separator">·</span>
+              {{ t('sourceList.alarmConfidenceThresholdShort') }}:
+              {{ formatAlarmThreshold(source.alarm_confidence_threshold) }}
+            </div>
             <div class="source-url">{{ getSourceRoute(source) }}</div>
           </div>
           <div class="source-actions">
@@ -80,6 +99,7 @@
           :key="rs.id"
           class="source-item result-item"
           draggable="true"
+          v-memo="[rs.id, rs.name, rs.streamPath]"
           @dragstart="onResultDragStart($event, rs)"
         >
           <div class="source-info">
@@ -103,7 +123,7 @@
     <el-dialog
       v-model="showAddDialog"
       :title="t('sourceList.addSource')"
-      width="400px"
+      width="460px"
       :close-on-click-modal="false"
     >
       <el-form :model="form" label-width="80px" @submit.prevent="addSource">
@@ -124,6 +144,21 @@
             :placeholder="t('sourceList.sourceRemarkPlaceholder')"
           />
         </el-form-item>
+        <el-form-item :label="t('sourceList.pushResultStream')">
+          <div class="field-stack">
+            <el-switch v-model="form.push_result_stream" />
+            <div class="route-hint">{{ t('sourceList.pushResultStreamHint') }}</div>
+          </div>
+        </el-form-item>
+        <el-form-item :label="t('sourceList.alarmConfidenceThreshold')">
+          <div class="field-stack">
+            <el-input
+              v-model="form.alarm_confidence_threshold"
+              :placeholder="t('sourceList.alarmConfidenceThresholdPlaceholder')"
+            />
+            <div class="route-hint">{{ t('sourceList.alarmConfidenceThresholdHint') }}</div>
+          </div>
+        </el-form-item>
         <el-form-item :label="t('sourceList.activePlugin')">
           <el-input :model-value="activePluginLabel" disabled />
           <div class="route-hint">{{ t('sourceList.activePluginHint') }}</div>
@@ -142,7 +177,7 @@
     <el-dialog
       v-model="showEditDialog"
       :title="t('sourceList.editSource')"
-      width="400px"
+      width="460px"
       :close-on-click-modal="false"
     >
       <el-form :model="editForm" label-width="80px" @submit.prevent="saveEdit">
@@ -162,6 +197,21 @@
             :rows="2"
             :placeholder="t('sourceList.sourceRemarkPlaceholder')"
           />
+        </el-form-item>
+        <el-form-item :label="t('sourceList.pushResultStream')">
+          <div class="field-stack">
+            <el-switch v-model="editForm.push_result_stream" />
+            <div class="route-hint">{{ t('sourceList.pushResultStreamHint') }}</div>
+          </div>
+        </el-form-item>
+        <el-form-item :label="t('sourceList.alarmConfidenceThreshold')">
+          <div class="field-stack">
+            <el-input
+              v-model="editForm.alarm_confidence_threshold"
+              :placeholder="t('sourceList.alarmConfidenceThresholdPlaceholder')"
+            />
+            <div class="route-hint">{{ t('sourceList.alarmConfidenceThresholdHint') }}</div>
+          </div>
         </el-form-item>
         <el-form-item :label="t('sourceList.activePlugin')">
           <el-input :model-value="activePluginLabel" disabled />
@@ -203,8 +253,20 @@ const editingSourceId = ref('')
 const scenes = ref([])
 const DEFAULT_SCENE_ID = 'smoke'
 
-const form = reactive({ name: '', route_path: '', source_remark: '' })
-const editForm = reactive({ name: '', route_path: '', source_remark: '' })
+const form = reactive({
+  name: '',
+  route_path: '',
+  source_remark: '',
+  push_result_stream: true,
+  alarm_confidence_threshold: '',
+})
+const editForm = reactive({
+  name: '',
+  route_path: '',
+  source_remark: '',
+  push_result_stream: true,
+  alarm_confidence_threshold: '',
+})
 
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
@@ -225,7 +287,7 @@ function sceneLabel(sceneId) {
  */
 const resultStreams = computed(() => {
   return store.sources
-    .filter((s) => store.isRunning(s.id))
+    .filter((s) => store.isRunning(s.id) && s.push_result_stream !== false)
     .map((s) => {
       const route = getSourceRoute(s)
       return {
@@ -251,6 +313,7 @@ function onResultDragStart(event, resultStream) {
 
 async function addSource() {
   const routePath = normalizeRoutePath(form.route_path)
+  const alarmThreshold = normalizeAlarmThreshold(form.alarm_confidence_threshold)
 
   if (!form.name || !routePath) {
     ElMessage.warning(t('sourceList.fillAllFields'))
@@ -260,14 +323,26 @@ async function addSource() {
     ElMessage.warning(t('sourceList.missingRtspBase'))
     return
   }
+  if (alarmThreshold === false) {
+    ElMessage.warning(t('sourceList.invalidAlarmConfidenceThreshold'))
+    return
+  }
 
   addLoading.value = true
   try {
-    await store.createSource({ name: form.name, route_path: routePath, source_remark: form.source_remark })
+    await store.createSource({
+      name: form.name,
+      route_path: routePath,
+      source_remark: form.source_remark,
+      push_result_stream: form.push_result_stream,
+      alarm_confidence_threshold: alarmThreshold,
+    })
     showAddDialog.value = false
     form.name = ''
     form.route_path = ''
     form.source_remark = ''
+    form.push_result_stream = true
+    form.alarm_confidence_threshold = ''
     ElMessage.success(t('sourceList.sourceAdded'))
   } catch (err) {
     ElMessage.error(err.message || t('sourceList.failedToAdd'))
@@ -294,6 +369,8 @@ function openEditDialog(source) {
   editForm.name = source.name
   editForm.route_path = extractRoutePath(source.rtsp_url, appSettingsStore.mediamtxRtspAddr)
   editForm.source_remark = source.source_remark || ''
+  editForm.push_result_stream = source.push_result_stream !== false
+  editForm.alarm_confidence_threshold = source.alarm_confidence_threshold ?? ''
   showEditDialog.value = true
 }
 
@@ -301,6 +378,7 @@ async function saveEdit() {
   if (!editingSourceId.value) return
 
   const routePath = normalizeRoutePath(editForm.route_path)
+  const alarmThreshold = normalizeAlarmThreshold(editForm.alarm_confidence_threshold)
 
   if (!editForm.name || !routePath) {
     ElMessage.warning(t('sourceList.fillAllFields'))
@@ -310,6 +388,10 @@ async function saveEdit() {
     ElMessage.warning(t('sourceList.missingRtspBase'))
     return
   }
+  if (alarmThreshold === false) {
+    ElMessage.warning(t('sourceList.invalidAlarmConfidenceThreshold'))
+    return
+  }
 
   editLoading.value = true
   try {
@@ -317,6 +399,8 @@ async function saveEdit() {
       name: editForm.name,
       route_path: routePath,
       source_remark: editForm.source_remark,
+      push_result_stream: editForm.push_result_stream,
+      alarm_confidence_threshold: alarmThreshold,
     })
     showEditDialog.value = false
     ElMessage.success(t('sourceList.sourceUpdated'))
@@ -347,6 +431,23 @@ async function confirmDelete(source) {
 
 function getSourceRoute(source) {
   return extractRoutePath(source.rtsp_url, appSettingsStore.mediamtxRtspAddr) || source.rtsp_url
+}
+
+function normalizeAlarmThreshold(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+  const threshold = Number(text)
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+    return false
+  }
+  return threshold
+}
+
+function formatAlarmThreshold(value) {
+  if (value === null || value === undefined || value === '') {
+    return t('sourceList.globalDefault')
+  }
+  return Number(value).toFixed(2)
 }
 
 onMounted(async () => {
@@ -416,6 +517,8 @@ onMounted(async () => {
   border-bottom: 1px solid #222;
   cursor: grab;
   transition: background 0.15s;
+  content-visibility: auto;
+  contain-intrinsic-size: 88px;
 }
 
 .source-item:hover {
@@ -467,6 +570,24 @@ onMounted(async () => {
   font-size: 11px;
   color: #8aa6d9;
   margin-bottom: 2px;
+}
+
+.source-settings-line {
+  font-size: 11px;
+  color: #6f86aa;
+  margin-bottom: 2px;
+}
+
+.settings-separator {
+  color: #444;
+  margin: 0 4px;
+}
+
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
 }
 
 .route-hint {

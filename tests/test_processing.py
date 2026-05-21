@@ -57,6 +57,11 @@ class TestBaseVideoProcessor:
             app_settings=dict(DEFAULT_APP_SETTINGS),
         )
 
+    def _make_processor_without_result_push(self) -> DummyProcessor:
+        proc = self._make_processor()
+        proc.push_result_stream = False
+        return proc
+
     def test_init(self):
         proc = self._make_processor()
         assert proc.source_id == "s1"
@@ -107,6 +112,23 @@ class TestBaseVideoProcessor:
         pts = result[0]
         assert pts[0] == {"x": int(0.1 * 1920), "y": int(0.2 * 1080)}
         assert pts[1] == {"x": int(0.9 * 1920), "y": int(0.8 * 1080)}
+
+    def test_should_display_result_respects_source_push_setting(self):
+        proc = self._make_processor_without_result_push()
+        assert proc._should_display_result(AnalysisResult()) is False
+
+    async def test_handle_result_skips_output_when_push_disabled(self):
+        proc = self._make_processor_without_result_push()
+        proc._enqueue_output = MagicMock()
+
+        await proc._handle_result(np.zeros((10, 10, 3), dtype=np.uint8), AnalysisResult())
+
+        proc._enqueue_output.assert_not_called()
+
+    def test_source_confidence_threshold_override(self):
+        proc = self._make_processor()
+        proc.source_alarm_confidence_threshold = 0.72
+        assert proc._source_confidence_threshold(0.35) == 0.72
 
     def test_draw_on_frame_empty(self):
         proc = self._make_processor()

@@ -40,8 +40,12 @@ class SmokeFireProcessor(BaseVideoProcessor):
 
     def _build_postprocess_config(self) -> PostProcessorConfig:
         return PostProcessorConfig(
-            min_confidence_smoke=self._setting_float("smoke_min_confidence_smoke", 0.35),
-            min_confidence_fire=self._setting_float("smoke_min_confidence_fire", 0.40),
+            min_confidence_smoke=self._source_confidence_threshold(
+                self._setting_float("smoke_min_confidence_smoke", 0.35)
+            ),
+            min_confidence_fire=self._source_confidence_threshold(
+                self._setting_float("smoke_min_confidence_fire", 0.40)
+            ),
             temporal_confirm_frames=self._setting_int("smoke_temporal_confirm_frames", 3),
             temporal_confirm_window=self._setting_float("smoke_temporal_confirm_window", 2.0),
             max_miss_frames=self._setting_int("smoke_max_miss_frames", 5),
@@ -81,7 +85,9 @@ class SmokeFireProcessor(BaseVideoProcessor):
         detect_result = await self._do_detect(
             shape=shape,
             model_name=str(self.app_settings.get("smoke_detection_model_name") or DEFAULT_DETECTION_MODEL),
-            conf=self._setting_float("smoke_detection_confidence", 0.35),
+            conf=self._source_confidence_threshold(
+                self._setting_float("smoke_detection_confidence", 0.35)
+            ),
             nms=self._setting_float("smoke_detection_nms", 0.7),
             model_version=str(self.app_settings.get("smoke_detection_model_version") or ""),
             model_roi=primary_roi,
