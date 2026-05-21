@@ -443,6 +443,7 @@ class BaseVideoProcessor(ABC):
             else:
                 rate_value = float(value)
         except (TypeError, ValueError, ZeroDivisionError):
+            logger.debug("Ignoring invalid FPS metadata value: {}", value)
             return None
         if math.isfinite(rate_value) and 0 < rate_value <= MAX_REASONABLE_SOURCE_FPS:
             return rate_value
@@ -483,13 +484,22 @@ class BaseVideoProcessor(ABC):
                 timeout=FFPROBE_TIMEOUT_SEC,
                 check=False,
             )
-        except (FileNotFoundError, subprocess.SubprocessError):
+        except FileNotFoundError:
+            logger.debug("ffprobe is unavailable; falling back to in-process stream metadata")
+            return None
+        except subprocess.TimeoutExpired:
+            logger.debug("ffprobe timed out while probing source FPS")
+            return None
+        except subprocess.SubprocessError as exc:
+            logger.debug("ffprobe failed while probing source FPS: {}", exc)
             return None
         if result.returncode != 0 or not str(result.stdout).strip():
+            logger.debug("ffprobe returned no usable FPS metadata (exit code {})", result.returncode)
             return None
         try:
             return BaseVideoProcessor._parse_ffprobe_fps_payload(json.loads(result.stdout))
         except json.JSONDecodeError:
+            logger.debug("ffprobe returned invalid JSON while probing source FPS")
             return None
 
     @classmethod
@@ -517,7 +527,7 @@ class BaseVideoProcessor(ABC):
             or elapsed_seconds < OBSERVED_FPS_ESTIMATE_WINDOW_SEC
         ):
             return None
-        estimated_fps = (frame_count - 1) / elapsed_seconds
+        estimated_fps = (frame_count - 1) / elapsed_seconds  # N frames contain N-1 frame intervals.
         if 0 < estimated_fps <= MAX_REASONABLE_SOURCE_FPS:
             return round(estimated_fps, 3)
         return None
