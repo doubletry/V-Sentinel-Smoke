@@ -35,6 +35,7 @@ from backend.models.schemas import (
 
 _DB_PATH = settings.db_path
 DEFAULT_SCENE_ID = "smoke"
+DEFAULT_NOTIFICATION_COOLDOWN_SECONDS = 300
 
 CREATE_SOURCES_TABLE = """
 CREATE TABLE IF NOT EXISTS video_sources (
@@ -502,7 +503,7 @@ async def _seed_default_notification_records(db: aiosqlite.Connection) -> None:
             "default-alert-policy",
             "Default Alert Policy",
             1,
-            300,
+            DEFAULT_NOTIFICATION_COOLDOWN_SECONDS,
             _json_dumps(["default-email"]),
             "default-event-email",
             now,
