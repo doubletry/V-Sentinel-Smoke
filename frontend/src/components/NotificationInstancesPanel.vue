@@ -292,8 +292,9 @@ async function loadInstances() {
       if (Array.isArray(placeholderData?.placeholders)) {
         placeholderItems.value = placeholderData.placeholders
       }
-    } catch (_) {
+    } catch (error) {
       // Keep local placeholder fallback.
+      void error
     }
   } catch (err) {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))

@@ -237,7 +237,7 @@ export default {
     savePluginSection: '保存当前插件配置',
     notificationEmailSection: '邮件通知配置',
     notificationInstancesSection: '通知实例',
-    notificationInstancesHint: '将通知拆分为可独立启停的实例。触发事件时，后台会异步扇出所有启用实例，避免阻塞分析主链路。',
+    notificationInstancesHint: '将通知拆分为可独立启用和停用的实例。触发事件时，后台会异步扇出所有启用实例，避免阻塞分析主链路。',
     addNotificationInstance: '添加通知',
     editNotificationInstance: '编辑通知',
     noNotificationInstances: '暂无通知实例，请先添加邮件或 Webhook 通知。',

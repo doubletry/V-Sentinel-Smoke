@@ -72,10 +72,7 @@ class NotificationDispatcher:
         templates = {template.id: template for template in await db.list_notification_templates()}
         policy_overrides = await self._policy_overrides_for_source(source)
         settings_email_config = build_email_settings_smtp_config(app_settings)
-        if not providers and (
-            str(app_settings.get("email_event_enabled", "true")).lower() in {"true", "1", "yes"}
-            and has_email_settings_recipients(settings_email_config)
-        ):
+        if not providers and self._legacy_settings_email_enabled(app_settings) and has_email_settings_recipients(settings_email_config):
             providers["default-email"] = SimpleNamespace(
                 id="default-email",
                 type="email",
@@ -157,6 +154,9 @@ class NotificationDispatcher:
     def _cooldown_key(self, policy_id: str, event: dict[str, Any]) -> str:
         event_type = str(event.get("event_type") or event.get("label") or "event")
         return f"{policy_id}:{event.get('source_id', '')}:{event_type}"
+
+    def _legacy_settings_email_enabled(self, app_settings: dict[str, Any]) -> bool:
+        return str(app_settings.get("email_event_enabled", "true")).lower() in {"true", "1", "yes"}
 
     async def _policy_overrides_for_source(self, source: Any) -> dict[str, dict[str, Any]]:
         if source is None:
