@@ -146,7 +146,12 @@ class WebhookNotificationProvider:
         if isinstance(value, list):
             return [self._render_value(item, context) for item in value]
         if isinstance(value, dict):
-            return {str(key): self._render_value(item, context) for key, item in value.items()}
+            rendered: dict[str, Any] = {}
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    raise ValueError("Webhook payload_template keys must be strings")
+                rendered[key] = self._render_value(item, context)
+            return rendered
         return value
 
     def send_sync(self, payload: NotificationPayload) -> dict[str, str]:

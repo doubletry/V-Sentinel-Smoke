@@ -308,8 +308,9 @@ class TestWebhookNotificationProvider:
 
         assert result == {"status": "SUCCESS", "message": "204"}
         assert captured["method"] == "PATCH"
-        assert captured["headers"]["Content-type"] == "application/json"
-        assert captured["headers"]["X-test"] == "1"
+        headers = {key.lower(): value for key, value in captured["headers"].items()}
+        assert headers["content-type"] == "application/json"
+        assert headers["x-test"] == "1"
         assert captured["timeout"] == 10
         assert captured["body"] == (
             '{"title": "Smoke", "source": {"name": "Cam1"}, '
@@ -324,6 +325,16 @@ class TestWebhookNotificationProvider:
             }
         )
         with pytest.raises(ValueError, match="payload_template"):
+            provider.send_sync(NotificationPayload(subject="", body="", context={}))
+
+    def test_webhook_rejects_non_string_payload_keys(self):
+        provider = WebhookNotificationProvider(
+            {
+                "url": "https://example.com/hooks/ops",
+                "payload_template": {1: "bad"},
+            }
+        )
+        with pytest.raises(ValueError, match="keys must be strings"):
             provider.send_sync(NotificationPayload(subject="", body="", context={}))
 
 
