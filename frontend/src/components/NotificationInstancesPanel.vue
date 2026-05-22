@@ -51,7 +51,7 @@
         </div>
 
         <div class="notification-instance-card__footer">
-          <span class="notification-instance-card__timestamp">{{ formatCreatedAt(item.created_at) }}</span>
+          <span class="notification-instance-card__timestamp">{{ formatTimestamp(item.created_at) }}</span>
           <el-button size="small" plain @click="openEditDialog(item)">
             {{ t('common.edit') }}
           </el-button>
@@ -266,7 +266,7 @@ function placeholderTagType(groupKey) {
   return 'info'
 }
 
-function formatCreatedAt(value) {
+function formatTimestamp(value) {
   return formatTimeWithTimezone(value, appSettingsStore.timeZone)
 }
 

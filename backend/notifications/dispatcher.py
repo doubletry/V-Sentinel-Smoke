@@ -42,6 +42,8 @@ class NotificationDispatcher:
     def schedule_event(self, event: dict[str, Any]) -> asyncio.Task:
         """Schedule one event delivery in the background.
         后台调度单次事件投递，避免阻塞分析链路。"""
+        # Keep an event snapshot for the detached task so later mutations by the
+        # caller cannot change the payload being delivered in the background.
         task = asyncio.create_task(self._send_event_in_background(dict(event)))
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
@@ -51,8 +53,11 @@ class NotificationDispatcher:
         async with self._dispatch_semaphore:
             try:
                 await self.send_event(event)
-            except Exception as exc:  # pragma: no cover - side-effect logging
-                logger.warning("Failed to dispatch background notification event: {}", exc)
+            except Exception:  # pragma: no cover - side-effect logging
+                # Background dispatch is intentionally isolated from the
+                # analysis path so notification failures never block frame
+                # processing; emit a full stack trace for later diagnosis.
+                logger.exception("Failed to dispatch background notification event")
 
     async def send_event(self, event: dict[str, Any], *, force: bool = False) -> list[dict[str, str]]:
         """Send one event to all enabled notification instances.
