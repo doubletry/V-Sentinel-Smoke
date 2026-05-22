@@ -343,7 +343,7 @@ function buildPayload() {
     type: form.value.type,
     enabled: Boolean(form.value.enabled),
     config: {
-      cooldown_seconds: String(form.value.cooldown_seconds || '300').trim() || '300',
+      cooldown_seconds: String(form.value.cooldown_seconds || '300').trim(),
       subject_template: form.value.subject_template || defaultSubjectTemplate,
       body_template: form.value.body_template || defaultBodyTemplate,
     },
@@ -355,7 +355,7 @@ function buildPayload() {
     payload.config = {
       ...payload.config,
       smtp_host: form.value.smtp_host.trim(),
-      smtp_port: String(form.value.smtp_port || '587').trim() || '587',
+      smtp_port: String(form.value.smtp_port || '587').trim(),
       use_tls: Boolean(form.value.use_tls),
       from_address: form.value.from_address.trim(),
       smtp_username: form.value.from_address.trim(),

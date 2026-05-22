@@ -37,7 +37,6 @@ class NotificationDispatcher:
         self._background_tasks: set[asyncio.Task] = set()
         # Keep background notification fan-out bounded so bursts of scene events
         # do not overwhelm SMTP/Webhook delivery threads or starve analysis work.
-        # 限制后台通知并发，避免事件高峰时过量占用投递线程并影响分析主链路。
         self._dispatch_semaphore = asyncio.Semaphore(MAX_CONCURRENT_NOTIFICATION_DISPATCHES)
 
     def schedule_event(self, event: dict[str, Any]) -> asyncio.Task:
@@ -164,7 +163,6 @@ class NotificationDispatcher:
         # Policies are still honored as optional per-source overrides for
         # cooldown/template selection, while delivery fans out to all enabled
         # instances globally.
-        # 通知策略仍作为可选的源级模板/冷却覆盖项，但投递会全局扇出到所有已启用实例。
         policies = {
             policy.id: policy
             for policy in await db.list_notification_policies()
