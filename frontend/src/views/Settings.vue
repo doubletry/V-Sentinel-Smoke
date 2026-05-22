@@ -327,7 +327,7 @@
             </el-tab-pane>
 
             <el-tab-pane :label="t('settings.notificationRetentionSection')" name="retention">
-              <section class="settings-section section-card compact-section">
+              <section class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.notificationRetentionSection') }}</h2>

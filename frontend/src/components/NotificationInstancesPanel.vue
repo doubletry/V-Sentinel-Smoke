@@ -5,11 +5,15 @@
         <h2>{{ t('settings.notificationInstancesSection') }}</h2>
         <p class="info-tip">{{ t('settings.notificationInstancesHint') }}</p>
       </div>
-      <div class="section-card__actions">
-        <el-button type="primary" size="default" class="notification-instances-section__add" @click="openCreateDialog">
-          {{ t('settings.addNotificationInstance') }}
-        </el-button>
-      </div>
+    </div>
+
+    <div class="notification-instances-toolbar">
+      <span class="notification-instances-toolbar__meta">
+        {{ t('settings.notificationTypeEmail') }} / {{ t('settings.notificationTypeWebhook') }}
+      </span>
+      <el-button size="small" class="notification-instances-section__add" @click="openCreateDialog">
+        {{ t('settings.addNotificationInstance') }}
+      </el-button>
     </div>
 
     <div v-loading="loading" class="notification-instance-grid">
@@ -411,14 +415,53 @@ onMounted(loadInstances)
 
 <style scoped>
 .notification-instances-section__head {
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(58, 74, 114, 0.5);
-  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.notification-instances-section h2 {
+  color: #e5eeff;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.notification-instances-section .info-tip {
+  margin-top: 8px;
+  color: #8f9fbe;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.notification-instances-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(58, 74, 114, 0.52);
+  border-radius: 12px;
+  background: rgba(7, 12, 26, 0.34);
+}
+
+.notification-instances-toolbar__meta {
+  color: #9fb1d1;
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 
 .notification-instances-section__add {
-  min-width: 132px;
+  min-width: 104px;
+  flex-shrink: 0;
+  border-color: rgba(64, 158, 255, 0.38);
+  background: rgba(64, 158, 255, 0.12);
+  color: #b8d8ff;
+}
+
+.notification-instances-section__add:hover,
+.notification-instances-section__add:focus {
+  border-color: rgba(64, 158, 255, 0.72);
+  background: rgba(64, 158, 255, 0.2);
+  color: #eef6ff;
 }
 
 .notification-instance-grid {
