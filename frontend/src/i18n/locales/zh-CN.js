@@ -170,6 +170,9 @@ export default {
     connectionFailed: '连接失败',
     connectionLost: '连接断开，正在重连...',
   },
+  videoWall: {
+    loading: '视频源加载中…',
+  },
   messages: {
     title: '实时消息',
     connected: '已连接',

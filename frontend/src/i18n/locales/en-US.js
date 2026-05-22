@@ -170,6 +170,9 @@ export default {
     connectionFailed: 'Connection failed',
     connectionLost: 'Connection lost, reconnecting...',
   },
+  videoWall: {
+    loading: 'Loading video sources…',
+  },
   messages: {
     title: 'Real-time Messages',
     connected: 'Connected',
