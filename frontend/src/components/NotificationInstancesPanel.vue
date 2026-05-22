@@ -224,6 +224,7 @@ const SMOKE_PLACEHOLDERS = new Set(['detection_count', 'frame_id', 'active_track
 const FIRE_DOOR_PLACEHOLDERS = new Set(['roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
 const defaultSubjectTemplate = '[{site_title}] {event_label} alert from {source_name}'
 const defaultBodyTemplate = 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nMessage: {message}'
+// Keep in sync with core.notification_client.WebhookNotificationProvider.DEFAULT_PAYLOAD_TEMPLATE.
 const defaultWebhookPayloadTemplate = {
   site_title: '{site_title}',
   event_type: '{event_type}',
