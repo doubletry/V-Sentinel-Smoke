@@ -59,7 +59,7 @@
             <el-button
               size="small"
               type="danger"
-              @click="removeCell(cellIdx)"
+              @click="confirmRemoveCell(cellIdx)"
             >
               <el-icon><Close /></el-icon>
               {{ t('videoGrid.removeSource') }}
@@ -95,6 +95,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ElMessage from 'element-plus/es/components/message/index'
+import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useSourceStore } from '../stores/source.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
@@ -177,6 +179,29 @@ function removeCell(cellIdx) {
   store.removeFromCell(cellIdx)
   if (roiCellIndex.value === cellIdx) roiCellIndex.value = null
   if (roiPreviewCellIndex.value === cellIdx) roiPreviewCellIndex.value = null
+}
+
+async function confirmRemoveCell(cellIdx) {
+  const assignment = assignments.value[cellIdx]
+  if (!assignment) return
+  try {
+    await ElMessageBox.confirm(
+      t('videoGrid.removeConfirmMessage', {
+        index: cellIdx + 1,
+        name: assignment.name || '',
+      }),
+      t('videoGrid.removeConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('videoGrid.removeSource'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
+  } catch (_) {
+    return
+  }
+  removeCell(cellIdx)
+  ElMessage.success(t('videoGrid.removeSuccess', { index: cellIdx + 1 }))
 }
 
 function onDrop(event, cellIdx) {

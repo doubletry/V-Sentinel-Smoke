@@ -32,14 +32,22 @@
             @change="handleFalsePositiveFilterChange"
           />
         </div>
-        <el-button size="small" type="primary" @click="handleManualRefresh">
+        <el-button size="small" type="primary" :loading="refreshing" @click="handleManualRefresh">
           {{ t('messages.refresh') }}
         </el-button>
-        <el-button size="small" @click="store.clearMessages">{{ t('messages.clear') }}</el-button>
+        <el-button size="small" :disabled="!store.messages.length" @click="handleClearMessages">
+          {{ t('messages.clear') }}
+        </el-button>
       </div>
     </div>
 
-    <el-scrollbar ref="scrollbar" class="messages-scroll">
+    <el-scrollbar
+      ref="scrollbar"
+      v-loading="refreshing"
+      :element-loading-text="t('messages.loadingMessages')"
+      element-loading-background="rgba(13, 13, 26, 0.55)"
+      class="messages-scroll"
+    >
       <MessageList
         :messages="store.messages"
         :resending-message-ids="resendingMessageIds"
@@ -71,6 +79,7 @@
 import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
+import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useMessageStore } from '../stores/message.js'
 import { useSourceStore } from '../stores/source.js'
 import MessageList from '../components/MessageList.vue'
@@ -80,6 +89,7 @@ const sourceStore = useSourceStore()
 const { t } = useI18n()
 const filterSource = ref('')
 const scrollbar = ref(null)
+const refreshing = ref(false)
 const resendingMessageIds = ref({})
 const lastUpdatedLabel = computed(() => {
   if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
@@ -95,36 +105,69 @@ watch(
   }
 )
 
+async function refresh(page, size) {
+  refreshing.value = true
+  try {
+    await store.fetchMessages(page, size)
+  } catch (err) {
+    ElMessage.error(t('messages.refreshFailed', { message: err.message }))
+  } finally {
+    refreshing.value = false
+  }
+}
+
 async function handlePageChange(nextPage) {
-  await store.fetchMessages(nextPage, store.pageSize)
+  await refresh(nextPage, store.pageSize)
 }
 
 async function handleSizeChange(nextSize) {
-  await store.fetchMessages(1, nextSize)
+  await refresh(1, nextSize)
 }
 
 async function handleFilterChange(value) {
   store.setFilterSource(value || '')
-  await store.fetchMessages(1, store.pageSize)
+  await refresh(1, store.pageSize)
 }
 
 async function handleFalsePositiveFilterChange(value) {
   store.setFalsePositiveOnly(value)
-  await store.fetchMessages(1, store.pageSize)
+  await refresh(1, store.pageSize)
 }
 
 async function handleManualRefresh() {
-  await store.fetchMessages(store.page, store.pageSize)
+  await refresh(store.page, store.pageSize)
+}
+
+async function handleClearMessages() {
+  try {
+    await ElMessageBox.confirm(
+      t('messages.clearConfirmMessage'),
+      t('messages.clearConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.clear'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
+  } catch (_) {
+    return
+  }
+  try {
+    await store.clearMessages()
+    ElMessage.success(t('messages.clearSuccess'))
+  } catch (err) {
+    ElMessage.error(t('messages.clearFailed', { message: err.message }))
+  }
 }
 
 async function handleMarkFalsePositive(message) {
   await store.markFalsePositive(message.id)
-  await store.fetchMessages(store.page, store.pageSize)
+  await refresh(store.page, store.pageSize)
 }
 
 async function handleUnmarkFalsePositive(message) {
   await store.unmarkFalsePositive(message.id)
-  await store.fetchMessages(store.page, store.pageSize)
+  await refresh(store.page, store.pageSize)
 }
 
 async function handleResendNotification(message) {
@@ -147,7 +190,7 @@ async function handleResendNotification(message) {
 }
 
 onMounted(() => {
-  store.fetchMessages(1, store.pageSize)
+  refresh(1, store.pageSize)
   if (!sourceStore.sources.length) {
     sourceStore.fetchSources()
   }
