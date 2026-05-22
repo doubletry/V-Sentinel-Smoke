@@ -10,9 +10,12 @@ helpers instead of depending on a channel-specific client.
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timezone
+import html
 from string import Formatter
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -31,6 +34,30 @@ NOTIFICATION_TEMPLATE_PLACEHOLDERS: tuple[str, ...] = (
     "detection_count",
     "frame_id",
     "active_tracks",
+    "original_image",
+    "detected_image",
+    "original_image_url",
+    "detected_image_url",
+    "has_original_image",
+    "has_detected_image",
+    "source_rtsp_url",
+    "source_route_path",
+    "source_host",
+    "source_host_or_ip",
+    "source_ip",
+    "source_port",
+    "source_remark",
+    "source_description",
+    "message",
+    "roi_id",
+    "roi_tag",
+    "roi_index",
+    "roi_count",
+    "door_state",
+    "door_state_label",
+    "alarm_label",
+    "open_count",
+    "closed_count",
 )
 
 DEFAULT_EVENT_SUBJECT_TEMPLATE = "[{site_title}] {event_label} alert from {source_name}"
@@ -65,6 +92,42 @@ def safe_float(value: Any) -> float:
         return 0.0
 
 
+def _image_html(image_base64: str, alt: str) -> str:
+    payload = str(image_base64 or "").strip()
+    if not payload:
+        return ""
+    try:
+        base64.b64decode(payload, validate=True)
+    except Exception:
+        return ""
+    safe_alt = html.escape(alt, quote=True)
+    return (
+        f'<img alt="{safe_alt}" src="data:image/jpeg;base64,{payload}" '
+        'style="max-width:100%;height:auto;border:1px solid #ddd;" />'
+    )
+
+
+def _source_network_context(event: dict[str, Any]) -> dict[str, str]:
+    raw_url = str(event.get("source_rtsp_url") or event.get("rtsp_url") or "")
+    if not raw_url:
+        return {"source_host": "", "source_ip": "", "source_port": ""}
+    try:
+        parsed = urlsplit(raw_url)
+    except ValueError:
+        return {"source_host": "", "source_ip": "", "source_port": ""}
+    host = parsed.hostname or ""
+    port = str(parsed.port or "")
+    return {
+        "source_host": host,
+        "source_host_or_ip": host,
+        # Kept for the user-facing {source_ip} placeholder requirement. RTSP
+        # URLs may contain a DNS name or an IP literal, so this is the parsed
+        # host/address value rather than a guaranteed numeric IP.
+        "source_ip": host,
+        "source_port": port,
+    }
+
+
 def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) -> dict[str, str]:
     """Build the standard placeholder context for one scene event.
     为单个场景事件构造标准占位符上下文。"""
@@ -87,6 +150,11 @@ def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) 
     else:
         labels = str(labels_raw)
     event_type = str(event.get("event_type") or labels).strip() or "event"
+    original_image_base64 = str(event.get("original_image_base64") or "").strip()
+    detected_image_base64 = str(
+        event.get("detected_image_base64") or event.get("image_base64") or ""
+    ).strip()
+    source_network = _source_network_context(event)
     return {
         "site_title": product_name(app_settings),
         "timestamp": timestamp,
@@ -102,6 +170,27 @@ def build_template_context(app_settings: dict[str, str], event: dict[str, Any]) 
         "detection_count": str(event.get("detection_count") or 0),
         "frame_id": str(event.get("frame_id") or ""),
         "active_tracks": str(event.get("active_tracks") or ""),
+        "original_image": _image_html(original_image_base64, "original image"),
+        "detected_image": _image_html(detected_image_base64, "detected image"),
+        "original_image_url": str(event.get("original_image_url") or ""),
+        "detected_image_url": str(event.get("detected_image_url") or event.get("image_url") or ""),
+        "has_original_image": "true" if original_image_base64 or event.get("original_image_url") else "false",
+        "has_detected_image": "true" if detected_image_base64 or event.get("detected_image_url") or event.get("image_url") else "false",
+        "source_rtsp_url": str(event.get("source_rtsp_url") or event.get("rtsp_url") or ""),
+        "source_route_path": str(event.get("source_route_path") or ""),
+        **source_network,
+        "source_remark": str(event.get("source_remark") or ""),
+        "source_description": str(event.get("source_description") or event.get("source_remark") or ""),
+        "message": str(event.get("message") or ""),
+        "roi_id": str(event.get("roi_id") or ""),
+        "roi_tag": str(event.get("roi_tag") or ""),
+        "roi_index": str(event.get("roi_index") or ""),
+        "roi_count": str(event.get("roi_count") or ""),
+        "door_state": str(event.get("door_state") or ""),
+        "door_state_label": str(event.get("door_state_label") or ""),
+        "alarm_label": str(event.get("alarm_label") or ""),
+        "open_count": str(event.get("open_count") or 0),
+        "closed_count": str(event.get("closed_count") or 0),
     }
 
 
@@ -109,3 +198,12 @@ def render_template(template: str, context: dict[str, str]) -> str:
     """Render a template while preserving unknown placeholders.
     渲染模板；未知占位符会原样保留，避免配置错误导致通知失败。"""
     return Formatter().vformat(template, (), _SafeTemplateValues(context))
+
+
+def referenced_placeholders(template: str) -> set[str]:
+    """Return placeholder field names referenced by a template string."""
+    fields: set[str] = set()
+    for _, field_name, _, _ in Formatter().parse(str(template or "")):
+        if field_name:
+            fields.add(field_name.split(".", 1)[0].split("[", 1)[0])
+    return fields

@@ -15,6 +15,12 @@ const ROI_TAG_LABELS = {
       en: 'Template Zone',
     },
   },
+  fire_door: {
+    fire_door: {
+      zh: '消防安全门区域',
+      en: 'Fire Safety Door Area',
+    },
+  },
 }
 
 export function localizedSceneLabel(scene, locale) {

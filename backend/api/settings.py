@@ -6,6 +6,7 @@ from loguru import logger
 from backend.auth.dependencies import require_permission
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, EmailTestRequest
+from backend.notifications.email_config import build_email_settings_smtp_config
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
@@ -127,16 +128,7 @@ async def test_email_settings(
     overrides = {k: v for k, v in data.model_dump().items() if v is not None}
 
     merged_settings = {**app_settings, **overrides}
-    config = {
-        "smtp_host": merged_settings.get("email_smtp_host") or merged_settings.get("vengine_host", ""),
-        "smtp_port": merged_settings.get("email_smtp_port") or "587",
-        "smtp_username": merged_settings.get("email_from_address", ""),
-        "smtp_password": merged_settings.get("email_smtp_password", ""),
-        "from_address": merged_settings.get("email_from_address", ""),
-        "to_addresses": merged_settings.get("email_to_addresses", ""),
-        "cc_addresses": merged_settings.get("email_cc_addresses", ""),
-        "use_tls": merged_settings.get("email_smtp_use_tls", "true"),
-    }
+    config = build_email_settings_smtp_config(merged_settings)
     provider = SmtpNotificationProvider(config)
     site_title = merged_settings.get("site_title") or "V-Sentinel"
     return await provider.send(

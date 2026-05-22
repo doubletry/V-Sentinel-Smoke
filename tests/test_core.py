@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -745,14 +745,34 @@ class TestCoreBaseVideoProcessorPipeline:
 
         assert BaseVideoProcessor._stream_fps(_Stream()) is None
 
+    def test_parse_ffprobe_fps_payload_prefers_avg_frame_rate(self):
+        assert BaseVideoProcessor._parse_ffprobe_fps_payload(
+            {"streams": [{"avg_frame_rate": "25/1", "r_frame_rate": "50/1"}]}
+        ) == 25.0
+
+    def test_parse_ffprobe_fps_payload_falls_back_to_r_frame_rate(self):
+        assert BaseVideoProcessor._parse_ffprobe_fps_payload(
+            {"streams": [{"avg_frame_rate": "0/0", "r_frame_rate": "30000/1001"}]}
+        ) == pytest.approx(29.97, rel=1e-3)
+
+    def test_preferred_source_fps_prefers_ffprobe_over_pyav_metadata(self):
+        class _Stream:
+            average_rate = 50
+            codec_context = None
+            base_rate = 50
+            guessed_rate = 50
+
+        with patch.object(BaseVideoProcessor, "_probe_stream_fps", return_value=25.0):
+            assert BaseVideoProcessor._preferred_source_fps(_Stream(), "rtsp://example.com/live") == 25.0
+
     def test_observed_fps_estimates_from_decoded_frames(self):
-        assert BaseVideoProcessor._observed_fps(26, 1.0) == 25.0
+        assert BaseVideoProcessor._observed_fps(126, 5.0) == 25.0
 
-    def test_observed_fps_replaces_inflated_metadata(self):
-        assert BaseVideoProcessor._should_use_observed_fps(50.0, 25.0)
+    def test_observed_fps_requires_stable_window(self):
+        assert BaseVideoProcessor._observed_fps(19, 5.0) is None
 
-    def test_observed_fps_keeps_close_metadata(self):
-        assert not BaseVideoProcessor._should_use_observed_fps(25.0, 24.0)
+    def test_observed_fps_does_not_override_existing_metadata(self):
+        assert not BaseVideoProcessor._should_use_observed_fps(50.0, 25.0)
 
     def test_observed_fps_replaces_missing_metadata(self):
         assert BaseVideoProcessor._should_use_observed_fps(None, 25.0)

@@ -56,6 +56,6 @@ class AnalysisAgent(BaseAnalysisAgent):
 
         event = {**event, "source_id": event.get("source_id", source_id), "source_name": event.get("source_name", source_name)}
         try:
-            await self._notification_dispatcher.send_event(event)
+            self._notification_dispatcher.schedule_event(event)
         except Exception as exc:  # pragma: no cover - side-effect logging
             logger.warning("Failed to send event notification for {}: {}", source_id, exc)

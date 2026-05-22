@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from pathlib import PurePosixPath
 
@@ -151,6 +152,8 @@ async def lifespan(app: FastAPI):
     )
     app.state.processor_manager = processor_manager
     await processor_manager.start_agent()
+    restore_processors_task = asyncio.create_task(processor_manager.restore_desired_processors())
+    app.state.restore_processors_task = restore_processors_task
 
     logger.info("{} started successfully", settings.app_name)
     yield
@@ -158,6 +161,9 @@ async def lifespan(app: FastAPI):
     # ── Shutdown / 关闭 ─────────────────────────────────────────────────
     logger.info("Shutting down {} ...", settings.app_name)
 
+    restore_processors_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await restore_processors_task
     await processor_manager.stop_all()
     await processor_manager.stop_agent()
     await vengine_client.close()

@@ -2,7 +2,7 @@
   <div class="message-list">
     <div
       v-for="(msg, idx) in messages"
-      :key="idx"
+      :key="messageKey(msg, idx)"
       class="message-card"
       :class="[`level-${msg.level}`, { 'agent-summary': msg.source_id === '__agent__' }]"
     >
@@ -36,6 +36,16 @@
         </div>
       </div>
       <div class="msg-actions">
+        <el-button
+          v-if="canAnnotateMessages && msg.id"
+          size="small"
+          type="primary"
+          plain
+          :loading="Boolean(resendingMessageIds[msg.id])"
+          @click="emit('resend-notification', msg)"
+        >
+          {{ t('messageList.resendNotification') }}
+        </el-button>
         <el-button
           v-if="canAnnotateMessages && msg.id && !msg.false_positive"
           size="small"
@@ -80,8 +90,12 @@ defineProps({
     type: Array,
     default: () => [],
   },
+  resendingMessageIds: {
+    type: Object,
+    default: () => ({}),
+  },
 })
-const emit = defineEmits(['mark-false-positive', 'unmark-false-positive'])
+const emit = defineEmits(['mark-false-positive', 'unmark-false-positive', 'resend-notification'])
 
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
@@ -117,6 +131,13 @@ function openPreview(imageSrc) {
   previewImage.value = imageSrc
   previewVisible.value = true
 }
+
+function messageKey(message, idx) {
+  return (
+    message?.id
+    || `${message?.timestamp || 'no-timestamp'}-${message?.source_id || message?.source_name || 'no-source'}-${message?.level || 'no-level'}-${message?.message || 'no-message'}-${idx}`
+  )
+}
 </script>
 
 <style scoped>
@@ -132,6 +153,10 @@ function openPreview(imageSrc) {
   border-radius: 6px;
   padding: 10px 14px;
   border-left: 4px solid #555;
+  border-top: 1px solid rgba(69, 83, 117, 0.55);
+  border-right: 1px solid rgba(69, 83, 117, 0.55);
+  border-bottom: 1px solid rgba(69, 83, 117, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .message-card.level-info {
@@ -210,12 +235,16 @@ function openPreview(imageSrc) {
   object-fit: contain;
   cursor: zoom-in;
   image-rendering: auto;
+  border: 1px solid rgba(69, 83, 117, 0.55);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
 .msg-actions {
   margin-top: 10px;
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .preview-image {

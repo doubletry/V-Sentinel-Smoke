@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 def _has_text(value: str | None) -> bool:
@@ -40,6 +41,9 @@ class VideoSourceCreate(BaseModel):
     name: str
     rtsp_url: str | None = None
     route_path: str | None = None
+    source_remark: str = ""
+    push_result_stream: bool = True
+    alarm_confidence_threshold: float | None = None
     scene_id: str = "smoke"
     notification_policy_ids: list[str] = []
 
@@ -53,6 +57,18 @@ class VideoSourceCreate(BaseModel):
             raise ValueError("Either rtsp_url or route_path is required")
         return self
 
+    @field_validator("alarm_confidence_threshold", mode="before")
+    @classmethod
+    def validate_alarm_confidence_threshold(cls, value: object) -> object:
+        if value is None or value == "":
+            return None
+        threshold = float(value)
+        if not math.isfinite(threshold):
+            raise ValueError("alarm_confidence_threshold must be a finite number")
+        if threshold < 0 or threshold > 1:
+            raise ValueError("alarm_confidence_threshold must be between 0 and 1")
+        return threshold
+
 
 class VideoSourceUpdate(BaseModel):
     """Schema for partially updating a video source.
@@ -61,6 +77,9 @@ class VideoSourceUpdate(BaseModel):
     name: str | None = None
     rtsp_url: str | None = None
     route_path: str | None = None
+    source_remark: str | None = None
+    push_result_stream: bool | None = None
+    alarm_confidence_threshold: float | None = None
     scene_id: str | None = None
     notification_policy_ids: list[str] | None = None
     rois: list[ROICreate] | None = None
@@ -73,6 +92,18 @@ class VideoSourceUpdate(BaseModel):
             raise ValueError("Use either rtsp_url or route_path, not both")
         return self
 
+    @field_validator("alarm_confidence_threshold", mode="before")
+    @classmethod
+    def validate_alarm_confidence_threshold(cls, value: object) -> object:
+        if value is None or value == "":
+            return None
+        threshold = float(value)
+        if not math.isfinite(threshold):
+            raise ValueError("alarm_confidence_threshold must be a finite number")
+        if threshold < 0 or threshold > 1:
+            raise ValueError("alarm_confidence_threshold must be between 0 and 1")
+        return threshold
+
 
 class VideoSource(BaseModel):
     """Full video source model with ROIs and metadata.
@@ -82,8 +113,12 @@ class VideoSource(BaseModel):
     name: str
     rtsp_url: str
     route_path: str = ""
+    source_remark: str = ""
+    push_result_stream: bool = True
+    alarm_confidence_threshold: float | None = None
     scene_id: str = "smoke"
     notification_policy_ids: list[str] = []
+    desired_analysis_enabled: bool = False
     rois: list[ROI] = []
     created_at: str
 
@@ -442,7 +477,14 @@ class AppSettingsUpdate(BaseModel):
     smoke_static_max_area_change_ratio: str | None = None
     smoke_iou_threshold: str | None = None
     smoke_alarm_hold_time: str | None = None
-    smoke_email_cooldown_seconds: str | None = None
+    fire_door_classification_model_name: str | None = None
+    fire_door_classification_confidence: str | None = None
+    fire_door_open_labels: str | None = None
+    fire_door_closed_labels: str | None = None
+    fire_door_alarm_labels: str | None = None
+    fire_door_temporal_confirm_frames: str | None = None
+    fire_door_temporal_confirm_window: str | None = None
+    fire_door_alarm_hold_time: str | None = None
     max_pull_workers: str | None = None
     max_push_workers: str | None = None
     max_cpu_workers: str | None = None

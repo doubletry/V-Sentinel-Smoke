@@ -17,6 +17,7 @@ from backend.db.database import (
     update_settings,
 )
 from backend.models.schemas import VideoSourceCreate
+from core.notification_client import NotificationPayload
 
 
 class TestSettingsDB:
@@ -36,7 +37,8 @@ class TestSettingsDB:
         assert all_settings["email_smtp_port"] == "587"
         assert all_settings["email_event_enabled"] == "true"
         assert all_settings["smoke_temporal_confirm_frames"] == "3"
-        assert all_settings["smoke_email_cooldown_seconds"] == "300"
+        assert all_settings["fire_door_classification_model_name"] == "fire-door-classification"
+        assert all_settings["fire_door_alarm_labels"] == "open"
         assert "email_event_body_template" in all_settings
         assert "{event_label}" in all_settings["email_event_body_template"]
         assert all_settings["message_retention_days"] == "7"
@@ -118,7 +120,8 @@ class TestSettingsAPI:
                 "email_event_enabled": "true",
                 "email_event_subject_template": "Alert {event_label}",
                 "smoke_temporal_confirm_frames": "5",
-                "smoke_email_cooldown_seconds": "60",
+                "fire_door_classification_confidence": "0.75",
+                "fire_door_alarm_labels": "open,opened",
                 "message_retention_days": "14",
                 "mediamtx_rtsp_addr": "rtsp://stream.example.com:8554/live",
                 "mediamtx_webrtc_addr": "https://stream.example.com:8889/whep",
@@ -143,7 +146,8 @@ class TestSettingsAPI:
         assert data["email_event_enabled"] == "true"
         assert data["email_event_subject_template"] == "Alert {event_label}"
         assert data["smoke_temporal_confirm_frames"] == "5"
-        assert data["smoke_email_cooldown_seconds"] == "60"
+        assert data["fire_door_classification_confidence"] == "0.75"
+        assert data["fire_door_alarm_labels"] == "open,opened"
         assert data["message_retention_days"] == "14"
         assert data["mediamtx_rtsp_addr"] == "rtsp://stream.example.com:8554/live"
         assert data["mediamtx_webrtc_addr"] == "https://stream.example.com:8889/whep"
@@ -158,17 +162,24 @@ class TestSettingsAPI:
         assert "vengine_host" in data
 
     async def test_email_test_endpoint(self, async_client: AsyncClient):
+        captured_config = {}
+
+        async def fake_send(provider, payload):
+            assert isinstance(payload, NotificationPayload)
+            captured_config.update(provider.config)
+            return {"status": "SUCCESS", "message": "ok"}
+
         with patch(
             "core.notification_client.SmtpNotificationProvider.send",
-            new=AsyncMock(return_value={"status": "SUCCESS", "message": "ok"}),
-        ) as send:
+            new=fake_send,
+        ):
             resp = await async_client.post(
                 "/api/settings/email/test",
                 json={
                     "email_smtp_host": "smtp.example.com",
                     "email_smtp_port": "587",
                     "email_from_address": "sender@example.com",
-                    "email_smtp_password": "secret",
+                    "email_smtp_password": "test-password-do-not-use",
                     "email_to_addresses": "to@example.com",
                     "email_cc_addresses": "cc@example.com",
                 },
@@ -177,7 +188,9 @@ class TestSettingsAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "SUCCESS"
-        send.assert_awaited_once()
+        assert captured_config["smtp_username"] == "sender@example.com"
+        assert captured_config["smtp_password"] == "test-password-do-not-use"
+        assert captured_config["use_tls"] is True
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,

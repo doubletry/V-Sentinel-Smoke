@@ -35,6 +35,7 @@ from backend.models.schemas import (
 
 _DB_PATH = settings.db_path
 DEFAULT_SCENE_ID = "smoke"
+DEFAULT_NOTIFICATION_COOLDOWN_SECONDS = 300
 
 CREATE_SOURCES_TABLE = """
 CREATE TABLE IF NOT EXISTS video_sources (
@@ -42,8 +43,12 @@ CREATE TABLE IF NOT EXISTS video_sources (
     name TEXT NOT NULL,
     rtsp_url TEXT NOT NULL UNIQUE,
     route_path TEXT NOT NULL DEFAULT '',
+    source_remark TEXT NOT NULL DEFAULT '',
+    push_result_stream INTEGER NOT NULL DEFAULT 1,
+    alarm_confidence_threshold REAL,
     scene_id TEXT NOT NULL DEFAULT 'smoke',
     notification_policy_ids TEXT NOT NULL DEFAULT '[]',
+    desired_analysis_enabled INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 """
@@ -227,6 +232,7 @@ async def _get_shared_db() -> aiosqlite.Connection:
 
         if _shared_db is None:
             db = await aiosqlite.connect(_DB_PATH)
+            db.row_factory = aiosqlite.Row
             await _configure_db_connection(db)
             _shared_db = db
             _shared_db_path = _DB_PATH
@@ -269,12 +275,21 @@ async def init_db() -> None:
         await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
         await db.execute(CREATE_USERS_TABLE)
         await _ensure_column_exists(db, "video_sources", "route_path", "TEXT NOT NULL DEFAULT ''")
+        await _ensure_column_exists(db, "video_sources", "source_remark", "TEXT NOT NULL DEFAULT ''")
+        await _ensure_column_exists(db, "video_sources", "push_result_stream", "INTEGER NOT NULL DEFAULT 1")
+        await _ensure_column_exists(db, "video_sources", "alarm_confidence_threshold", "REAL")
         await _ensure_column_exists(db, "video_sources", "scene_id", "TEXT NOT NULL DEFAULT 'smoke'")
         await _ensure_column_exists(
             db,
             "video_sources",
             "notification_policy_ids",
             "TEXT NOT NULL DEFAULT '[]'",
+        )
+        await _ensure_column_exists(
+            db,
+            "video_sources",
+            "desired_analysis_enabled",
+            "INTEGER NOT NULL DEFAULT 0",
         )
         await _ensure_column_exists(db, "analysis_messages", "image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "original_image_url", "TEXT")
@@ -348,6 +363,30 @@ async def _seed_default_scene(db: aiosqlite.Connection) -> None:
                     "groups": ["model", "temporal", "false_positive_filters"],
                 }
             ),
+            now,
+        ),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO scenes "
+        "(id, label_zh, label_en, description, required_services, default_roi_tags, "
+        "event_types, default_config, expert_config_schema, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "fire_door",
+            "消防门检测",
+            "Fire Door Detection",
+            "Classifies one or more fire-door ROIs and alerts when a configured open state is confirmed.",
+            _json_dumps(["classification"]),
+            _json_dumps(["fire_door"]),
+            _json_dumps(["fire_door_open"]),
+            _json_dumps(
+                {
+                    "fire_door_classification_model_name": DEFAULT_APP_SETTINGS["fire_door_classification_model_name"],
+                    "fire_door_classification_confidence": DEFAULT_APP_SETTINGS["fire_door_classification_confidence"],
+                    "fire_door_alarm_labels": DEFAULT_APP_SETTINGS["fire_door_alarm_labels"],
+                }
+            ),
+            _json_dumps({"expert_mode": True, "groups": ["model", "labels", "temporal", "notifications"]}),
             now,
         ),
     )
@@ -464,7 +503,7 @@ async def _seed_default_notification_records(db: aiosqlite.Connection) -> None:
             "default-alert-policy",
             "Default Alert Policy",
             1,
-            int(DEFAULT_APP_SETTINGS["smoke_email_cooldown_seconds"]),
+            DEFAULT_NOTIFICATION_COOLDOWN_SECONDS,
             _json_dumps(["default-email"]),
             "default-event-email",
             now,
@@ -653,23 +692,85 @@ async def _get_rois_for_source(db: aiosqlite.Connection, source_id: str) -> list
     return result
 
 
+async def _get_rois_for_sources(
+    db: aiosqlite.Connection, source_ids: list[str]
+) -> dict[str, list[ROI]]:
+    """Fetch ROIs for multiple sources in one query to avoid N+1 list loading."""
+    if not source_ids:
+        return {}
+    result: dict[str, list[ROI]] = {source_id: [] for source_id in source_ids}
+    for offset in range(0, len(source_ids), 900):
+        chunk = source_ids[offset : offset + 900]
+        placeholders = ",".join("?" for _ in chunk)
+        async with db.execute(
+            f"SELECT source_id, id, type, points, tag FROM rois "
+            f"WHERE source_id IN ({placeholders}) ORDER BY source_id, created_at",
+            chunk,
+        ) as cursor:
+            rows = await cursor.fetchall()
+        for row in rows:
+            source_id, roi_id, roi_type, points_json, tag = row
+            points = json.loads(points_json)
+            result.setdefault(source_id, []).append(
+                ROI(id=roi_id, type=roi_type, points=points, tag=tag)
+            )
+    return result
+
+
 def _row_to_source(row: tuple, rois: list[ROI]) -> VideoSource:
     """Convert a database row and ROI list to a VideoSource model.
     将数据库行与 ROI 列表转换为 VideoSource 模型。"""
-    if len(row) >= 7:
-        source_id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at = row[:7]
+    if hasattr(row, "keys"):
+        row_keys = set(row.keys())
+        source_id = row["id"]
+        name = row["name"]
+        rtsp_url = row["rtsp_url"]
+        route_path = row["route_path"] if "route_path" in row_keys else ""
+        source_remark = row["source_remark"] if "source_remark" in row_keys else ""
+        push_result_stream = row["push_result_stream"] if "push_result_stream" in row_keys else 1
+        alarm_confidence_threshold = (
+            row["alarm_confidence_threshold"] if "alarm_confidence_threshold" in row_keys else None
+        )
+        scene_id = row["scene_id"] if "scene_id" in row_keys else DEFAULT_SCENE_ID
+        notification_policy_ids = (
+            row["notification_policy_ids"] if "notification_policy_ids" in row_keys else "[]"
+        )
+        desired_analysis_enabled = (
+            row["desired_analysis_enabled"] if "desired_analysis_enabled" in row_keys else 0
+        )
+        created_at = row["created_at"]
     else:
-        source_id, name, rtsp_url, created_at = row
-        route_path = ""
-        scene_id = DEFAULT_SCENE_ID
-        notification_policy_ids = "[]"
+        (
+            source_id,
+            name,
+            rtsp_url,
+            route_path,
+            source_remark,
+            push_result_stream,
+            alarm_confidence_threshold,
+            scene_id,
+            notification_policy_ids,
+            desired_analysis_enabled,
+            created_at,
+        ) = row
     return VideoSource(
         id=source_id,
         name=name,
         rtsp_url=rtsp_url,
         route_path=str(route_path or ""),
+        source_remark=str(source_remark or ""),
+        push_result_stream=(
+            str(push_result_stream).strip().lower()
+            not in {"0", "false", "no", "off"}
+        ),
+        alarm_confidence_threshold=(
+            float(alarm_confidence_threshold)
+            if alarm_confidence_threshold is not None
+            else None
+        ),
         scene_id=str(scene_id or DEFAULT_SCENE_ID),
         notification_policy_ids=[str(item) for item in _json_list(notification_policy_ids)],
+        desired_analysis_enabled=_normalize_bool_db_value(desired_analysis_enabled),
         rois=rois,
         created_at=created_at,
     )
@@ -912,15 +1013,20 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         )
         await db.execute(
             "INSERT INTO video_sources "
-            "(id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 source_id,
                 source.name,
                 resolved_rtsp_url,
                 route_path,
+                source.source_remark,
+                1 if source.push_result_stream else 0,
+                source.alarm_confidence_threshold,
                 active_plugin_id,
                 _json_dumps(source.notification_policy_ids),
+                0,
                 created_at,
             ),
         )
@@ -930,8 +1036,12 @@ async def create_source(source: VideoSourceCreate) -> VideoSource:
         name=source.name,
         rtsp_url=resolved_rtsp_url,
         route_path=route_path,
+        source_remark=source.source_remark,
+        push_result_stream=source.push_result_stream,
+        alarm_confidence_threshold=source.alarm_confidence_threshold,
         scene_id=active_plugin_id,
         notification_policy_ids=source.notification_policy_ids,
+        desired_analysis_enabled=False,
         rois=[],
         created_at=created_at,
     )
@@ -942,7 +1052,8 @@ async def get_source(source_id: str) -> VideoSource | None:
     按 ID 获取单个视频源，未找到则返回 None。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
@@ -958,7 +1069,8 @@ async def get_source_by_rtsp(rtsp_url: str) -> VideoSource | None:
     按 RTSP URL 获取视频源，未找到则返回 None。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources WHERE rtsp_url = ?",
             (rtsp_url,),
         ) as cursor:
@@ -974,13 +1086,17 @@ async def list_sources() -> list[VideoSource]:
     按创建时间列出所有视频源。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources ORDER BY created_at"
         ) as cursor:
             rows = await cursor.fetchall()
+        source_ids = [str(row["id"] if hasattr(row, "keys") else row[0]) for row in rows]
+        rois_by_source = await _get_rois_for_sources(db, source_ids)
         sources: list[VideoSource] = []
         for row in rows:
-            rois = await _get_rois_for_source(db, row[0])
+            source_id = str(row["id"] if hasattr(row, "keys") else row[0])
+            rois = rois_by_source.get(source_id, [])
             sources.append(_row_to_source(row, rois))
     return sources
 
@@ -1001,6 +1117,15 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
         if data.name is not None:
             fields.append("name = ?")
             values.append(data.name)
+        if data.source_remark is not None:
+            fields.append("source_remark = ?")
+            values.append(data.source_remark)
+        if data.push_result_stream is not None:
+            fields.append("push_result_stream = ?")
+            values.append(1 if data.push_result_stream else 0)
+        if "alarm_confidence_threshold" in data.model_fields_set:
+            fields.append("alarm_confidence_threshold = ?")
+            values.append(data.alarm_confidence_threshold)
         if data.route_path is not None:
             fields.append("rtsp_url = ?")
             route_path = _normalize_route_path(data.route_path)
@@ -1055,7 +1180,8 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             await db.execute("DELETE FROM rois WHERE source_id = ?", (source_id,))
         await db.commit()
         async with db.execute(
-            "SELECT id, name, rtsp_url, route_path, scene_id, notification_policy_ids, created_at "
+            "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
             "FROM video_sources WHERE id = ?",
             (source_id,),
         ) as cursor:
@@ -1064,6 +1190,35 @@ async def update_source(source_id: str, data: VideoSourceUpdate) -> VideoSource 
             return None
         rois = await _get_rois_for_source(db, source_id)
     return _row_to_source(row, rois)
+
+
+async def set_source_desired_analysis_enabled(source_id: str, enabled: bool) -> bool:
+    """Persist whether a source should be restored after process restart."""
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE video_sources SET desired_analysis_enabled = ? WHERE id = ?",
+            (1 if enabled else 0, source_id),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def list_desired_analysis_sources() -> list[VideoSource]:
+    """List sources that should be automatically restarted after app startup."""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, name, rtsp_url, route_path, source_remark, push_result_stream, "
+            "alarm_confidence_threshold, scene_id, notification_policy_ids, desired_analysis_enabled, created_at "
+            "FROM video_sources WHERE desired_analysis_enabled = 1 ORDER BY created_at"
+        ) as cursor:
+            rows = await cursor.fetchall()
+        source_ids = [str(row["id"] if hasattr(row, "keys") else row[0]) for row in rows]
+        rois_by_source = await _get_rois_for_sources(db, source_ids)
+        sources: list[VideoSource] = []
+        for row in rows:
+            source_id = str(row["id"] if hasattr(row, "keys") else row[0])
+            sources.append(_row_to_source(row, rois_by_source.get(source_id, [])))
+    return sources
 
 
 async def update_all_sources_scene(scene_id: str) -> int:
@@ -1791,6 +1946,9 @@ async def save_analysis_message(message: dict[str, str | None]) -> str:
     return message_id
 
 
+MAX_VISIBLE_MESSAGE_PAGES = 20
+
+
 async def list_analysis_messages(
     *,
     limit: int | None = None,
@@ -1806,7 +1964,6 @@ async def list_analysis_messages(
     if limit is not None:
         safe_page = 1
         safe_size = min(100, max(1, int(limit)))
-    offset = (safe_page - 1) * safe_size
     where_clauses: list[str] = []
     query_values: list[object] = []
     if source_id:
@@ -1816,24 +1973,26 @@ async def list_analysis_messages(
         where_clauses.append("false_positive = 1")
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     async with _db_session() as db:
+        count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
+        async with db.execute(count_query, tuple(query_values)) as cursor:
+            total = int((await cursor.fetchone())[0])
+        total_pages = (total + safe_size - 1) // safe_size if total else 0
+        if limit is not None:
+            visible_total_pages = 1 if total else 0
+            visible_total = min(total, safe_size)
+        else:
+            visible_total_pages = min(total_pages, MAX_VISIBLE_MESSAGE_PAGES)
+            visible_total = min(total, visible_total_pages * safe_size)
+        safe_page = min(safe_page, visible_total_pages) if visible_total_pages else 1
+        offset = (safe_page - 1) * safe_size
         listing_query = (
             "SELECT id, timestamp, source_name, source_id, level, message, image_url, "
-            "original_image_url, detected_image_url, image_base64, false_positive, "
-            "COUNT(*) OVER() AS total_count "
+            "original_image_url, detected_image_url, image_base64, false_positive "
             f"FROM analysis_messages{where_sql} "
             "ORDER BY created_at DESC LIMIT ? OFFSET ?"
         )
-        async with db.execute(
-            listing_query,
-            (*query_values, safe_size, offset),
-        ) as cursor:
+        async with db.execute(listing_query, (*query_values, safe_size, offset)) as cursor:
             rows = await cursor.fetchall()
-        if rows:
-            total = int(rows[0][11])
-        else:
-            count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
-            async with db.execute(count_query, tuple(query_values)) as cursor:
-                total = int((await cursor.fetchone())[0])
     items = [
         {
             "id": row[0],
@@ -1850,13 +2009,71 @@ async def list_analysis_messages(
         }
         for row in rows
     ]
-    total_pages = (total + safe_size - 1) // safe_size if total else 0
     return {
         "items": items,
         "page": safe_page,
         "page_size": safe_size,
-        "total": total,
-        "total_pages": total_pages,
+        "total": visible_total,
+        "total_pages": visible_total_pages,
+    }
+
+
+def _read_message_image_base64(stored_url: str | None) -> str:
+    path = _message_image_path_from_stored_value(stored_url)
+    if path is None or not path.is_file():
+        return ""
+    try:
+        return base64.b64encode(path.read_bytes()).decode("ascii")
+    except Exception as exc:  # pragma: no cover - best effort resend enrichment
+        logger.warning("Failed to read message image {} for resend: {}", path, exc)
+        return ""
+
+
+async def get_analysis_message_for_notification(message_id: str) -> dict[str, object] | None:
+    """Return one persisted message enriched for manual notification resend."""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT id, timestamp, source_name, source_id, level, message, "
+            "image_url, original_image_url, detected_image_url, false_positive "
+            "FROM analysis_messages WHERE id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    if row is None:
+        return None
+    (
+        row_id,
+        timestamp,
+        source_name,
+        source_id,
+        level,
+        message,
+        legacy_image_url,
+        original_image_url,
+        detected_image_url,
+        false_positive,
+    ) = row
+    detected_stored_url = detected_image_url or legacy_image_url
+    return {
+        "id": row_id,
+        "timestamp": timestamp,
+        "source_name": source_name,
+        "source_id": source_id,
+        "level": level,
+        "message": message,
+        "event_type": level or "message",
+        "event_label": message or str(level or "message").upper(),
+        "labels": [level] if level else [],
+        "image_url": build_analysis_message_image_url(row_id) if detected_stored_url else "",
+        "detected_image_url": build_analysis_message_image_url(row_id) if detected_stored_url else "",
+        "original_image_url": (
+            build_analysis_message_image_url(row_id, kind="original") if original_image_url else ""
+        ),
+        "image_base64": _read_message_image_base64(detected_stored_url),
+        "detected_image_base64": _read_message_image_base64(detected_stored_url),
+        "original_image_base64": _read_message_image_base64(original_image_url),
+        "false_positive": bool(false_positive),
+        "manual_resend": True,
     }
 
 

@@ -1,13 +1,6 @@
 <template>
   <div class="settings-page">
     <div class="settings-shell">
-      <div v-if="hasSettingsAccess" class="settings-top-actions">
-        <el-button class="management-home-button" type="primary" plain @click="returnHome">
-          <el-icon><House /></el-icon>
-          {{ t('management.backToHome') }}
-        </el-button>
-      </div>
-
       <div v-if="!hasSettingsAccess" class="settings-section section-card">
         <div class="title-line">
           <el-icon :size="20"><Setting /></el-icon>
@@ -327,102 +320,14 @@
           <ProcessingLogs embedded />
         </section>
 
-            <section v-else-if="isNotificationsPage" class="settings-page-panel">
+        <section v-else-if="isNotificationsPage" class="settings-page-panel">
           <el-tabs v-model="activeNotificationTab" class="settings-top-tabs">
-            <el-tab-pane :label="t('settings.notificationEmailSection')" name="email">
-              <section class="settings-section section-card">
-                <div class="section-card__head">
-                  <div>
-                    <h2>{{ t('settings.notificationEmailSection') }}</h2>
-                    <p class="info-tip">{{ t('settings.emailAddressesHint') }}</p>
-                  </div>
-                  <div class="section-card__actions">
-                    <el-button
-                      :loading="activeRestoreSection === 'notifications-email'"
-                      @click="restoreSection('notifications-email', NOTIFICATION_EMAIL_KEYS)"
-                    >
-                      {{ t('settings.restoreSection') }}
-                    </el-button>
-                    <el-button :loading="testingEmail" @click="testEmailConfig">
-                      {{ t('settings.testEmail') }}
-                    </el-button>
-                    <el-button
-                      type="primary"
-                      :loading="activeSaveSection === 'notifications-email'"
-                      @click="saveSection('notifications-email', NOTIFICATION_EMAIL_KEYS)"
-                    >
-                      {{ t('settings.saveSection') }}
-                    </el-button>
-                  </div>
-                </div>
-
-                <div class="settings-form-grid wide-grid">
-                  <el-form-item :label="t('settings.emailFromAddress')">
-                    <el-input v-model="form.email_from_address" placeholder="sender@example.com" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailSmtpHost')">
-                    <el-input v-model="form.email_smtp_host" placeholder="smtp.example.com" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailSmtpPort')">
-                    <el-input v-model="form.email_smtp_port" placeholder="587" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailSmtpUseTls')">
-                    <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailFromAuthCode')">
-                    <el-input
-                      v-model="form.email_smtp_password"
-                      type="password"
-                      show-password
-                      placeholder="授权码 / 密码"
-                    />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailEventEnabled')">
-                    <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailToAddresses')" class="form-grid-span-full">
-                    <div class="field-stack">
-                      <el-input
-                        v-model="form.email_to_addresses"
-                        type="textarea"
-                        :rows="2"
-                        placeholder="a@example.com,b@example.com"
-                      />
-                      <p class="form-hint">{{ t('settings.emailAddressesHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailCcAddresses')" class="form-grid-span-full">
-                    <el-input
-                      v-model="form.email_cc_addresses"
-                      type="textarea"
-                      :rows="2"
-                      placeholder="cc1@example.com,cc2@example.com"
-                    />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailEventSubjectTemplate')" class="form-grid-span-full">
-                    <el-input v-model="form.email_event_subject_template" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailEventBodyTemplate')" class="form-grid-span-full">
-                    <div class="field-stack">
-                      <el-input
-                        v-model="form.email_event_body_template"
-                        type="textarea"
-                        :rows="8"
-                      />
-                      <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
-                      <div class="placeholder-tags">
-                        <el-tag v-for="item in emailTemplatePlaceholders" :key="item" size="small" effect="dark">
-                          {{ '{' + item + '}' }}
-                        </el-tag>
-                      </div>
-                    </div>
-                  </el-form-item>
-                </div>
-              </section>
+            <el-tab-pane :label="t('settings.notificationInstancesSection')" name="instances">
+              <NotificationInstancesPanel />
             </el-tab-pane>
 
             <el-tab-pane :label="t('settings.notificationRetentionSection')" name="retention">
-              <section class="settings-section section-card compact-section">
+              <section class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.notificationRetentionSection') }}</h2>
@@ -454,9 +359,6 @@
                         :value="String(day)"
                       />
                     </el-select>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
-                    <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
                   </el-form-item>
                 </div>
               </section>
@@ -542,15 +444,6 @@
                       {{ roiTagLabel(scene, tag) }}
                     </el-tag>
                     <span v-if="!scene.default_roi_tags.length" class="roi-tag-empty">{{ t('settings.noRoiTags') }}</span>
-                  </div>
-                </div>
-                <div class="plugin-launcher-card__group">
-                  <span class="plugin-launcher-card__label">{{ t('settings.pluginDefaultConfig') }}</span>
-                  <div class="plugin-config-list">
-                    <el-tag v-for="item in previewConfigRowsByScene[scene.id] || []" :key="item.key" type="info">
-                      {{ item.key }}: {{ item.value }}
-                    </el-tag>
-                    <span v-if="!sceneDefaultConfigRows(scene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
                   </div>
                 </div>
               </div>
@@ -675,6 +568,82 @@
                     </section>
                   </section>
                 </template>
+                <template v-else-if="currentPluginScene.id === FIRE_DOOR_SCENE_ID">
+                  <section class="settings-section section-card">
+                    <div class="section-card__head">
+                      <div>
+                        <h2>{{ t('settings.fireDoorScene') }}</h2>
+                        <p class="info-tip">{{ currentPluginScene.description }}</p>
+                      </div>
+                      <div class="section-card__actions">
+                        <el-button
+                          :loading="activeRestoreSection === `plugin-${currentPluginScene.id}`"
+                          @click="restoreSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
+                        >
+                          {{ t('settings.restoreSection') }}
+                        </el-button>
+                        <el-button
+                          type="primary"
+                          :loading="activeSaveSection === `plugin-${currentPluginScene.id}`"
+                          @click="saveSection(`plugin-${currentPluginScene.id}`, pluginSettingKeys(currentPluginScene.id))"
+                        >
+                          {{ t('settings.savePluginSection') }}
+                        </el-button>
+                      </div>
+                    </div>
+
+                    <div class="settings-form-grid wide-grid">
+                      <el-form-item :label="t('settings.fireDoorClassificationModelName')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_classification_model_name" placeholder="fire-door-classification" />
+                          <p class="form-hint">{{ t('settings.fireDoorClassificationModelNameHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorClassificationConfidence')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_classification_confidence" placeholder="0.50" />
+                          <p class="form-hint">{{ t('settings.fireDoorClassificationConfidenceHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorOpenLabels')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_open_labels" placeholder="open,OPEN,Opened" />
+                          <p class="form-hint">{{ t('settings.fireDoorOpenLabelsHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorClosedLabels')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_closed_labels" placeholder="closed,CLOSED,Close" />
+                          <p class="form-hint">{{ t('settings.fireDoorClosedLabelsHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorAlarmLabels')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_alarm_labels" placeholder="open" />
+                          <p class="form-hint">{{ t('settings.fireDoorAlarmLabelsHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorTemporalConfirmFrames')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_temporal_confirm_frames" placeholder="1" />
+                          <p class="form-hint">{{ t('settings.fireDoorTemporalConfirmFramesHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorTemporalConfirmWindow')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_temporal_confirm_window" placeholder="2.0" />
+                          <p class="form-hint">{{ t('settings.fireDoorTemporalConfirmWindowHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.fireDoorAlarmHoldTime')">
+                        <div class="field-stack">
+                          <el-input v-model="form.fire_door_alarm_hold_time" placeholder="3.0" />
+                          <p class="form-hint">{{ t('settings.fireDoorAlarmHoldTimeHint') }}</p>
+                        </div>
+                      </el-form-item>
+                    </div>
+                  </section>
+                </template>
                 <section v-else class="settings-section section-card">
                   <div class="section-card__head">
                     <div>
@@ -724,24 +693,6 @@
                 </section>
               </el-tab-pane>
 
-              <el-tab-pane :label="t('settings.pluginDefaultConfig')" name="defaults">
-                <section class="settings-section section-card">
-                  <div class="section-card__head">
-                    <div>
-                      <h2>{{ t('settings.pluginDefaultConfig') }}</h2>
-                      <p v-if="currentPluginScene.id !== SMOKE_SCENE_ID" class="info-tip">
-                        {{ currentPluginScene.description || t('settings.templateSceneHint') }}
-                      </p>
-                    </div>
-                  </div>
-                  <div class="plugin-config-list">
-                    <el-tag v-for="item in sceneDefaultConfigRows(currentPluginScene.id)" :key="item.key" type="info">
-                      {{ item.key }}: {{ item.value }}
-                    </el-tag>
-                    <span v-if="!sceneDefaultConfigRows(currentPluginScene.id).length" class="roi-tag-empty">{{ t('settings.noPluginConfig') }}</span>
-                  </div>
-                </section>
-              </el-tab-pane>
             </el-tabs>
           </template>
         </el-dialog>
@@ -753,7 +704,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Crop, Document, House, Monitor, Setting, User } from '@element-plus/icons-vue'
+import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
@@ -764,6 +715,7 @@ import { useSourceStore } from '../stores/source.js'
 import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
+import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
 import ProcessingLogs from './ProcessingLogs.vue'
 
 const { t, locale } = useI18n()
@@ -777,8 +729,9 @@ const retentionDayOptions = [7, 15, 21, 30]
 // Also referenced by the template to decide whether to render smoke-specific fields.
 // 模板中也会使用它判断是否渲染烟火插件专属字段。
 const SMOKE_SCENE_ID = 'smoke'
+const FIRE_DOOR_SCENE_ID = 'fire_door'
 const activePlatformTab = ref('overview')
-const activeNotificationTab = ref('email')
+const activeNotificationTab = ref('instances')
 const activePluginTab = ref('config')
 const DEFAULT_SCENE_DEFINITIONS = [
   {
@@ -787,6 +740,14 @@ const DEFAULT_SCENE_DEFINITIONS = [
     label_en: 'Smoke/Fire Detection',
     description: 'Detects smoke and fire with temporal post-processing.',
     default_roi_tags: ['smoke_zone', 'fire_zone'],
+    default_config: {},
+  },
+  {
+    id: 'fire_door',
+    label_zh: '消防门检测',
+    label_en: 'Fire Door Detection',
+    description: 'Classifies one or more fire-door ROIs and alerts when a configured open state is confirmed.',
+    default_roi_tags: ['fire_door'],
     default_config: {},
   },
   {
@@ -799,7 +760,9 @@ const DEFAULT_SCENE_DEFINITIONS = [
   },
 ]
 const sceneDefinitions = ref(DEFAULT_SCENE_DEFINITIONS)
-const emailTemplatePlaceholders = ref(['site_title', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'labels', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks'])
+const emailTemplatePlaceholders = ref(['site_title', 'timestamp', 'local_time', 'timezone', 'source_name', 'source_id', 'event_type', 'event_label', 'message', 'labels', 'confidence', 'confidence_percent', 'detection_count', 'frame_id', 'active_tracks', 'original_image', 'detected_image', 'original_image_url', 'detected_image_url', 'has_original_image', 'has_detected_image', 'source_rtsp_url', 'source_route_path', 'source_host', 'source_host_or_ip', 'source_ip', 'source_port', 'source_remark', 'source_description', 'roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
+const SMOKE_PLACEHOLDERS = new Set(['detection_count', 'frame_id', 'active_tracks'])
+const FIRE_DOOR_PLACEHOLDERS = new Set(['roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
 const timezoneOptions = ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
 const SMOKE_ADVANCED_DEFAULTS = {
   smoke_enable_appearance_filter: 'true',
@@ -835,9 +798,49 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_temporal_confirm_window',
   'smoke_max_miss_frames',
   'smoke_alarm_hold_time',
-  'smoke_email_cooldown_seconds',
+  'fire_door_classification_model_name',
+  'fire_door_classification_confidence',
+  'fire_door_open_labels',
+  'fire_door_closed_labels',
+  'fire_door_alarm_labels',
+  'fire_door_temporal_confirm_frames',
+  'fire_door_temporal_confirm_window',
+  'fire_door_alarm_hold_time',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
+const emailTemplatePlaceholderGroups = computed(() => {
+  const activePluginId = String(form.value.active_plugin_id || SMOKE_SCENE_ID)
+  const groups = [
+    { key: 'common', label: t('settings.placeholderCategoryCommon'), items: [] },
+    { key: 'smoke', label: t('settings.placeholderCategorySmoke'), items: [] },
+    { key: 'fireDoor', label: t('settings.placeholderCategoryFireDoor'), items: [] },
+  ]
+  for (const item of emailTemplatePlaceholders.value) {
+    if (FIRE_DOOR_PLACEHOLDERS.has(item)) {
+      if (activePluginId === FIRE_DOOR_SCENE_ID) {
+        groups[2].items.push(item)
+      }
+    } else if (SMOKE_PLACEHOLDERS.has(item)) {
+      if (activePluginId === SMOKE_SCENE_ID) {
+        groups[1].items.push(item)
+      }
+    } else {
+      groups[0].items.push(item)
+    }
+  }
+  return groups.filter((group) => group.items.length)
+})
+
+function placeholderDescription(item) {
+  const translated = t(`settings.placeholderDescriptions.${item}`)
+  return translated === `settings.placeholderDescriptions.${item}` ? item : translated
+}
+
+function placeholderTagType(groupKey) {
+  if (groupKey === 'smoke') return 'warning'
+  if (groupKey === 'fireDoor') return 'success'
+  return 'info'
+}
 // These keys are saved from the Site Settings UI and also included in
 // PROCESSOR_RESTART_SETTING_KEYS so running sources switch to the new plugin.
 const UI_SETTING_KEYS = ['ui_language', 'timezone', 'site_title', 'site_description', 'favicon_url', ...ACTIVE_PLUGIN_SETTING_KEYS]
@@ -879,7 +882,6 @@ const NOTIFICATION_EMAIL_KEYS = [
 ]
 const NOTIFICATION_RETENTION_KEYS = [
   'message_retention_days',
-  'smoke_email_cooldown_seconds',
 ]
 const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_detection_model_name',
@@ -892,6 +894,16 @@ const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_alarm_hold_time',
   'smoke_enable_appearance_filter',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
+]
+const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
+  'fire_door_classification_model_name',
+  'fire_door_classification_confidence',
+  'fire_door_open_labels',
+  'fire_door_closed_labels',
+  'fire_door_alarm_labels',
+  'fire_door_temporal_confirm_frames',
+  'fire_door_temporal_confirm_window',
+  'fire_door_alarm_hold_time',
 ]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
@@ -996,7 +1008,14 @@ const form = ref({
   smoke_static_max_area_change_ratio: '0.08',
   smoke_iou_threshold: '0.3',
   smoke_alarm_hold_time: '3.0',
-  smoke_email_cooldown_seconds: '300',
+  fire_door_classification_model_name: 'fire-door-classification',
+  fire_door_classification_confidence: '0.50',
+  fire_door_open_labels: 'open',
+  fire_door_closed_labels: 'closed',
+  fire_door_alarm_labels: 'open',
+  fire_door_temporal_confirm_frames: '1',
+  fire_door_temporal_confirm_window: '2.0',
+  fire_door_alarm_hold_time: '3.0',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
@@ -1071,30 +1090,6 @@ function sceneTabLabel(sceneId) {
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
-const pluginCardPreviewLimit = 4
-
-function sceneDefaultConfigRows(sceneId) {
-  // Smoke exposes these same parameters in the editable configuration tab, so
-  // repeating its scene defaults here adds noise without giving users new controls.
-  if (sceneId === SMOKE_SCENE_ID) {
-    return []
-  }
-  const config = sceneById(sceneId)?.default_config || {}
-  return Object.entries(config).map(([key, value]) => ({
-    key,
-    value: formatConfigValue(value),
-  }))
-}
-
-const previewConfigRowsByScene = computed(() => (
-  Object.fromEntries(
-    sceneDefinitions.value.map((scene) => [
-      scene.id,
-      sceneDefaultConfigRows(scene.id).slice(0, pluginCardPreviewLimit),
-    ])
-  )
-))
-
 function roiTagLabel(scene, tag) {
   return sceneScopedRoiTagLabel(scene, tag, locale.value)
 }
@@ -1103,18 +1098,10 @@ function formatCreatedAt(value) {
   return formatTimeWithTimezone(value, appSettingsStore.timeZone)
 }
 
-function formatConfigValue(value) {
-  if (value === null || value === undefined) {
-    return ''
-  }
-  if (typeof value === 'object') {
-    return JSON.stringify(value)
-  }
-  return String(value)
-}
-
 function pluginSettingKeys(sceneId) {
-  return sceneId === SMOKE_SCENE_ID ? SMOKE_PLUGIN_SETTING_KEYS : []
+  if (sceneId === SMOKE_SCENE_ID) return SMOKE_PLUGIN_SETTING_KEYS
+  if (sceneId === FIRE_DOOR_SCENE_ID) return FIRE_DOOR_PLUGIN_SETTING_KEYS
+  return []
 }
 
 function pickFormValues(keys) {
@@ -1144,10 +1131,6 @@ function replaceSettingsRoute(location) {
 
 function navigateToSettingsPage(pageKey) {
   router.push({ name: 'ManagementSection', params: { section: pageKey } })
-}
-
-function returnHome() {
-  router.push('/')
 }
 
 function navigateToPluginScene(sceneId) {
@@ -1465,17 +1448,8 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
-.settings-top-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
 .management-role-tag {
   margin-top: 10px;
-}
-
-.management-home-button {
-  justify-content: center;
 }
 
 .settings-form {
@@ -1821,6 +1795,28 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.placeholder-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.placeholder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.placeholder-group__title {
+  color: #9aa6c0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.placeholder-tag {
+  cursor: help;
 }
 
 .plugin-tag-list,

@@ -32,15 +32,26 @@
 
         <div class="header-tools">
           <el-button
-            v-if="canSeeManagement"
+            v-if="canSeeManagement && !isManagementRoute"
             size="small"
-            :type="isManagementRoute ? 'primary' : 'default'"
+            type="default"
             plain
             class="management-button"
             @click="goToManagement"
           >
             <el-icon><Setting /></el-icon>
             <span>{{ t('nav.management') }}</span>
+          </el-button>
+          <el-button
+            v-else-if="isManagementRoute"
+            size="small"
+            type="default"
+            plain
+            class="management-button"
+            @click="goHome"
+          >
+            <el-icon><House /></el-icon>
+            <span>{{ t('nav.returnHome') }}</span>
           </el-button>
           <el-popover
             v-model:visible="accountMenuVisible"
@@ -50,9 +61,10 @@
             popper-class="account-popover"
           >
             <template #reference>
-              <el-button size="small" plain class="account-button" aria-haspopup="menu">
+              <button type="button" class="account-button" aria-haspopup="menu">
+                <el-icon class="account-button__icon"><User /></el-icon>
                 <span class="account-name">{{ authStore.user?.username }}</span>
-              </el-button>
+              </button>
             </template>
             <div class="account-menu" role="menu">
               <div class="account-menu__title">{{ authStore.user?.username || t('auth.accountMenu') }}</div>
@@ -255,6 +267,10 @@ function goToManagement() {
   }
 }
 
+function goHome() {
+  router.push('/')
+}
+
 onMounted(async () => {
   try {
     await appSettingsStore.fetchSettings()
@@ -346,28 +362,37 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
 .account-button {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 112px;
-  max-width: 180px;
-  padding: 0 14px;
-  border-color: transparent !important;
-  background: transparent !important;
-  color: #c7d5ef !important;
-  box-shadow: none !important;
-  transition: color 0.18s ease;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  background: transparent;
+  border: 0;
+  color: #dce7ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.18s ease, background 0.18s ease;
 }
 
 .account-button:hover,
-.account-button:focus {
-  border-color: transparent !important;
-  background: transparent !important;
-  color: #79bbff !important;
+.account-button:focus-visible {
+  background: rgba(64, 158, 255, 0.12);
+  color: #79bbff;
+  outline: none;
+}
+
+.account-button__icon {
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .management-button {
@@ -387,10 +412,12 @@ body {
 }
 
 .account-name {
-  max-width: 100%;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .password-dialog-hint {
@@ -420,8 +447,11 @@ body {
   }
 
   .account-button {
-    min-width: 88px;
-    max-width: 132px;
+    gap: 6px;
+  }
+
+  .account-name {
+    max-width: 96px;
   }
 }
 </style>

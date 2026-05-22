@@ -13,8 +13,10 @@ from backend.db.database import (
     get_source,
     get_source_by_rtsp,
     init_db,
+    list_desired_analysis_sources,
     list_sources,
     save_rois,
+    set_source_desired_analysis_enabled,
     update_all_sources_scene,
     update_settings,
     update_source,
@@ -45,13 +47,44 @@ class TestInitDb:
 class TestCreateSource:
     async def test_creates_and_returns(self):
         src = await create_source(
-            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://a/b")
+            VideoSourceCreate(name="Cam1", rtsp_url="rtsp://a/b", source_remark="Gate A")
         )
         assert src.id
         assert src.name == "Cam1"
         assert src.rtsp_url == "rtsp://a/b"
+        assert src.source_remark == "Gate A"
+        assert src.push_result_stream is True
+        assert src.alarm_confidence_threshold is None
+        assert src.desired_analysis_enabled is False
         assert src.rois == []
         assert src.created_at
+
+    async def test_creates_with_stream_and_threshold_settings(self):
+        src = await create_source(
+            VideoSourceCreate(
+                name="Door",
+                rtsp_url="rtsp://door",
+                push_result_stream=False,
+                alarm_confidence_threshold=0.82,
+            )
+        )
+
+        found = await get_source(src.id)
+
+        assert found is not None
+        assert found.push_result_stream is False
+        assert found.alarm_confidence_threshold == 0.82
+
+    async def test_desired_analysis_sources_are_listed_in_source_order(self):
+        first = await create_source(VideoSourceCreate(name="First", rtsp_url="rtsp://first"))
+        second = await create_source(VideoSourceCreate(name="Second", rtsp_url="rtsp://second"))
+        await set_source_desired_analysis_enabled(second.id, True)
+        await set_source_desired_analysis_enabled(first.id, True)
+
+        result = await list_desired_analysis_sources()
+
+        assert [source.id for source in result] == [first.id, second.id]
+        assert all(source.desired_analysis_enabled for source in result)
 
     async def test_unique_rtsp_url(self):
         await create_source(VideoSourceCreate(name="A", rtsp_url="rtsp://x"))
@@ -130,6 +163,41 @@ class TestUpdateSource:
         assert updated is not None
         assert updated.name == "New"
         assert updated.rtsp_url == "rtsp://u1"
+
+    async def test_update_source_remark(self):
+        src = await create_source(
+            VideoSourceCreate(name="Remark", rtsp_url="rtsp://remark")
+        )
+        updated = await update_source(
+            src.id,
+            VideoSourceUpdate(source_remark="Door beside loading dock"),
+        )
+        assert updated is not None
+        assert updated.source_remark == "Door beside loading dock"
+
+    async def test_update_stream_and_threshold_settings(self):
+        src = await create_source(
+            VideoSourceCreate(name="Settings", rtsp_url="rtsp://settings")
+        )
+
+        updated = await update_source(
+            src.id,
+            VideoSourceUpdate(
+                push_result_stream=False,
+                alarm_confidence_threshold=0.73,
+            ),
+        )
+
+        assert updated is not None
+        assert updated.push_result_stream is False
+        assert updated.alarm_confidence_threshold == 0.73
+
+        reset = await update_source(
+            src.id,
+            VideoSourceUpdate(alarm_confidence_threshold=None),
+        )
+        assert reset is not None
+        assert reset.alarm_confidence_threshold is None
 
     async def test_update_url(self):
         src = await create_source(

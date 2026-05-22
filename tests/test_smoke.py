@@ -66,7 +66,6 @@ class TestSmokeProcessor:
             vengine_client=None,
             app_settings={
                 "smoke_temporal_confirm_frames": "7",
-                "smoke_email_cooldown_seconds": "90",
                 "smoke_enable_appearance_filter": "false",
                 "smoke_iou_threshold": "0.45",
             },
@@ -75,3 +74,47 @@ class TestSmokeProcessor:
         assert config.temporal_confirm_frames == 7
         assert config.enable_smoke_appearance_filter is False
         assert config.iou_threshold == 0.45
+
+    async def test_source_confidence_override_controls_detection_threshold(self):
+        vengine = AsyncMock()
+        vengine.detect.return_value = []
+        processor = SmokeFireProcessor(
+            source_id="s1",
+            source_name="Cam1",
+            rtsp_url="",
+            rois=[],
+            vengine_client=vengine,
+            source_alarm_confidence_threshold=0.77,
+            app_settings={
+                "smoke_detection_confidence": "0.35",
+                "smoke_enable_appearance_filter": "false",
+            },
+        )
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+        await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+        assert vengine.detect.await_args.kwargs["conf"] == 0.77
+        assert processor._post_processor.config.min_confidence_smoke == 0.77
+        assert processor._post_processor.config.min_confidence_fire == 0.77
+
+    async def test_empty_source_confidence_uses_plugin_detection_threshold(self):
+        vengine = AsyncMock()
+        vengine.detect.return_value = []
+        processor = SmokeFireProcessor(
+            source_id="s1",
+            source_name="Cam1",
+            rtsp_url="",
+            rois=[],
+            vengine_client=vengine,
+            source_alarm_confidence_threshold=None,
+            app_settings={
+                "smoke_detection_confidence": "0.62",
+                "smoke_enable_appearance_filter": "false",
+            },
+        )
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+        await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+        assert vengine.detect.await_args.kwargs["conf"] == 0.62

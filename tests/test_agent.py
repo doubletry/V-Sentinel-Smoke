@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from backend.api.ws import WSManager
 from backend.models.schemas import AnalysisMessage
@@ -29,7 +29,7 @@ class TestAnalysisAgent:
     async def test_event_notification_is_delegated(self):
         ws = WSManager()
         ws.broadcast = AsyncMock()
-        dispatcher = AsyncMock()
+        dispatcher = Mock()
 
         agent = AnalysisAgent(
             ws_manager=ws,
@@ -40,4 +40,4 @@ class TestAnalysisAgent:
 
         await agent.submit("s1", "Cam1", result)
 
-        dispatcher.send_event.assert_awaited_once()
+        dispatcher.schedule_event.assert_called_once()

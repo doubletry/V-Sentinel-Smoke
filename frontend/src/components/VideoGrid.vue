@@ -53,7 +53,7 @@
                 @click="toggleRoiEditor(cellIdx)"
               >
                 <el-icon><Edit /></el-icon>
-                {{ t('videoGrid.editRoi') }}
+                {{ roiCellIndex === cellIdx ? t('videoGrid.exitEdit') : t('videoGrid.editRoi') }}
               </el-button>
             </template>
             <el-button
@@ -275,10 +275,11 @@ function onDrop(event, cellIdx) {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
-  z-index: 10;
+  z-index: 140;
   padding: 4px;
   border-radius: 8px;
-  background: rgba(10, 12, 24, 0.55);
+  background: rgba(10, 12, 24, 0.72);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 
 .cell-controls :deep(.el-button span) {

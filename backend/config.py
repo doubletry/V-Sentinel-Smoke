@@ -96,7 +96,15 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "smoke_static_max_area_change_ratio": "0.08",
     "smoke_iou_threshold": "0.3",
     "smoke_alarm_hold_time": "3.0",
-    "smoke_email_cooldown_seconds": "300",
+    # Fire door scene / 消防门场景
+    "fire_door_classification_model_name": "fire-door-classification",
+    "fire_door_classification_confidence": "0.50",
+    "fire_door_open_labels": "open",
+    "fire_door_closed_labels": "closed",
+    "fire_door_alarm_labels": "open",
+    "fire_door_temporal_confirm_frames": "1",
+    "fire_door_temporal_confirm_window": "2.0",
+    "fire_door_alarm_hold_time": "3.0",
     # Thread pool sizes / 线程池大小
     "max_pull_workers": "20",
     "max_push_workers": "10",

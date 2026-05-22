@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from backend.models.schemas import ROI
 from backend.processing.base import BaseVideoProcessor
-from core.smoke.processor import SmokeFireProcessor as _CoreSmokeFireProcessor
+from core.fire_door.processor import FireDoorProcessor as _CoreFireDoorProcessor
 
 if TYPE_CHECKING:
     from backend.api.ws import WSManager
@@ -12,9 +12,8 @@ if TYPE_CHECKING:
     from backend.vengine.client import AsyncVEngineClient
 
 
-class SmokeFireProcessor(BaseVideoProcessor, _CoreSmokeFireProcessor):
-    """Backend adapter for the smoke/fire scene plugin.
-    smoke/fire 场景插件的 backend 适配层。"""
+class FireDoorProcessor(BaseVideoProcessor, _CoreFireDoorProcessor):
+    """Backend adapter for the fire-door classification plugin."""
 
     def __init__(
         self,

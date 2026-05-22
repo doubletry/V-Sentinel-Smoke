@@ -62,6 +62,7 @@ export const messagesApi = {
   list: (params = {}) => api.get('/api/messages', { params }),
   markFalsePositive: (id) => api.post(`/api/messages/${id}/false-positive`),
   unmarkFalsePositive: (id) => api.delete(`/api/messages/${id}/false-positive`),
+  resendNotification: (id) => api.post(`/api/messages/${id}/resend-notification`),
 }
 
 
@@ -101,6 +102,9 @@ export const notificationsApi = {
   providers: () => api.get('/api/notifications/providers'),
   createProvider: (data) => api.post('/api/notifications/providers', data),
   updateProvider: (id, data) => api.put(`/api/notifications/providers/${id}`, data),
+  instances: () => api.get('/api/notifications/instances'),
+  createInstance: (data) => api.post('/api/notifications/instances', data),
+  updateInstance: (id, data) => api.put(`/api/notifications/instances/${id}`, data),
   templates: () => api.get('/api/notifications/templates'),
   createTemplate: (data) => api.post('/api/notifications/templates', data),
   updateTemplate: (id, data) => api.put(`/api/notifications/templates/${id}`, data),
