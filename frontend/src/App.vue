@@ -60,20 +60,20 @@
             popper-class="account-popover"
           >
             <template #reference>
-              <el-button size="small" plain class="account-button" aria-haspopup="menu">
-                <span class="account-button__content">
-                  <el-avatar :size="24" shape="square" :src="appSettingsStore.siteIconUrl" class="account-button__logo">
-                    <el-icon><VideoCamera /></el-icon>
-                  </el-avatar>
+              <button type="button" class="account-button" aria-haspopup="menu">
+                <span class="account-button__avatar">
+                  <el-icon><User /></el-icon>
+                </span>
+                <span class="account-button__name-wrap">
+                  <span class="account-name">{{ authStore.user?.username }}</span>
                   <span
                     v-if="authStore.role"
                     :class="['account-role-chip', `account-role-chip--${authStore.role}`]"
                   >
                     {{ t(`auth.roles.${authStore.role}`) }}
                   </span>
-                  <span class="account-name">{{ authStore.user?.username }}</span>
                 </span>
-              </el-button>
+              </button>
             </template>
             <div class="account-menu" role="menu">
               <div class="account-menu__title">{{ authStore.user?.username || t('auth.accountMenu') }}</div>
@@ -376,70 +376,78 @@ body {
 }
 
 .account-button {
-  min-width: 120px;
-  max-width: 220px;
-  padding: 0 8px !important;
-  border-color: #3b4d7a !important;
-  background: rgba(64, 158, 255, 0.08) !important;
-  color: #dce7ff !important;
-  box-shadow: 0 0 0 1px rgba(59, 77, 122, 0.16) inset !important;
-  cursor: pointer;
-  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-}
-
-.account-button__content {
-  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-  padding: 2px 0;
-}
-
-.account-button__logo {
-  flex-shrink: 0;
-  background: rgba(64, 158, 255, 0.12);
-  border: 1px solid rgba(121, 187, 255, 0.22);
+  height: 32px;
+  padding: 0 4px 0 4px;
+  background: transparent;
+  border: 0;
+  color: #dce7ff;
+  cursor: pointer;
+  font: inherit;
+  border-radius: 8px;
+  transition: color 0.18s ease, background 0.18s ease;
 }
 
 .account-button:hover,
-.account-button:focus {
-  border-color: #409eff !important;
-  background: rgba(64, 158, 255, 0.16) !important;
-  color: #79bbff !important;
-  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.22) inset !important;
+.account-button:focus-visible {
+  background: rgba(64, 158, 255, 0.12);
+  color: #79bbff;
+  outline: none;
+}
+
+.account-button__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(64, 158, 255, 0.18);
+  color: #79bbff;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.account-button__name-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-top: 6px;
+  padding-right: 4px;
+  min-width: 0;
+  max-width: 160px;
 }
 
 .account-role-chip {
   position: absolute;
-  top: -8px;
-  right: -2px;
+  top: -2px;
+  right: -6px;
   display: inline-flex;
   align-items: center;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(121, 187, 255, 0.4);
-  background: rgba(64, 158, 255, 0.16);
-  color: #dbeafe;
-  font-size: 10px;
+  padding: 0 5px;
+  height: 13px;
+  border-radius: 7px;
+  background: rgba(64, 158, 255, 0.85);
+  color: #ffffff;
+  font-size: 9px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  letter-spacing: 0.2px;
+  pointer-events: none;
 }
 
 .account-role-chip--admin {
-  border-color: rgba(248, 113, 113, 0.4);
-  background: rgba(185, 28, 28, 0.82);
+  background: #ef4444;
 }
 
 .account-role-chip--operator {
-  border-color: rgba(250, 204, 21, 0.38);
-  background: rgba(161, 98, 7, 0.82);
+  background: #f59e0b;
 }
 
 .account-role-chip--user {
-  border-color: rgba(96, 165, 250, 0.38);
-  background: rgba(29, 78, 216, 0.82);
+  background: #3b82f6;
 }
 
 .management-button {
@@ -459,10 +467,12 @@ body {
 }
 
 .account-name {
-  max-width: 100%;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .password-dialog-hint {
@@ -492,8 +502,11 @@ body {
   }
 
   .account-button {
-    min-width: 88px;
-    max-width: 168px;
+    gap: 6px;
+  }
+
+  .account-name {
+    max-width: 96px;
   }
 }
 </style>

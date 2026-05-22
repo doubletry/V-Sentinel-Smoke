@@ -35,6 +35,7 @@ import {
   Plus,
   Setting,
   Upload,
+  User,
   VideoCamera,
   View,
 } from '@element-plus/icons-vue'
@@ -101,6 +102,7 @@ const elementPlusIcons = [
   ['Plus', Plus],
   ['Setting', Setting],
   ['Upload', Upload],
+  ['User', User],
   ['VideoCamera', VideoCamera],
   ['View', View],
 ]

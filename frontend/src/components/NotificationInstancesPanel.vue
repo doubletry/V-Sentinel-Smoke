@@ -16,46 +16,42 @@
       <article
         v-for="item in instances"
         :key="item.id"
-        class="notification-instance-card"
+        :class="['notification-instance-card', `notification-instance-card--${item.type}`, { 'is-disabled': !item.enabled }]"
       >
-        <div class="notification-instance-card__header">
+        <header class="notification-instance-card__header">
           <div class="notification-instance-card__title-wrap">
-            <h3>{{ item.name }}</h3>
-            <el-tag size="small" effect="dark" :type="item.type === 'email' ? 'success' : 'warning'">
+            <span :class="['notification-instance-card__type-badge', `notification-instance-card__type-badge--${item.type}`]">
               {{ item.type === 'email' ? t('settings.notificationTypeEmail') : t('settings.notificationTypeWebhook') }}
-            </el-tag>
+            </span>
+            <h3 class="notification-instance-card__name">{{ item.name }}</h3>
           </div>
           <el-switch
             :model-value="item.enabled"
             @change="toggleEnabled(item, $event)"
           />
-        </div>
+        </header>
 
-        <div class="notification-instance-card__meta">
-          <div class="notification-instance-card__meta-label">{{ t('settings.notificationEndpoint') }}</div>
-          <div class="notification-instance-card__meta-value">{{ endpointSummary(item) }}</div>
-        </div>
-
-        <div class="notification-instance-card__meta">
-          <div class="notification-instance-card__meta-label">{{ t('settings.notificationTemplateSubject') }}</div>
-          <div class="notification-instance-card__meta-value notification-instance-card__code">
-            {{ item.config?.subject_template || defaultSubjectTemplate }}
+        <dl class="notification-instance-card__meta-grid">
+          <div class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationEndpoint') }}</dt>
+            <dd>{{ endpointSummary(item) }}</dd>
           </div>
-        </div>
-
-        <div class="notification-instance-card__meta">
-          <div class="notification-instance-card__meta-label">{{ t('settings.notificationTemplateBody') }}</div>
-          <div class="notification-instance-card__meta-value notification-instance-card__code notification-instance-card__body">
-            {{ item.config?.body_template || defaultBodyTemplate }}
+          <div class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationTemplateSubject') }}</dt>
+            <dd class="notification-instance-card__code">{{ item.config?.subject_template || defaultSubjectTemplate }}</dd>
           </div>
-        </div>
+          <div class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationTemplateBody') }}</dt>
+            <dd class="notification-instance-card__code notification-instance-card__body">{{ item.config?.body_template || defaultBodyTemplate }}</dd>
+          </div>
+        </dl>
 
-        <div class="notification-instance-card__footer">
+        <footer class="notification-instance-card__footer">
           <span class="notification-instance-card__timestamp">{{ formatTimestamp(item.created_at) }}</span>
           <el-button size="small" plain @click="openEditDialog(item)">
             {{ t('common.edit') }}
           </el-button>
-        </div>
+        </footer>
       </article>
 
       <div v-if="!loading && !instances.length" class="notification-instance-empty">
@@ -416,19 +412,50 @@ onMounted(loadInstances)
 <style scoped>
 .notification-instance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 16px;
 }
 
 .notification-instance-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(71, 85, 105, 0.52);
-  background: linear-gradient(180deg, rgba(14, 21, 40, 0.9), rgba(11, 17, 31, 0.72));
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  gap: 14px;
+  padding: 18px 18px 14px;
+  border-radius: 14px;
+  border: 1px solid #3a4a72;
+  background: #1e2640;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.notification-instance-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: #3b82f6;
+}
+
+.notification-instance-card--email::before {
+  background: #22c55e;
+}
+
+.notification-instance-card--webhook::before {
+  background: #f59e0b;
+}
+
+.notification-instance-card:hover {
+  border-color: #5a78b8;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  transform: translateY(-1px);
+}
+
+.notification-instance-card.is-disabled {
+  opacity: 0.62;
 }
 
 .notification-instance-card__header,
@@ -444,61 +471,111 @@ onMounted(loadInstances)
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1;
 }
 
-.notification-instance-card__title-wrap h3 {
-  color: #eff6ff;
-  font-size: 16px;
+.notification-instance-card__type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #ffffff;
+  flex-shrink: 0;
 }
 
-.notification-instance-card__meta {
+.notification-instance-card__type-badge--email {
+  background: #16a34a;
+}
+
+.notification-instance-card__type-badge--webhook {
+  background: #d97706;
+}
+
+.notification-instance-card__name {
+  color: #f1f5f9;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.notification-instance-card__meta-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(7, 12, 26, 0.55);
+  border: 1px solid rgba(71, 85, 105, 0.35);
 }
 
-.notification-instance-card__meta-label {
-  color: #8ea3c8;
-  font-size: 12px;
-  font-weight: 700;
+.notification-instance-card__meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
 }
 
-.notification-instance-card__meta-value {
-  color: #dbeafe;
+.notification-instance-card__meta-row dt {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.notification-instance-card__meta-row dd {
+  color: #e2e8f0;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.5;
   word-break: break-word;
+  margin: 0;
 }
 
 .notification-instance-card__code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
   white-space: pre-wrap;
 }
 
 .notification-instance-card__body {
-  max-height: 132px;
+  max-height: 96px;
   overflow: auto;
 }
 
 .notification-instance-card__timestamp {
-  color: #8ea3c8;
+  color: #94a3b8;
   font-size: 12px;
-  font-weight: 600;
 }
 
 .notification-instance-empty {
-  padding: 28px;
-  border-radius: 14px;
+  padding: 32px;
+  border-radius: 12px;
   border: 1px dashed rgba(99, 115, 146, 0.45);
-  color: #8ea3c8;
+  color: #94a3b8;
   text-align: center;
+  grid-column: 1 / -1;
 }
 
 .notification-instance-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 16px;
+  gap: 12px 18px;
+  margin-bottom: 8px;
+}
+
+.notification-instance-form-grid + .notification-instance-form-grid {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(99, 115, 146, 0.35);
 }
 
 .notification-instance-form-span-full {
