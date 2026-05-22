@@ -305,6 +305,12 @@ function openCreateDialog() {
 }
 
 function openEditDialog(item) {
+  let headersText = '{}'
+  try {
+    headersText = JSON.stringify(item.config?.headers || {}, null, 2)
+  } catch {
+    headersText = '{}'
+  }
   editingInstanceId.value = item.id
   form.value = {
     name: item.name || '',
@@ -319,7 +325,7 @@ function openEditDialog(item) {
     cc_addresses: Array.isArray(item.config?.cc_addresses) ? item.config.cc_addresses.join(',') : String(item.config?.cc_addresses || ''),
     url: item.config?.url || '',
     method: item.config?.method || 'POST',
-    headers_text: JSON.stringify(item.config?.headers || {}, null, 2),
+    headers_text: headersText,
     cooldown_seconds: String(item.config?.cooldown_seconds || '300'),
     subject_template: item.config?.subject_template || defaultSubjectTemplate,
     body_template: item.config?.body_template || defaultBodyTemplate,
