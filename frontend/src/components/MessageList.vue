@@ -67,10 +67,12 @@
       </div>
     </div>
 
-    <div v-if="!messages.length" class="empty-msgs">
-      <el-icon :size="32" color="#555"><ChatRound /></el-icon>
-      <span>{{ t('messageList.noMessages') }}</span>
-    </div>
+    <el-empty
+      v-if="!messages.length"
+      :description="t('messageList.noMessages')"
+      :image-size="80"
+      class="empty-msgs"
+    />
 
     <el-dialog v-model="previewVisible" width="70%" top="5vh" append-to-body>
       <img v-if="previewImage" :src="previewImage" alt="preview" class="preview-image" />
@@ -254,13 +256,10 @@ function messageKey(message, idx) {
 }
 
 .empty-msgs {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  gap: 10px;
-  color: #555;
-  font-size: 13px;
+  padding: 40px 20px;
+}
+
+.empty-msgs :deep(.el-empty__description) {
+  color: #8aa6d9;
 }
 </style>
