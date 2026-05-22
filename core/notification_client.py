@@ -163,9 +163,8 @@ class WebhookNotificationProvider:
             "Content-Type": "application/json",
             **dict(self.config.get("headers") or {}),
         }
-        body = json.dumps(self._render_value(self._payload_template(), payload.context), ensure_ascii=False).encode(
-            "utf-8"
-        )
+        rendered_payload = self._render_value(self._payload_template(), payload.context)
+        body = json.dumps(rendered_payload, ensure_ascii=False).encode("utf-8")
         req = urllib_request.Request(url, data=body, headers=headers, method=method)
         with urllib_request.urlopen(req, timeout=10) as response:
             return {"status": "SUCCESS", "message": str(response.status)}

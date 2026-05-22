@@ -423,7 +423,7 @@ function buildPayload() {
     } catch {
       throw new Error(t('settings.notificationWebhookPayloadInvalid'))
     }
-    if (Array.isArray(payloadTemplate) || typeof payloadTemplate !== 'object') {
+    if (payloadTemplate === null || Array.isArray(payloadTemplate) || typeof payloadTemplate !== 'object') {
       throw new Error(t('settings.notificationWebhookPayloadInvalid'))
     }
     payload.config = {
