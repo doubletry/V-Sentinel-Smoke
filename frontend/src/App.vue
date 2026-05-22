@@ -61,18 +61,8 @@
           >
             <template #reference>
               <button type="button" class="account-button" aria-haspopup="menu">
-                <span class="account-button__avatar">
-                  <el-icon><User /></el-icon>
-                </span>
-                <span class="account-button__name-wrap">
-                  <span class="account-name">{{ authStore.user?.username }}</span>
-                  <span
-                    v-if="authStore.role"
-                    :class="['account-role-chip', `account-role-chip--${authStore.role}`]"
-                  >
-                    {{ t(`auth.roles.${authStore.role}`) }}
-                  </span>
-                </span>
+                <el-icon class="account-button__icon"><User /></el-icon>
+                <span class="account-name">{{ authStore.user?.username }}</span>
               </button>
             </template>
             <div class="account-menu" role="menu">
@@ -378,15 +368,17 @@ body {
 .account-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 4px 0 4px;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
   background: transparent;
   border: 0;
   color: #dce7ff;
   cursor: pointer;
   font: inherit;
-  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 4px;
   transition: color 0.18s ease, background 0.18s ease;
 }
 
@@ -397,57 +389,9 @@ body {
   outline: none;
 }
 
-.account-button__avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(64, 158, 255, 0.18);
-  color: #79bbff;
-  font-size: 16px;
+.account-button__icon {
+  font-size: 14px;
   flex-shrink: 0;
-}
-
-.account-button__name-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding-top: 6px;
-  padding-right: 4px;
-  min-width: 0;
-  max-width: 160px;
-}
-
-.account-role-chip {
-  position: absolute;
-  top: -2px;
-  right: -6px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 5px;
-  height: 13px;
-  border-radius: 7px;
-  background: rgba(64, 158, 255, 0.85);
-  color: #ffffff;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.2px;
-  pointer-events: none;
-}
-
-.account-role-chip--admin {
-  background: #ef4444;
-}
-
-.account-role-chip--operator {
-  background: #f59e0b;
-}
-
-.account-role-chip--user {
-  background: #3b82f6;
 }
 
 .management-button {
@@ -471,8 +415,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .password-dialog-hint {

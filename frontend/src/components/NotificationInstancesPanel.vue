@@ -1,12 +1,12 @@
 <template>
-  <section class="settings-section section-card">
-    <div class="section-card__head">
+  <section class="settings-section section-card notification-instances-section">
+    <div class="section-card__head notification-instances-section__head">
       <div>
         <h2>{{ t('settings.notificationInstancesSection') }}</h2>
         <p class="info-tip">{{ t('settings.notificationInstancesHint') }}</p>
       </div>
       <div class="section-card__actions">
-        <el-button type="primary" @click="openCreateDialog">
+        <el-button type="primary" size="default" class="notification-instances-section__add" @click="openCreateDialog">
           {{ t('settings.addNotificationInstance') }}
         </el-button>
       </div>
@@ -410,6 +410,17 @@ onMounted(loadInstances)
 </script>
 
 <style scoped>
+.notification-instances-section__head {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(58, 74, 114, 0.5);
+  align-items: flex-start;
+}
+
+.notification-instances-section__add {
+  min-width: 132px;
+}
+
 .notification-instance-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));

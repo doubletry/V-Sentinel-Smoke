@@ -189,7 +189,6 @@ class FireDoorProcessor(BaseVideoProcessor):
                 closed_count=closed_count,
                 original_image_base64=original_image_base64,
                 detected_image_base64=detected_image_base64,
-                cooldown_seconds=self._setting_int("fire_door_email_cooldown_seconds", 300),
             )
             result.messages.append(
                 {

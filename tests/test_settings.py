@@ -37,7 +37,6 @@ class TestSettingsDB:
         assert all_settings["email_smtp_port"] == "587"
         assert all_settings["email_event_enabled"] == "true"
         assert all_settings["smoke_temporal_confirm_frames"] == "3"
-        assert all_settings["smoke_email_cooldown_seconds"] == "300"
         assert all_settings["fire_door_classification_model_name"] == "fire-door-classification"
         assert all_settings["fire_door_alarm_labels"] == "open"
         assert "email_event_body_template" in all_settings
@@ -121,7 +120,6 @@ class TestSettingsAPI:
                 "email_event_enabled": "true",
                 "email_event_subject_template": "Alert {event_label}",
                 "smoke_temporal_confirm_frames": "5",
-                "smoke_email_cooldown_seconds": "60",
                 "fire_door_classification_confidence": "0.75",
                 "fire_door_alarm_labels": "open,opened",
                 "message_retention_days": "14",
@@ -148,7 +146,6 @@ class TestSettingsAPI:
         assert data["email_event_enabled"] == "true"
         assert data["email_event_subject_template"] == "Alert {event_label}"
         assert data["smoke_temporal_confirm_frames"] == "5"
-        assert data["smoke_email_cooldown_seconds"] == "60"
         assert data["fire_door_classification_confidence"] == "0.75"
         assert data["fire_door_alarm_labels"] == "open,opened"
         assert data["message_retention_days"] == "14"

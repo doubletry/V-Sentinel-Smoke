@@ -24,7 +24,6 @@ def build_fire_door_email_event(
     closed_count: int,
     original_image_base64: str | None = None,
     detected_image_base64: str | None = None,
-    cooldown_seconds: int | None = None,
 ) -> dict[str, Any]:
     event: dict[str, Any] = {
         "timestamp": timestamp,
@@ -52,7 +51,5 @@ def build_fire_door_email_event(
         "original_image_base64": original_image_base64 or "",
         "detected_image_base64": detected_image_base64 or "",
     }
-    if cooldown_seconds is not None:
-        event["cooldown_seconds"] = cooldown_seconds
     return event
 

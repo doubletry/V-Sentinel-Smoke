@@ -322,8 +322,6 @@ export default {
     testEmailSuccess: 'Test email sent successfully: {status}',
     testEmailFailed: 'Failed to send test email: {message}',
     emailEventEnabled: 'Enable Event Email',
-    smokeEmailCooldownSeconds: 'Smoke Email Cooldown (seconds)',
-    fireDoorEmailCooldownSeconds: 'Fire Door Email Cooldown (seconds)',
     emailEventSubjectTemplate: 'Event Email Subject Template',
     emailEventBodyTemplate: 'Event Email Body Template',
     emailTemplateHint: 'Use placeholders below in {element} format; only common placeholders and placeholders for the currently loaded plugin are shown.',

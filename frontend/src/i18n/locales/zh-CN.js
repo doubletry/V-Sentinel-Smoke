@@ -322,8 +322,6 @@ export default {
     testEmailSuccess: '测试邮件发送成功：{status}',
     testEmailFailed: '测试邮件发送失败：{message}',
     emailEventEnabled: '启用事件邮件',
-    smokeEmailCooldownSeconds: '烟火邮件冷却时间（秒）',
-    fireDoorEmailCooldownSeconds: '消防门邮件冷却时间（秒）',
     emailEventSubjectTemplate: '事件邮件标题模板',
     emailEventBodyTemplate: '事件邮件正文模板',
     emailTemplateHint: '可使用下方占位符，格式为 {element}；这里只显示通用占位符和当前已加载插件的专属占位符。',

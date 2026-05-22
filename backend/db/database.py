@@ -502,7 +502,7 @@ async def _seed_default_notification_records(db: aiosqlite.Connection) -> None:
             "default-alert-policy",
             "Default Alert Policy",
             1,
-            int(DEFAULT_APP_SETTINGS["smoke_email_cooldown_seconds"]),
+            300,
             _json_dumps(["default-email"]),
             "default-event-email",
             now,

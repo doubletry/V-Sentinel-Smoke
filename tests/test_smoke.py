@@ -66,7 +66,6 @@ class TestSmokeProcessor:
             vengine_client=None,
             app_settings={
                 "smoke_temporal_confirm_frames": "7",
-                "smoke_email_cooldown_seconds": "90",
                 "smoke_enable_appearance_filter": "false",
                 "smoke_iou_threshold": "0.45",
             },

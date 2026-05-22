@@ -360,9 +360,6 @@
                       />
                     </el-select>
                   </el-form-item>
-                  <el-form-item :label="t('settings.smokeEmailCooldownSeconds')">
-                    <el-input v-model="form.smoke_email_cooldown_seconds" placeholder="300" />
-                  </el-form-item>
                 </div>
               </section>
             </el-tab-pane>
@@ -644,9 +641,6 @@
                           <p class="form-hint">{{ t('settings.fireDoorAlarmHoldTimeHint') }}</p>
                         </div>
                       </el-form-item>
-                      <el-form-item :label="t('settings.fireDoorEmailCooldownSeconds')">
-                        <el-input v-model="form.fire_door_email_cooldown_seconds" placeholder="300" />
-                      </el-form-item>
                     </div>
                   </section>
                 </template>
@@ -804,7 +798,6 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'smoke_temporal_confirm_window',
   'smoke_max_miss_frames',
   'smoke_alarm_hold_time',
-  'smoke_email_cooldown_seconds',
   'fire_door_classification_model_name',
   'fire_door_classification_confidence',
   'fire_door_open_labels',
@@ -813,7 +806,6 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'fire_door_temporal_confirm_frames',
   'fire_door_temporal_confirm_window',
   'fire_door_alarm_hold_time',
-  'fire_door_email_cooldown_seconds',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
 const emailTemplatePlaceholderGroups = computed(() => {
@@ -890,8 +882,6 @@ const NOTIFICATION_EMAIL_KEYS = [
 ]
 const NOTIFICATION_RETENTION_KEYS = [
   'message_retention_days',
-  'smoke_email_cooldown_seconds',
-  'fire_door_email_cooldown_seconds',
 ]
 const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_detection_model_name',
@@ -914,7 +904,6 @@ const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
   'fire_door_temporal_confirm_frames',
   'fire_door_temporal_confirm_window',
   'fire_door_alarm_hold_time',
-  'fire_door_email_cooldown_seconds',
 ]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
@@ -1019,7 +1008,6 @@ const form = ref({
   smoke_static_max_area_change_ratio: '0.08',
   smoke_iou_threshold: '0.3',
   smoke_alarm_hold_time: '3.0',
-  smoke_email_cooldown_seconds: '300',
   fire_door_classification_model_name: 'fire-door-classification',
   fire_door_classification_confidence: '0.50',
   fire_door_open_labels: 'open',
@@ -1028,7 +1016,6 @@ const form = ref({
   fire_door_temporal_confirm_frames: '1',
   fire_door_temporal_confirm_window: '2.0',
   fire_door_alarm_hold_time: '3.0',
-  fire_door_email_cooldown_seconds: '300',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
