@@ -279,6 +279,10 @@ function endpointSummary(item) {
   return `${item.config?.method || 'POST'} · ${item.config?.url || '—'}`
 }
 
+function normalizeAddressField(value) {
+  return Array.isArray(value) ? value.join(',') : String(value || '')
+}
+
 async function loadInstances() {
   loading.value = true
   try {
@@ -321,8 +325,8 @@ function openEditDialog(item) {
     use_tls: Boolean(item.config?.use_tls ?? true),
     from_address: item.config?.from_address || '',
     smtp_password: item.config?.smtp_password || '',
-    to_addresses: Array.isArray(item.config?.to_addresses) ? item.config.to_addresses.join(',') : String(item.config?.to_addresses || ''),
-    cc_addresses: Array.isArray(item.config?.cc_addresses) ? item.config.cc_addresses.join(',') : String(item.config?.cc_addresses || ''),
+    to_addresses: normalizeAddressField(item.config?.to_addresses),
+    cc_addresses: normalizeAddressField(item.config?.cc_addresses),
     url: item.config?.url || '',
     method: item.config?.method || 'POST',
     headers_text: headersText,

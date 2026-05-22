@@ -25,6 +25,8 @@ from core.notification_template import (
     render_template,
 )
 
+MAX_CONCURRENT_NOTIFICATION_DISPATCHES = 4
+
 
 class NotificationDispatcher:
     """Dispatch scene events through configured notification policies.
@@ -33,7 +35,10 @@ class NotificationDispatcher:
     def __init__(self) -> None:
         self._last_sent_at: dict[str, float] = {}
         self._background_tasks: set[asyncio.Task] = set()
-        self._dispatch_semaphore = asyncio.Semaphore(4)
+        # Keep background notification fan-out bounded so bursts of scene events
+        # do not overwhelm SMTP/Webhook delivery threads or starve analysis work.
+        # 限制后台通知并发，避免事件高峰时过量占用投递线程并影响分析主链路。
+        self._dispatch_semaphore = asyncio.Semaphore(MAX_CONCURRENT_NOTIFICATION_DISPATCHES)
 
     def schedule_event(self, event: dict[str, Any]) -> asyncio.Task:
         """Schedule one event delivery in the background.
