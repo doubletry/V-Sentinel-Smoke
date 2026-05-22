@@ -320,124 +320,10 @@
           <ProcessingLogs embedded />
         </section>
 
-            <section v-else-if="isNotificationsPage" class="settings-page-panel">
+        <section v-else-if="isNotificationsPage" class="settings-page-panel">
           <el-tabs v-model="activeNotificationTab" class="settings-top-tabs">
-            <el-tab-pane :label="t('settings.notificationEmailSection')" name="email">
-              <section class="settings-section section-card">
-                <div class="section-card__head">
-                  <div>
-                    <h2>{{ t('settings.notificationEmailSection') }}</h2>
-                    <p class="info-tip">{{ t('settings.emailAddressesHint') }}</p>
-                  </div>
-                  <div class="section-card__actions">
-                    <el-button
-                      :loading="activeRestoreSection === 'notifications-email'"
-                      @click="restoreSection('notifications-email', NOTIFICATION_EMAIL_KEYS)"
-                    >
-                      {{ t('settings.restoreSection') }}
-                    </el-button>
-                    <el-button :loading="testingEmail" @click="testEmailConfig">
-                      {{ t('settings.testEmail') }}
-                    </el-button>
-                    <el-button
-                      type="primary"
-                      :loading="activeSaveSection === 'notifications-email'"
-                      @click="saveSection('notifications-email', NOTIFICATION_EMAIL_KEYS)"
-                    >
-                      {{ t('settings.saveSection') }}
-                    </el-button>
-                  </div>
-                </div>
-
-                <div class="settings-form-grid wide-grid">
-                  <el-form-item :label="t('settings.emailFromAddress')">
-                    <el-input v-model="form.email_from_address" placeholder="sender@example.com" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailSmtpHost')">
-                    <el-input v-model="form.email_smtp_host" placeholder="smtp.example.com" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailSmtpPort')">
-                    <el-input v-model="form.email_smtp_port" placeholder="587" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailSmtpUseTls')">
-                    <el-switch v-model="form.email_smtp_use_tls" active-value="true" inactive-value="false" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailFromAuthCode')">
-                    <el-input
-                      v-model="form.email_smtp_password"
-                      type="password"
-                      show-password
-                      placeholder="授权码 / 密码"
-                    />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailEventEnabled')">
-                    <el-switch v-model="form.email_event_enabled" active-value="true" inactive-value="false" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailToAddresses')" class="form-grid-span-full">
-                    <div class="field-stack">
-                      <el-input
-                        v-model="form.email_to_addresses"
-                        type="textarea"
-                        :rows="2"
-                        placeholder="a@example.com,b@example.com"
-                      />
-                      <p class="form-hint">{{ t('settings.emailAddressesHint') }}</p>
-                    </div>
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailCcAddresses')" class="form-grid-span-full">
-                    <el-input
-                      v-model="form.email_cc_addresses"
-                      type="textarea"
-                      :rows="2"
-                      placeholder="cc1@example.com,cc2@example.com"
-                    />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailEventSubjectTemplate')" class="form-grid-span-full">
-                    <el-input v-model="form.email_event_subject_template" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.emailEventBodyTemplate')" class="form-grid-span-full">
-                    <div class="field-stack">
-                      <el-input
-                        v-model="form.email_event_body_template"
-                        type="textarea"
-                        :rows="8"
-                      />
-                      <p class="form-hint">{{ t('settings.emailTemplateHint') }}</p>
-                      <div class="placeholder-group-list">
-                        <div
-                          v-for="group in emailTemplatePlaceholderGroups"
-                          :key="group.key"
-                          class="placeholder-group"
-                        >
-                          <div class="placeholder-group__title">{{ group.label }}</div>
-                          <div class="placeholder-tags">
-                            <el-tooltip
-                              v-for="item in group.items"
-                              :key="`${group.key}-${item}`"
-                              effect="dark"
-                              placement="top"
-                              trigger="hover"
-                              :show-after="120"
-                              :content="placeholderDescription(item)"
-                            >
-                              <el-tag
-                                size="small"
-                                effect="dark"
-                                :type="placeholderTagType(group.key)"
-                                class="placeholder-tag"
-                                tabindex="0"
-                                :title="placeholderDescription(item)"
-                              >
-                                {{ '{' + item + '}' }}
-                              </el-tag>
-                            </el-tooltip>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </el-form-item>
-                </div>
-              </section>
+            <el-tab-pane :label="t('settings.notificationInstancesSection')" name="instances">
+              <NotificationInstancesPanel />
             </el-tab-pane>
 
             <el-tab-pane :label="t('settings.notificationRetentionSection')" name="retention">
@@ -835,6 +721,7 @@ import { useSourceStore } from '../stores/source.js'
 import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
+import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
 import ProcessingLogs from './ProcessingLogs.vue'
 
 const { t, locale } = useI18n()
@@ -850,7 +737,7 @@ const retentionDayOptions = [7, 15, 21, 30]
 const SMOKE_SCENE_ID = 'smoke'
 const FIRE_DOOR_SCENE_ID = 'fire_door'
 const activePlatformTab = ref('overview')
-const activeNotificationTab = ref('email')
+const activeNotificationTab = ref('instances')
 const activePluginTab = ref('config')
 const DEFAULT_SCENE_DEFINITIONS = [
   {

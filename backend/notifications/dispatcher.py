@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import html
 from datetime import datetime, timezone
@@ -31,45 +32,68 @@ class NotificationDispatcher:
 
     def __init__(self) -> None:
         self._last_sent_at: dict[str, float] = {}
+        self._background_tasks: set[asyncio.Task] = set()
+        self._dispatch_semaphore = asyncio.Semaphore(4)
+
+    def schedule_event(self, event: dict[str, Any]) -> asyncio.Task:
+        """Schedule one event delivery in the background.
+        后台调度单次事件投递，避免阻塞分析链路。"""
+        task = asyncio.create_task(self._send_event_in_background(dict(event)))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
+
+    async def _send_event_in_background(self, event: dict[str, Any]) -> None:
+        async with self._dispatch_semaphore:
+            try:
+                await self.send_event(event)
+            except Exception as exc:  # pragma: no cover - side-effect logging
+                logger.warning("Failed to dispatch background notification event: {}", exc)
 
     async def send_event(self, event: dict[str, Any], *, force: bool = False) -> list[dict[str, str]]:
-        """Send one event to the source-bound policies or the default policy.
-        将事件发送到视频源绑定策略；未绑定时使用默认策略。"""
+        """Send one event to all enabled notification instances.
+        将事件发送到所有已启用的通知实例。"""
         app_settings = await db.get_all_settings()
-        if str(app_settings.get("email_event_enabled", "true")).lower() not in {"true", "1", "yes"}:
-            return []
-
         source = await db.get_source(str(event.get("source_id") or ""))
-        policy_ids = list(source.notification_policy_ids) if source else []
-        if not policy_ids:
-            policy_ids = ["default-alert-policy"]
-
-        policies = {
-            policy.id: policy
-            for policy in await db.list_notification_policies()
-            if policy.id in set(policy_ids)
+        providers = {
+            provider.id: provider
+            for provider in await db.list_notification_providers()
+            if provider.enabled
         }
-        providers = {provider.id: provider for provider in await db.list_notification_providers()}
         templates = {template.id: template for template in await db.list_notification_templates()}
+        policy_overrides = await self._policy_overrides_for_source(source)
         settings_email_config = build_email_settings_smtp_config(app_settings)
-        if has_email_settings_recipients(settings_email_config):
+        if not providers and (
+            str(app_settings.get("email_event_enabled", "true")).lower() in {"true", "1", "yes"}
+            and has_email_settings_recipients(settings_email_config)
+        ):
             providers["default-email"] = SimpleNamespace(
                 id="default-email",
                 type="email",
                 enabled=True,
-                config=settings_email_config,
+                config={
+                    **settings_email_config,
+                    "subject_template": app_settings.get("email_event_subject_template", ""),
+                    "body_template": app_settings.get("email_event_body_template", ""),
+                },
             )
-        templates["default-event-email"] = SimpleNamespace(
-            id="default-event-email",
-            subject_template=app_settings.get("email_event_subject_template", ""),
-            body_template=app_settings.get("email_event_body_template", ""),
-        )
+        if not providers:
+            return []
 
-        def build_payload(template_id: str | None) -> NotificationPayload:
+        def build_payload(provider: Any, template_id: str | None = None) -> NotificationPayload:
             template = templates.get(str(template_id or ""))
+            provider_config = dict(getattr(provider, "config", {}) or {})
             context = build_template_context(app_settings, self._enrich_event(event, source))
-            subject_template = template.subject_template if template else "{event_label} alert from {source_name}"
-            body_template = template.body_template if template else "{local_time} {event_label} {source_name}"
+            subject_template = str(
+                provider_config.get("subject_template")
+                or (template.subject_template if template else "")
+                or "{event_label} alert from {source_name}"
+            )
+            body_template = str(
+                provider_config.get("body_template")
+                or (template.body_template if template else "")
+                or "{local_time} {event_label} {source_name}"
+            )
             rendered_body = render_template(body_template, context)
             html_context = self._html_template_context(context)
             rendered_html_body = "<br>".join(render_template(body_template, html_context).splitlines())
@@ -81,48 +105,33 @@ class NotificationDispatcher:
                 attachments=self._build_attachments(event, body_template),
             )
 
-        results: list[dict[str, str]] = []
-        attempted_provider_ids: set[str] = set()
-        for policy_id in policy_ids:
-            policy = policies.get(policy_id)
-            if policy is None or not policy.enabled:
-                continue
-            if not force and not self._should_send(policy_id, policy.cooldown_seconds, event):
-                continue
-            payload = build_payload(policy.template_id)
-            for provider_id in policy.provider_ids:
-                provider = providers.get(provider_id)
-                if provider is None or not provider.enabled:
-                    continue
-                attempted_provider_ids.add(provider_id)
-                try:
-                    results.append(await self._send_provider(provider.type, provider.config, payload))
-                except Exception as exc:  # pragma: no cover - side-effect logging
-                    logger.warning(
-                        "Failed to send notification via provider {}: {}",
-                        provider_id,
-                        exc,
-                    )
-                    results.append({"status": "ERROR", "message": str(exc)})
-            self._mark_sent(policy_id, event)
-        if force and not any(result.get("status") == "SUCCESS" for result in results):
-            payload = build_payload("default-event-email")
-            fallback_providers = [
-                provider
-                for provider_id, provider in providers.items()
-                if provider.enabled and provider_id not in attempted_provider_ids
-            ]
-            for provider in fallback_providers:
-                try:
-                    results.append(await self._send_provider(provider.type, provider.config, payload))
-                except Exception as exc:  # pragma: no cover - side-effect logging
-                    logger.warning(
-                        "Failed to send manual notification via fallback provider {}: {}",
-                        provider.id,
-                        exc,
-                    )
-                    results.append({"status": "ERROR", "message": str(exc)})
-        return results
+        async def dispatch_provider(provider: Any) -> dict[str, str] | None:
+            provider_id = str(getattr(provider, "id", ""))
+            provider_config = dict(getattr(provider, "config", {}) or {})
+            override = policy_overrides.get(provider_id, {})
+            cooldown_seconds = self._cooldown_seconds(
+                provider_config,
+                override.get("cooldown_seconds"),
+                event,
+            )
+            if not force and not self._should_send(provider_id, cooldown_seconds, event):
+                return None
+            payload = build_payload(provider, override.get("template_id"))
+            try:
+                result = await self._send_provider(provider.type, provider_config, payload)
+            except Exception as exc:  # pragma: no cover - side-effect logging
+                logger.warning(
+                    "Failed to send notification via provider {}: {}",
+                    provider_id,
+                    exc,
+                )
+                result = {"status": "ERROR", "message": str(exc)}
+            if result.get("status") == "SUCCESS":
+                self._mark_sent(provider_id, event)
+            return result
+
+        results = await asyncio.gather(*(dispatch_provider(provider) for provider in providers.values()))
+        return [result for result in results if result is not None]
 
     async def _send_provider(
         self,
@@ -139,6 +148,50 @@ class NotificationDispatcher:
     def _cooldown_key(self, policy_id: str, event: dict[str, Any]) -> str:
         event_type = str(event.get("event_type") or event.get("label") or "event")
         return f"{policy_id}:{event.get('source_id', '')}:{event_type}"
+
+    async def _policy_overrides_for_source(self, source: Any) -> dict[str, dict[str, Any]]:
+        if source is None:
+            return {}
+        policy_ids = [str(item) for item in getattr(source, "notification_policy_ids", []) or []]
+        if not policy_ids:
+            return {}
+        overrides: dict[str, dict[str, Any]] = {}
+        # Policies are still honored as optional per-source overrides for
+        # cooldown/template selection, while delivery fans out to all enabled
+        # instances globally.
+        # 通知策略仍作为可选的源级模板/冷却覆盖项，但投递会全局扇出到所有已启用实例。
+        policies = {
+            policy.id: policy
+            for policy in await db.list_notification_policies()
+            if policy.id in set(policy_ids) and policy.enabled
+        }
+        for policy_id in policy_ids:
+            policy = policies.get(policy_id)
+            if policy is None:
+                continue
+            for provider_id in policy.provider_ids:
+                overrides.setdefault(
+                    str(provider_id),
+                    {
+                        "template_id": policy.template_id,
+                        "cooldown_seconds": policy.cooldown_seconds,
+                    },
+                )
+        return overrides
+
+    def _cooldown_seconds(
+        self,
+        provider_config: dict[str, Any],
+        policy_cooldown_seconds: Any,
+        event: dict[str, Any],
+    ) -> int:
+        raw_value = event.get("cooldown_seconds", policy_cooldown_seconds)
+        if raw_value in (None, ""):
+            raw_value = provider_config.get("cooldown_seconds", 300)
+        try:
+            return int(raw_value)
+        except (TypeError, ValueError):
+            return 300
 
     def _should_send(self, policy_id: str, cooldown_seconds: int, event: dict[str, Any]) -> bool:
         now_ts = datetime.now(timezone.utc).timestamp()

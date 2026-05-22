@@ -61,10 +61,18 @@
           >
             <template #reference>
               <el-button size="small" plain class="account-button" aria-haspopup="menu">
-                <span v-if="authStore.role" class="account-role-chip">
-                  {{ t(`auth.roles.${authStore.role}`) }}
+                <span class="account-button__content">
+                  <el-avatar :size="24" shape="square" :src="appSettingsStore.siteIconUrl" class="account-button__logo">
+                    <el-icon><VideoCamera /></el-icon>
+                  </el-avatar>
+                  <span
+                    v-if="authStore.role"
+                    :class="['account-role-chip', `account-role-chip--${authStore.role}`]"
+                  >
+                    {{ t(`auth.roles.${authStore.role}`) }}
+                  </span>
+                  <span class="account-name">{{ authStore.user?.username }}</span>
                 </span>
-                <span class="account-name">{{ authStore.user?.username }}</span>
               </el-button>
             </template>
             <div class="account-menu" role="menu">
@@ -368,19 +376,30 @@ body {
 }
 
 .account-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-width: 132px;
-  max-width: 240px;
-  padding: 0 14px;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 0 8px !important;
   border-color: #3b4d7a !important;
   background: rgba(64, 158, 255, 0.08) !important;
   color: #dce7ff !important;
   box-shadow: 0 0 0 1px rgba(59, 77, 122, 0.16) inset !important;
   cursor: pointer;
   transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.account-button__content {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.account-button__logo {
+  flex-shrink: 0;
+  background: rgba(64, 158, 255, 0.12);
+  border: 1px solid rgba(121, 187, 255, 0.22);
 }
 
 .account-button:hover,
@@ -392,17 +411,35 @@ body {
 }
 
 .account-role-chip {
+  position: absolute;
+  top: -8px;
+  right: -2px;
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid rgba(121, 187, 255, 0.4);
-  background: rgba(64, 158, 255, 0.14);
-  color: #bcd8ff;
-  font-size: 11px;
+  background: rgba(64, 158, 255, 0.16);
+  color: #dbeafe;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.account-role-chip--admin {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(185, 28, 28, 0.82);
+}
+
+.account-role-chip--operator {
+  border-color: rgba(250, 204, 21, 0.38);
+  background: rgba(161, 98, 7, 0.82);
+}
+
+.account-role-chip--user {
+  border-color: rgba(96, 165, 250, 0.38);
+  background: rgba(29, 78, 216, 0.82);
 }
 
 .management-button {
@@ -456,7 +493,7 @@ body {
 
   .account-button {
     min-width: 88px;
-    max-width: 180px;
+    max-width: 168px;
   }
 }
 </style>

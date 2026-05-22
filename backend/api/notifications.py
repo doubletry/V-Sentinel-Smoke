@@ -26,6 +26,13 @@ async def list_providers() -> list[NotificationProvider]:
     return await db.list_notification_providers()
 
 
+@router.get("/instances", response_model=list[NotificationProvider])
+async def list_instances() -> list[NotificationProvider]:
+    """List notification instances.
+    列出通知实例。"""
+    return await db.list_notification_providers()
+
+
 @router.post("/providers", response_model=NotificationProvider, status_code=201)
 async def create_provider(
     data: NotificationProviderCreate,
@@ -33,6 +40,16 @@ async def create_provider(
 ) -> NotificationProvider:
     """Create an email or webhook notification provider.
     创建邮件或 Webhook 通知服务。"""
+    return await db.create_notification_provider(data)
+
+
+@router.post("/instances", response_model=NotificationProvider, status_code=201)
+async def create_instance(
+    data: NotificationProviderCreate,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> NotificationProvider:
+    """Create a notification instance.
+    创建通知实例。"""
     return await db.create_notification_provider(data)
 
 
@@ -47,6 +64,20 @@ async def update_provider(
     provider = await db.update_notification_provider(provider_id, data)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification provider not found")
+    return provider
+
+
+@router.put("/instances/{provider_id}", response_model=NotificationProvider)
+async def update_instance(
+    provider_id: str,
+    data: NotificationProviderUpdate,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> NotificationProvider:
+    """Update a notification instance.
+    更新通知实例。"""
+    provider = await db.update_notification_provider(provider_id, data)
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Notification instance not found")
     return provider
 
 

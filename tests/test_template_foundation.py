@@ -135,6 +135,37 @@ class TestNotificationFoundation:
         assert policy_resp.status_code == 201
         assert policy_resp.json()["provider_ids"] == [provider_id]
 
+    async def test_notification_instance_endpoints_alias_provider_storage(self, async_client: AsyncClient):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Ops Webhook",
+                "type": "webhook",
+                "enabled": True,
+                "config": {
+                    "url": "https://example.com/hooks/ops",
+                    "method": "POST",
+                    "headers": {"X-Test": "1"},
+                    "subject_template": "Alert {source_name}",
+                    "body_template": "Message: {message}",
+                },
+            },
+        )
+        assert create_resp.status_code == 201
+        instance_id = create_resp.json()["id"]
+
+        list_resp = await async_client.get("/api/notifications/instances")
+        assert list_resp.status_code == 200
+        assert any(item["id"] == instance_id and item["type"] == "webhook" for item in list_resp.json())
+
+        update_resp = await async_client.put(
+            f"/api/notifications/instances/{instance_id}",
+            json={"enabled": False, "name": "Ops Webhook Disabled"},
+        )
+        assert update_resp.status_code == 200
+        assert update_resp.json()["enabled"] is False
+        assert update_resp.json()["name"] == "Ops Webhook Disabled"
+
 
 class TestRbacFoundation:
     async def test_three_roles_are_exposed(self, async_client: AsyncClient):
@@ -229,6 +260,54 @@ class TestSmtpNotificationProvider:
 
 
 class TestNotificationDispatcher:
+    async def test_dispatcher_fans_out_all_enabled_instances(self, init_db):
+        email_provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="SMTP",
+                type="email",
+                enabled=True,
+                config={
+                    "smtp_host": "smtp.example.com",
+                    "from_address": "sender@example.com",
+                    "to_addresses": ["ops@example.com"],
+                },
+            )
+        )
+        webhook_provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="Webhook",
+                type="webhook",
+                enabled=True,
+                config={
+                    "url": "https://example.com/hooks/ops",
+                    "method": "POST",
+                },
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch.object(
+            dispatcher,
+            "_send_provider",
+            new=AsyncMock(side_effect=[
+                {"status": "SUCCESS", "message": email_provider.id},
+                {"status": "SUCCESS", "message": webhook_provider.id},
+            ]),
+        ) as send_provider:
+            results = await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": "s1",
+                    "source_name": "Cam1",
+                    "event_type": "smoke",
+                    "event_label": "Smoke",
+                }
+            )
+
+        assert len(results) == 2
+        assert {item["message"] for item in results} == {email_provider.id, webhook_provider.id}
+        assert send_provider.await_count == 2
+
     async def test_dispatcher_uses_source_bound_policy(self, init_db):
         provider = await create_notification_provider(
             NotificationProviderCreate(
