@@ -20,14 +20,18 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 @router.get("/providers", response_model=list[NotificationProvider])
-async def list_providers() -> list[NotificationProvider]:
+async def list_providers(
+    _role: str = Depends(require_permission("notifications:*")),
+) -> list[NotificationProvider]:
     """List email/webhook notification providers.
     列出邮件与 Webhook 通知服务。"""
     return await db.list_notification_providers()
 
 
 @router.get("/instances", response_model=list[NotificationProvider])
-async def list_instances() -> list[NotificationProvider]:
+async def list_instances(
+    _role: str = Depends(require_permission("notifications:*")),
+) -> list[NotificationProvider]:
     """List notification instances.
     列出通知实例。"""
     return await db.list_notification_providers()

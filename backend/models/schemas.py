@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator, model_validator
@@ -62,6 +63,8 @@ class VideoSourceCreate(BaseModel):
         if value is None or value == "":
             return None
         threshold = float(value)
+        if not math.isfinite(threshold):
+            raise ValueError("alarm_confidence_threshold must be a finite number")
         if threshold < 0 or threshold > 1:
             raise ValueError("alarm_confidence_threshold must be between 0 and 1")
         return threshold
@@ -95,6 +98,8 @@ class VideoSourceUpdate(BaseModel):
         if value is None or value == "":
             return None
         threshold = float(value)
+        if not math.isfinite(threshold):
+            raise ValueError("alarm_confidence_threshold must be a finite number")
         if threshold < 0 or threshold > 1:
             raise ValueError("alarm_confidence_threshold must be between 0 and 1")
         return threshold
