@@ -48,7 +48,7 @@
             <dt>{{ t('settings.notificationTemplateBody') }}</dt>
             <dd class="notification-instance-card__code notification-instance-card__body">{{ item.config?.body_template || defaultBodyTemplate }}</dd>
           </div>
-          <div v-else class="notification-instance-card__meta-row">
+          <div v-else-if="item.type === 'webhook'" class="notification-instance-card__meta-row">
             <dt>{{ t('settings.notificationWebhookPayload') }}</dt>
             <dd class="notification-instance-card__code notification-instance-card__body">
               {{ payloadSummary(item) }}
@@ -423,7 +423,7 @@ function buildPayload() {
     } catch {
       throw new Error(t('settings.notificationWebhookPayloadInvalid'))
     }
-    if (payloadTemplate === null || Array.isArray(payloadTemplate) || typeof payloadTemplate !== 'object') {
+    if (typeof payloadTemplate !== 'object' || payloadTemplate === null || Array.isArray(payloadTemplate)) {
       throw new Error(t('settings.notificationWebhookPayloadInvalid'))
     }
     payload.config = {
