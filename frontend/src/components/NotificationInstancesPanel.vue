@@ -40,13 +40,19 @@
             <dt>{{ t('settings.notificationEndpoint') }}</dt>
             <dd>{{ endpointSummary(item) }}</dd>
           </div>
-          <div class="notification-instance-card__meta-row">
+          <div v-if="item.type === 'email'" class="notification-instance-card__meta-row">
             <dt>{{ t('settings.notificationTemplateSubject') }}</dt>
             <dd class="notification-instance-card__code">{{ item.config?.subject_template || defaultSubjectTemplate }}</dd>
           </div>
-          <div class="notification-instance-card__meta-row">
+          <div v-if="item.type === 'email'" class="notification-instance-card__meta-row">
             <dt>{{ t('settings.notificationTemplateBody') }}</dt>
             <dd class="notification-instance-card__code notification-instance-card__body">{{ item.config?.body_template || defaultBodyTemplate }}</dd>
+          </div>
+          <div v-else class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationWebhookPayload') }}</dt>
+            <dd class="notification-instance-card__code notification-instance-card__body">
+              {{ payloadSummary(item) }}
+            </dd>
           </div>
         </dl>
 
@@ -126,9 +132,15 @@
           <el-form-item :label="t('settings.notificationWebhookHeaders')" class="notification-instance-form-span-full">
             <el-input v-model="form.headers_text" type="textarea" :rows="4" placeholder='{"Authorization":"Bearer xxx"}' />
           </el-form-item>
+          <el-form-item :label="t('settings.notificationWebhookPayload')" class="notification-instance-form-span-full">
+            <div class="field-stack">
+              <el-input v-model="form.webhook_payload_text" type="textarea" :rows="10" />
+              <p class="form-hint">{{ t('settings.notificationWebhookPayloadHint') }}</p>
+            </div>
+          </el-form-item>
         </div>
 
-        <div class="notification-instance-form-grid">
+        <div v-if="form.type === 'email'" class="notification-instance-form-grid">
           <el-form-item :label="t('settings.notificationTemplateSubject')" class="notification-instance-form-span-full">
             <el-input v-model="form.subject_template" />
           </el-form-item>
@@ -212,6 +224,30 @@ const SMOKE_PLACEHOLDERS = new Set(['detection_count', 'frame_id', 'active_track
 const FIRE_DOOR_PLACEHOLDERS = new Set(['roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
 const defaultSubjectTemplate = '[{site_title}] {event_label} alert from {source_name}'
 const defaultBodyTemplate = 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nMessage: {message}'
+const defaultWebhookPayloadTemplate = {
+  site_title: '{site_title}',
+  event_type: '{event_type}',
+  event_label: '{event_label}',
+  message: '{message}',
+  timestamp: '{timestamp}',
+  local_time: '{local_time}',
+  timezone: '{timezone}',
+  source: {
+    id: '{source_id}',
+    name: '{source_name}',
+    route_path: '{source_route_path}',
+    remark: '{source_remark}',
+  },
+  detection: {
+    labels: '{labels}',
+    confidence: '{confidence}',
+    confidence_percent: '{confidence_percent}',
+  },
+  images: {
+    original_url: '{original_image_url}',
+    detected_url: '{detected_image_url}',
+  },
+}
 
 const form = ref(createDefaultForm())
 
@@ -249,6 +285,7 @@ function createDefaultForm(type = 'email') {
     url: '',
     method: 'POST',
     headers_text: '{}',
+    webhook_payload_text: JSON.stringify(defaultWebhookPayloadTemplate, null, 2),
     cooldown_seconds: '300',
     subject_template: defaultSubjectTemplate,
     body_template: defaultBodyTemplate,
@@ -277,6 +314,14 @@ function endpointSummary(item) {
     return `${host} · ${String(recipients || '—')}`
   }
   return `${item.config?.method || 'POST'} · ${item.config?.url || '—'}`
+}
+
+function payloadSummary(item) {
+  try {
+    return JSON.stringify(item.config?.payload_template || defaultWebhookPayloadTemplate, null, 2)
+  } catch {
+    return '{}'
+  }
 }
 
 function normalizeAddressField(value) {
@@ -331,6 +376,7 @@ function openEditDialog(item) {
     url: item.config?.url || '',
     method: item.config?.method || 'POST',
     headers_text: headersText,
+    webhook_payload_text: JSON.stringify(item.config?.payload_template || defaultWebhookPayloadTemplate, null, 2),
     cooldown_seconds: String(item.config?.cooldown_seconds || '300'),
     subject_template: item.config?.subject_template || defaultSubjectTemplate,
     body_template: item.config?.body_template || defaultBodyTemplate,
@@ -345,8 +391,6 @@ function buildPayload() {
     enabled: Boolean(form.value.enabled),
     config: {
       cooldown_seconds: String(form.value.cooldown_seconds || '300').trim(),
-      subject_template: form.value.subject_template || defaultSubjectTemplate,
-      body_template: form.value.body_template || defaultBodyTemplate,
     },
   }
   if (!payload.name) {
@@ -355,6 +399,8 @@ function buildPayload() {
   if (payload.type === 'email') {
     payload.config = {
       ...payload.config,
+      subject_template: form.value.subject_template || defaultSubjectTemplate,
+      body_template: form.value.body_template || defaultBodyTemplate,
       smtp_host: form.value.smtp_host.trim(),
       smtp_port: String(form.value.smtp_port || '587').trim(),
       use_tls: Boolean(form.value.use_tls),
@@ -371,11 +417,21 @@ function buildPayload() {
     } catch {
       throw new Error(t('settings.notificationWebhookHeadersInvalid'))
     }
+    let payloadTemplate = {}
+    try {
+      payloadTemplate = JSON.parse(form.value.webhook_payload_text || '{}')
+    } catch {
+      throw new Error(t('settings.notificationWebhookPayloadInvalid'))
+    }
+    if (!payloadTemplate || Array.isArray(payloadTemplate) || typeof payloadTemplate !== 'object') {
+      throw new Error(t('settings.notificationWebhookPayloadInvalid'))
+    }
     payload.config = {
       ...payload.config,
       url: form.value.url.trim(),
       method: String(form.value.method || 'POST').toUpperCase(),
       headers,
+      payload_template: payloadTemplate,
     }
   }
   return payload

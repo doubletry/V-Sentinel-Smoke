@@ -20,7 +20,7 @@ from backend.models.schemas import (
 )
 from backend.auth.security import create_access_token
 from backend.notifications.dispatcher import NotificationDispatcher
-from core.notification_client import NotificationPayload, SmtpNotificationProvider
+from core.notification_client import NotificationPayload, SmtpNotificationProvider, WebhookNotificationProvider
 
 
 class TestSceneFoundation:
@@ -146,8 +146,7 @@ class TestNotificationFoundation:
                     "url": "https://example.com/hooks/ops",
                     "method": "POST",
                     "headers": {"X-Test": "1"},
-                    "subject_template": "Alert {source_name}",
-                    "body_template": "Message: {message}",
+                    "payload_template": {"text": "Message: {message}"},
                 },
             },
         )
@@ -257,6 +256,75 @@ class TestSmtpNotificationProvider:
         assert message["To"] == "a@example.com, b@example.com"
         assert message["Cc"] == "cc@example.com"
         assert message["Subject"] == "Alert"
+
+
+class TestWebhookNotificationProvider:
+    def test_webhook_sends_configured_dictionary_payload(self):
+        captured = {}
+
+        class FakeResponse:
+            status = 204
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        def fake_urlopen(req, timeout):
+            captured["method"] = req.get_method()
+            captured["headers"] = dict(req.header_items())
+            captured["body"] = req.data.decode("utf-8")
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        provider = WebhookNotificationProvider(
+            {
+                "url": "https://example.com/hooks/ops",
+                "method": "PATCH",
+                "headers": {"X-Test": "1"},
+                "payload_template": {
+                    "title": "{event_label}",
+                    "source": {"name": "{source_name}"},
+                    "labels": ["{event_type}", "{message}"],
+                    "static": 1,
+                },
+            }
+        )
+
+        with patch("core.notification_client.urllib_request.urlopen", side_effect=fake_urlopen):
+            result = provider.send_sync(
+                NotificationPayload(
+                    subject="Ignored subject",
+                    body="Ignored body",
+                    context={
+                        "event_label": "Smoke",
+                        "source_name": "Cam1",
+                        "event_type": "smoke",
+                        "message": "Detected smoke",
+                    },
+                )
+            )
+
+        assert result == {"status": "SUCCESS", "message": "204"}
+        assert captured["method"] == "PATCH"
+        assert captured["headers"]["Content-type"] == "application/json"
+        assert captured["headers"]["X-test"] == "1"
+        assert captured["timeout"] == 10
+        assert captured["body"] == (
+            '{"title": "Smoke", "source": {"name": "Cam1"}, '
+            '"labels": ["smoke", "Detected smoke"], "static": 1}'
+        )
+
+    def test_webhook_rejects_non_object_payload_template(self):
+        provider = WebhookNotificationProvider(
+            {
+                "url": "https://example.com/hooks/ops",
+                "payload_template": ["not", "an", "object"],
+            }
+        )
+        with pytest.raises(ValueError, match="payload_template"):
+            provider.send_sync(NotificationPayload(subject="", body="", context={}))
 
 
 class TestNotificationDispatcher:

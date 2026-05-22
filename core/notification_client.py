@@ -12,6 +12,8 @@ from email.message import EmailMessage
 from typing import Any
 from urllib import request as urllib_request
 
+from core.notification_template import render_template
+
 
 def _split_addresses(raw: str | list[str] | tuple[str, ...] | None) -> list[str]:
     if isinstance(raw, (list, tuple)):
@@ -97,11 +99,55 @@ class SmtpNotificationProvider:
 
 
 class WebhookNotificationProvider:
-    """Reserved webhook provider for future notification channels.
-    预留的 Webhook 通知服务。"""
+    """JSON webhook provider for dictionary-based notification delivery.
+    用于按字典 JSON 投递通知的 Webhook 服务。"""
+
+    DEFAULT_PAYLOAD_TEMPLATE = {
+        "site_title": "{site_title}",
+        "event_type": "{event_type}",
+        "event_label": "{event_label}",
+        "message": "{message}",
+        "timestamp": "{timestamp}",
+        "local_time": "{local_time}",
+        "timezone": "{timezone}",
+        "source": {
+            "id": "{source_id}",
+            "name": "{source_name}",
+            "route_path": "{source_route_path}",
+            "remark": "{source_remark}",
+        },
+        "detection": {
+            "labels": "{labels}",
+            "confidence": "{confidence}",
+            "confidence_percent": "{confidence_percent}",
+        },
+        "images": {
+            "original_url": "{original_image_url}",
+            "detected_url": "{detected_image_url}",
+        },
+    }
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = dict(config)
+
+    def _payload_template(self) -> dict[str, Any]:
+        raw_template = self.config.get("payload_template")
+        if raw_template is None:
+            raw_template = self.config.get("payload")
+        if raw_template in (None, ""):
+            return dict(self.DEFAULT_PAYLOAD_TEMPLATE)
+        if not isinstance(raw_template, dict):
+            raise ValueError("Webhook payload_template must be a JSON object")
+        return raw_template
+
+    def _render_value(self, value: Any, context: dict[str, Any]) -> Any:
+        if isinstance(value, str):
+            return render_template(value, context)
+        if isinstance(value, list):
+            return [self._render_value(item, context) for item in value]
+        if isinstance(value, dict):
+            return {str(key): self._render_value(item, context) for key, item in value.items()}
+        return value
 
     def send_sync(self, payload: NotificationPayload) -> dict[str, str]:
         url = str(self.config.get("url") or "").strip()
@@ -112,14 +158,9 @@ class WebhookNotificationProvider:
             "Content-Type": "application/json",
             **dict(self.config.get("headers") or {}),
         }
-        body = json.dumps(
-            {
-                "subject": payload.subject,
-                "body": payload.body,
-                "context": payload.context,
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
+        body = json.dumps(self._render_value(self._payload_template(), payload.context), ensure_ascii=False).encode(
+            "utf-8"
+        )
         req = urllib_request.Request(url, data=body, headers=headers, method=method)
         with urllib_request.urlopen(req, timeout=10) as response:
             return {"status": "SUCCESS", "message": str(response.status)}
