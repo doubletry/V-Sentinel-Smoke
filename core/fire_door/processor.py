@@ -78,7 +78,7 @@ class FireDoorProcessor(BaseVideoProcessor):
         frames = max(1, self._setting_int("fire_door_temporal_confirm_frames", 1))
         window = max(0.0, self._setting_float("fire_door_temporal_confirm_window", 2.0))
         hold_time = max(0.0, self._setting_float("fire_door_alarm_hold_time", 3.0))
-        history = self._roi_alarm_history.setdefault(roi_id, deque(maxlen=frames))
+        history = self._roi_alarm_history.setdefault(roi_id, deque())
         history.append(now_ts)
         if window > 0:
             while history and now_ts - history[0] > window:
