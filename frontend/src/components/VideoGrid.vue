@@ -2,18 +2,20 @@
   <div class="video-grid-container">
     <!-- Toolbar -->
     <div class="grid-toolbar">
-      <span class="toolbar-label">{{ t('common.layout') }}:</span>
-      <el-button-group>
-        <el-button
-          v-for="layout in layouts"
-          :key="layout.cols"
-          :type="currentCols === layout.cols ? 'primary' : 'default'"
-          size="small"
-          @click="setLayout(layout.cols)"
-        >
-          {{ t(layout.labelKey) }}
-        </el-button>
-      </el-button-group>
+      <el-space :size="10" wrap alignment="center">
+        <span class="toolbar-label">{{ t('common.layout') }}:</span>
+        <el-button-group>
+          <el-button
+            v-for="layout in layouts"
+            :key="layout.cols"
+            :type="currentCols === layout.cols ? 'primary' : 'default'"
+            size="small"
+            @click="setLayout(layout.cols)"
+          >
+            {{ t(layout.labelKey) }}
+          </el-button>
+        </el-button-group>
+      </el-space>
     </div>
 
     <!-- Grid -->

@@ -9,35 +9,37 @@
         <span class="messages-updated-at">{{ t('messages.lastUpdated', { time: lastUpdatedLabel }) }}</span>
       </div>
       <div class="header-right">
-        <el-select
-          v-model="filterSource"
-          :placeholder="t('messages.allSources')"
-          clearable
-          size="small"
-          style="width: 200px"
-          @change="handleFilterChange"
-        >
-          <el-option
-            v-for="src in sourceStore.sources"
-            :key="src.id"
-            :label="src.name"
-            :value="src.id"
-          />
-        </el-select>
-        <div class="false-positive-filter">
-          <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
-          <el-switch
-            v-model="store.falsePositiveOnly"
-            :aria-label="t('messages.falsePositiveOnlyHint')"
-            @change="handleFalsePositiveFilterChange"
-          />
-        </div>
-        <el-button size="small" type="primary" :loading="refreshing" @click="handleManualRefresh">
-          {{ t('messages.refresh') }}
-        </el-button>
-        <el-button size="small" :disabled="!store.messages.length" @click="handleClearMessages">
-          {{ t('messages.clear') }}
-        </el-button>
+        <el-space :size="10" wrap alignment="center">
+          <el-select
+            v-model="filterSource"
+            :placeholder="t('messages.allSources')"
+            clearable
+            size="small"
+            style="width: 200px"
+            @change="handleFilterChange"
+          >
+            <el-option
+              v-for="src in sourceStore.sources"
+              :key="src.id"
+              :label="src.name"
+              :value="src.id"
+            />
+          </el-select>
+          <div class="false-positive-filter">
+            <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
+            <el-switch
+              v-model="store.falsePositiveOnly"
+              :aria-label="t('messages.falsePositiveOnlyHint')"
+              @change="handleFalsePositiveFilterChange"
+            />
+          </div>
+          <el-button size="small" type="primary" :loading="refreshing" @click="handleManualRefresh">
+            {{ t('messages.refresh') }}
+          </el-button>
+          <el-button size="small" :disabled="!store.messages.length" @click="handleClearMessages">
+            {{ t('messages.clear') }}
+          </el-button>
+        </el-space>
       </div>
     </div>
 
