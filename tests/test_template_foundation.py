@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock
 from unittest.mock import patch
 from httpx import AsyncClient
+from loguru import logger
 
 from backend.db.database import (
     create_notification_policy,
@@ -365,6 +366,11 @@ class TestNotificationDispatcher:
         )
 
         dispatcher = NotificationDispatcher()
+        log_messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: log_messages.append(message.record["message"]),
+            level="INFO",
+        )
         with patch.object(
             dispatcher,
             "_send_provider",
@@ -373,19 +379,33 @@ class TestNotificationDispatcher:
                 {"status": "SUCCESS", "message": webhook_provider.id},
             ]),
         ) as send_provider:
-            results = await dispatcher.send_event(
-                {
-                    "timestamp": "2026-01-01T00:00:00+00:00",
-                    "source_id": "s1",
-                    "source_name": "Cam1",
-                    "event_type": "smoke",
-                    "event_label": "Smoke",
-                }
-            )
+            try:
+                results = await dispatcher.send_event(
+                    {
+                        "timestamp": "2026-01-01T00:00:00+00:00",
+                        "source_id": "s1",
+                        "source_name": "Cam1",
+                        "event_type": "smoke",
+                        "event_label": "Smoke",
+                    }
+                )
+            finally:
+                logger.remove(sink_id)
 
         assert len(results) == 2
         assert {item["message"] for item in results} == {email_provider.id, webhook_provider.id}
         assert send_provider.await_count == 2
+        assert any(
+            f"Notification dispatch started: provider={email_provider.id}" in item
+            and "type=email" in item
+            for item in log_messages
+        )
+        assert any(
+            f"Notification dispatch succeeded: provider={webhook_provider.id}" in item
+            and "type=webhook" in item
+            and "status=SUCCESS" in item
+            for item in log_messages
+        )
 
     async def test_dispatcher_uses_source_bound_policy(self, init_db):
         provider = await create_notification_provider(
@@ -520,17 +540,30 @@ class TestNotificationDispatcher:
         }
 
         dispatcher = NotificationDispatcher()
+        log_messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: log_messages.append(message.record["message"]),
+            level="INFO",
+        )
         with patch(
             "core.notification_client.SmtpNotificationProvider.send",
             new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
         ) as send:
-            await dispatcher.send_event(event)
-            skipped = await dispatcher.send_event(event)
-            forced = await dispatcher.send_event(event, force=True)
+            try:
+                await dispatcher.send_event(event)
+                skipped = await dispatcher.send_event(event)
+                forced = await dispatcher.send_event(event, force=True)
+            finally:
+                logger.remove(sink_id)
 
         assert skipped == []
         assert forced == [{"status": "SUCCESS", "message": "sent"}]
         assert send.await_count == 2
+        assert any(
+            f"Notification dispatch skipped by cooldown: provider={provider.id}" in item
+            and "cooldown_seconds=3600" in item
+            for item in log_messages
+        )
 
     async def test_dispatcher_force_uses_enabled_provider_without_source_policy(self, init_db):
         await create_notification_provider(
