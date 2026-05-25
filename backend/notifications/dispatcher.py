@@ -118,7 +118,7 @@ class NotificationDispatcher:
 
         async def dispatch_provider(provider: Any) -> dict[str, str] | None:
             provider_id = str(getattr(provider, "id", ""))
-            provider_type = str(getattr(provider, "type", ""))
+            provider_type = str(provider.type)
             provider_name = str(getattr(provider, "name", "") or provider_id)
             source_id = str(event.get("source_id") or "")
             event_type = str(event.get("event_type") or event.get("event_label") or "event")

@@ -24,6 +24,14 @@ from backend.notifications.dispatcher import NotificationDispatcher
 from core.notification_client import NotificationPayload, SmtpNotificationProvider, WebhookNotificationProvider
 
 
+def _capture_log_messages(target: list[str]):
+    def sink(message) -> None:
+        record = getattr(message, "record", {})
+        target.append(str(record.get("message", "")))
+
+    return sink
+
+
 class TestSceneFoundation:
     async def test_default_smoke_scene_is_seeded(self, async_client: AsyncClient):
         resp = await async_client.get("/api/scenes")
@@ -368,7 +376,7 @@ class TestNotificationDispatcher:
         dispatcher = NotificationDispatcher()
         log_messages: list[str] = []
         sink_id = logger.add(
-            lambda message: log_messages.append(message.record["message"]),
+            _capture_log_messages(log_messages),
             level="INFO",
         )
         with patch.object(
@@ -542,7 +550,7 @@ class TestNotificationDispatcher:
         dispatcher = NotificationDispatcher()
         log_messages: list[str] = []
         sink_id = logger.add(
-            lambda message: log_messages.append(message.record["message"]),
+            _capture_log_messages(log_messages),
             level="INFO",
         )
         with patch(
