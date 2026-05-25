@@ -88,6 +88,7 @@ import { useMessageStore } from '../stores/message.js'
 import { useSourceStore } from '../stores/source.js'
 import MessageList from '../components/MessageList.vue'
 
+const MESSAGE_PAGER_COUNT = 7
 const store = useMessageStore()
 const sourceStore = useSourceStore()
 const { t } = useI18n()
@@ -95,7 +96,6 @@ const filterSource = ref('')
 const scrollbar = ref(null)
 const refreshing = ref(false)
 const resendingMessageIds = ref({})
-const MESSAGE_PAGER_COUNT = 7
 const lastUpdatedLabel = computed(() => {
   if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
   return new Date(store.lastUpdatedAt).toLocaleString()
