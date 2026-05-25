@@ -60,13 +60,15 @@
     </el-scrollbar>
     <div class="messages-pagination">
       <el-pagination
+        class="messages-pagination__control"
         background
-        layout="sizes, prev, pager, next, total"
+        layout="total, sizes, prev, pager, next, jumper"
         :page-sizes="store.pageSizeOptions"
         :page-size="store.pageSize"
         :current-page="store.page"
         :total="store.total"
-        :pager-count="21"
+        :pager-count="messagePagerCount"
+        :disabled="refreshing || store.loading"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
       />
@@ -93,6 +95,7 @@ const filterSource = ref('')
 const scrollbar = ref(null)
 const refreshing = ref(false)
 const resendingMessageIds = ref({})
+const messagePagerCount = 7
 const lastUpdatedLabel = computed(() => {
   if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
   return new Date(store.lastUpdatedAt).toLocaleString()
@@ -286,6 +289,15 @@ onMounted(() => {
   background: #131a2e;
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+.messages-pagination__control {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.messages-pagination__control :deep(.el-pagination__jump) {
+  margin-left: 8px;
 }
 
 .messages-pagination__hint {
