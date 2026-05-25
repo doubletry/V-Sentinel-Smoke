@@ -133,7 +133,7 @@
       width="460px"
       :close-on-click-modal="false"
     >
-      <el-form :model="form" label-width="80px" @submit.prevent="addSource">
+      <el-form :model="form" label-width="132px" class="source-dialog-form" @submit.prevent="addSource">
         <el-form-item :label="t('sourceList.name')" required>
           <el-input v-model="form.name" :placeholder="t('sourceList.name')" />
         </el-form-item>
@@ -187,7 +187,7 @@
       width="460px"
       :close-on-click-modal="false"
     >
-      <el-form :model="editForm" label-width="80px" @submit.prevent="saveEdit">
+      <el-form :model="editForm" label-width="132px" class="source-dialog-form" @submit.prevent="saveEdit">
         <el-form-item :label="t('sourceList.name')" required>
           <el-input v-model="editForm.name" :placeholder="t('sourceList.name')" />
         </el-form-item>
@@ -613,6 +613,10 @@ onMounted(async () => {
   flex-direction: column;
   gap: 4px;
   width: 100%;
+}
+
+.source-dialog-form :deep(.el-form-item__label) {
+  white-space: nowrap;
 }
 
 .route-hint {

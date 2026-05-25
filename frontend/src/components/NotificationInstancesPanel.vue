@@ -136,6 +136,37 @@
             <div class="field-stack">
               <el-input v-model="form.webhook_payload_text" type="textarea" :rows="10" />
               <p class="form-hint">{{ t('settings.notificationWebhookPayloadHint') }}</p>
+              <div class="placeholder-group-list">
+                <div
+                  v-for="group in placeholderGroups"
+                  :key="`webhook-${group.key}`"
+                  class="placeholder-group"
+                >
+                  <div class="placeholder-group__title">{{ group.label }}</div>
+                  <div class="placeholder-tags">
+                    <el-tooltip
+                      v-for="item in group.items"
+                      :key="`webhook-${group.key}-${item}`"
+                      effect="dark"
+                      placement="top"
+                      trigger="hover"
+                      :show-after="120"
+                      :content="placeholderDescription(item)"
+                    >
+                      <el-tag
+                        size="small"
+                        effect="dark"
+                        :type="placeholderTagType(group.key)"
+                        class="placeholder-tag"
+                        tabindex="0"
+                        :title="placeholderDescription(item)"
+                      >
+                        {{ '{' + item + '}' }}
+                      </el-tag>
+                    </el-tooltip>
+                  </div>
+                </div>
+              </div>
             </div>
           </el-form-item>
         </div>
