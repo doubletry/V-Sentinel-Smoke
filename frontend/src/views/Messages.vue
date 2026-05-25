@@ -157,12 +157,8 @@ async function handleClearMessages() {
   } catch (_) {
     return
   }
-  try {
-    await store.clearMessages()
-    ElMessage.success(t('messages.clearSuccess'))
-  } catch (err) {
-    ElMessage.error(t('messages.clearFailed', { message: err.message }))
-  }
+  store.clearMessages()
+  ElMessage.success(t('messages.clearSuccess'))
 }
 
 async function handleMarkFalsePositive(message) {
