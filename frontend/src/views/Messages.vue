@@ -67,7 +67,7 @@
         :page-size="store.pageSize"
         :current-page="store.page"
         :total="store.total"
-        :pager-count="messagePagerCount"
+        :pager-count="MESSAGE_PAGER_COUNT"
         :disabled="refreshing || store.loading"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
@@ -95,7 +95,7 @@ const filterSource = ref('')
 const scrollbar = ref(null)
 const refreshing = ref(false)
 const resendingMessageIds = ref({})
-const messagePagerCount = 7
+const MESSAGE_PAGER_COUNT = 7
 const lastUpdatedLabel = computed(() => {
   if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
   return new Date(store.lastUpdatedAt).toLocaleString()
