@@ -4,16 +4,11 @@ import asyncio
 import base64
 import html
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from typing import Any
 
 from loguru import logger
 
 from backend.db import database as db
-from backend.notifications.email_config import (
-    build_email_settings_smtp_config,
-    has_email_settings_recipients,
-)
 from core.notification_client import (
     NotificationPayload,
     SmtpNotificationProvider,
@@ -71,18 +66,6 @@ class NotificationDispatcher:
         }
         templates = {template.id: template for template in await db.list_notification_templates()}
         policy_overrides = await self._policy_overrides_for_source(source)
-        settings_email_config = build_email_settings_smtp_config(app_settings)
-        if not providers and self._legacy_settings_email_enabled(app_settings) and has_email_settings_recipients(settings_email_config):
-            providers["default-email"] = SimpleNamespace(
-                id="default-email",
-                type="email",
-                enabled=True,
-                config={
-                    **settings_email_config,
-                    "subject_template": app_settings.get("email_event_subject_template", ""),
-                    "body_template": app_settings.get("email_event_body_template", ""),
-                },
-            )
         if not providers:
             logger.info(
                 "Notification dispatch skipped: no enabled providers for source={} event={}",
@@ -204,9 +187,6 @@ class NotificationDispatcher:
     def _cooldown_key(self, policy_id: str, event: dict[str, Any]) -> str:
         event_type = str(event.get("event_type") or event.get("label") or "event")
         return f"{policy_id}:{event.get('source_id', '')}:{event_type}"
-
-    def _legacy_settings_email_enabled(self, app_settings: dict[str, Any]) -> bool:
-        return str(app_settings.get("email_event_enabled", "true")).lower() in {"true", "1", "yes"}
 
     async def _policy_overrides_for_source(self, source: Any) -> dict[str, dict[str, Any]]:
         if source is None:

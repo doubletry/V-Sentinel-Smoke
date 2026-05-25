@@ -607,7 +607,7 @@ class TestNotificationDispatcher:
         assert results == [{"status": "SUCCESS", "message": "sent"}]
         send.assert_awaited_once()
 
-    async def test_dispatcher_uses_settings_email_for_default_provider(self, init_db):
+    async def test_dispatcher_does_not_use_legacy_settings_email_provider(self, init_db):
         await update_settings(
             {
                 "email_smtp_host": "smtp.example.com",
@@ -638,15 +638,8 @@ class TestNotificationDispatcher:
                 force=True,
             )
 
-        assert results == [{"status": "SUCCESS", "message": "sent"}]
-        send_provider.assert_awaited_once()
-        provider_type, config, payload = send_provider.await_args.args
-        assert provider_type == "email"
-        assert config["smtp_username"] == "sender@example.com"
-        assert config["smtp_password"] == "test-password-do-not-use"
-        assert config["use_tls"] is True
-        assert payload.subject == "Door open at Persisted Cam"
-        assert payload.body == "Source: Persisted Cam\nMessage: door open"
+        assert results == []
+        send_provider.assert_not_awaited()
 
     async def test_dispatcher_requires_complete_settings_email_provider(self, init_db):
         await update_settings(
