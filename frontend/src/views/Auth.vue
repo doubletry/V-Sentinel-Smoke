@@ -12,8 +12,15 @@
           <h2>{{ isRegisterMode ? t('auth.register') : t('auth.login') }}</h2>
         </div>
 
+        <el-skeleton
+          v-if="bootstrapLoading"
+          :rows="4"
+          animated
+          class="auth-skeleton"
+        />
+
         <el-form
-          v-if="isRegisterMode"
+          v-else-if="isRegisterMode"
           :model="registerForm"
           label-position="top"
           class="auth-form"
@@ -107,7 +114,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import ElMessage from 'element-plus/es/components/message/index'
@@ -119,6 +126,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const appSettingsStore = useAppSettingsStore()
+const bootstrapLoading = ref(true)
 
 const loginForm = reactive({
   username: '',
@@ -219,10 +227,14 @@ watch(
 )
 
 onMounted(async () => {
-  await Promise.all([
-    authStore.fetchBootstrap(),
-    appSettingsStore.fetchSettings().catch(() => null),
-  ])
+  try {
+    await Promise.all([
+      authStore.fetchBootstrap(),
+      appSettingsStore.fetchSettings().catch(() => null),
+    ])
+  } finally {
+    bootstrapLoading.value = false
+  }
   if (authStore.isAuthenticated) {
     await router.replace(redirectTarget())
   }
@@ -337,6 +349,10 @@ onMounted(async () => {
 
 .auth-form :deep(.el-form-item__label) {
   color: #b9c8e5;
+}
+
+.auth-skeleton {
+  padding: 4px 0 12px;
 }
 
 .auth-submit {

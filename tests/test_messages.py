@@ -7,11 +7,13 @@ from httpx import AsyncClient
 
 from backend.db.database import (
     build_analysis_message_image_url,
+    create_notification_provider,
     get_analysis_message_for_notification,
     list_analysis_messages,
     save_analysis_message,
     update_settings,
 )
+from backend.models.schemas import NotificationProviderCreate
 
 
 class TestMessagePersistence:
@@ -309,6 +311,92 @@ class TestMessagesAPI:
         data = resp.json()
         assert data["status"] == "failed"
         assert data["results"][0]["message"] == "SMTP host is required"
+
+    async def test_resend_notification_endpoint_uses_enabled_instances_not_legacy_settings(
+        self,
+        async_client: AsyncClient,
+    ):
+        await update_settings(
+            {
+                "email_smtp_host": "smtp.legacy.example.com",
+                "email_from_address": "legacy@example.com",
+                "email_to_addresses": "legacy-ops@example.com",
+                "email_event_enabled": "true",
+            }
+        )
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="Ops Webhook",
+                type="webhook",
+                enabled=True,
+                config={"url": "https://example.com/hooks/ops", "method": "POST"},
+            )
+        )
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted alert",
+            }
+        )
+
+        from backend.main import notification_dispatcher
+
+        with patch.object(
+            notification_dispatcher,
+            "_send_provider",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": provider.id}),
+        ) as send_provider:
+            resp = await async_client.post(f"/api/messages/{message_id}/resend-notification")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "sent"
+        assert data["results"] == [{"status": "SUCCESS", "message": provider.id}]
+        send_provider.assert_awaited_once()
+        provider_type, config, payload = send_provider.await_args.args
+        assert provider_type == "webhook"
+        assert config["url"] == "https://example.com/hooks/ops"
+        assert payload.context["message"] == "persisted alert"
+
+    async def test_resend_notification_endpoint_does_not_fallback_to_legacy_settings_email(
+        self,
+        async_client: AsyncClient,
+    ):
+        await update_settings(
+            {
+                "email_smtp_host": "smtp.legacy.example.com",
+                "email_from_address": "legacy@example.com",
+                "email_to_addresses": "legacy-ops@example.com",
+                "email_event_enabled": "true",
+            }
+        )
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "persisted alert",
+            }
+        )
+
+        from backend.main import notification_dispatcher
+
+        with patch.object(
+            notification_dispatcher,
+            "_send_provider",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "legacy"}),
+        ) as send_provider:
+            resp = await async_client.post(f"/api/messages/{message_id}/resend-notification")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "no_enabled_provider"
+        assert data["results"] == []
+        send_provider.assert_not_awaited()
 
     async def test_resend_notification_endpoint_returns_404(self, async_client: AsyncClient):
         resp = await async_client.post("/api/messages/missing/resend-notification")

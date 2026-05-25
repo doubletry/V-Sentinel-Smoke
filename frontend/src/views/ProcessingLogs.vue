@@ -6,22 +6,24 @@
         <p>{{ t('processingLogs.subtitle') }}</p>
       </div>
       <div class="header-right">
-        <el-select
-          v-model="logPageSize"
-          size="small"
-          style="width: 132px"
-          @change="handlePageSizeChange"
-        >
-          <el-option
-            v-for="size in logPageSizeOptions"
-            :key="size"
-            :label="t('processingLogs.pageSizeOption', { size })"
-            :value="size"
-          />
-        </el-select>
-        <el-button size="small" @click="loadLogs(logPage)">
-          {{ t('processingLogs.refresh') }}
-        </el-button>
+        <el-space :size="10" wrap alignment="center">
+          <el-select
+            v-model="logPageSize"
+            size="small"
+            style="width: 132px"
+            @change="handlePageSizeChange"
+          >
+            <el-option
+              v-for="size in logPageSizeOptions"
+              :key="size"
+              :label="t('processingLogs.pageSizeOption', { size })"
+              :value="size"
+            />
+          </el-select>
+          <el-button size="small" :loading="logsLoading" @click="loadLogs(logPage)">
+            {{ t('processingLogs.refresh') }}
+          </el-button>
+        </el-space>
       </div>
     </div>
 

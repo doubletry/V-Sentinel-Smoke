@@ -1,5 +1,5 @@
 <template>
-  <el-config-provider>
+  <el-config-provider :locale="elementLocale">
     <router-view v-if="isAuthRoute" />
     <el-container v-else class="app-container">
       <el-header class="app-header">
@@ -141,13 +141,15 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import en from 'element-plus/es/locale/lang/en'
 import { useRoute, useRouter } from 'vue-router'
 import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
 import { canViewProcessingLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
@@ -160,6 +162,7 @@ const passwordForm = reactive({
   newPassword: '',
   confirmPassword: '',
 })
+const elementLocale = computed(() => (locale.value === 'zh-CN' ? zhCn : en))
 
 const canSeeVideoWall = computed(() =>
   authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')

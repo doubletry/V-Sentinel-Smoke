@@ -52,39 +52,43 @@
             <div class="source-url">{{ getSourceRoute(source) }}</div>
           </div>
           <div class="source-actions">
-            <el-button
-              v-if="canOperateSources"
-              size="small"
-              :type="store.isRunning(source.id) ? 'warning' : 'success'"
-              :loading="actionLoading[source.id]"
-              @click="toggleAnalysis(source)"
-            >
-              {{ store.isRunning(source.id) ? t('sourceList.stop') : t('sourceList.analyze') }}
-            </el-button>
-            <el-button
-              v-if="canOperateSources"
-              size="small"
-              :title="t('common.edit')"
-              @click="openEditDialog(source)"
-            >
-              <el-icon><EditPen /></el-icon>
-            </el-button>
-            <el-button
-              v-if="canOperateSources"
-              size="small"
-              type="danger"
-              :title="t('common.delete')"
-              @click="confirmDelete(source)"
-            >
-              <el-icon><Delete /></el-icon>
-            </el-button>
+            <el-space :size="6" wrap>
+              <el-button
+                v-if="canOperateSources"
+                size="small"
+                :type="store.isRunning(source.id) ? 'warning' : 'success'"
+                :loading="actionLoading[source.id]"
+                @click="toggleAnalysis(source)"
+              >
+                {{ store.isRunning(source.id) ? t('sourceList.stop') : t('sourceList.analyze') }}
+              </el-button>
+              <el-button
+                v-if="canOperateSources"
+                size="small"
+                :title="t('common.edit')"
+                @click="openEditDialog(source)"
+              >
+                <el-icon><EditPen /></el-icon>
+              </el-button>
+              <el-button
+                v-if="canOperateSources"
+                size="small"
+                type="danger"
+                :title="t('common.delete')"
+                @click="confirmDelete(source)"
+              >
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </el-space>
           </div>
         </div>
 
-        <div v-if="!store.sources.length" class="empty-hint">
-          <el-icon :size="32" color="#555"><VideoCamera /></el-icon>
-          <span>{{ t('sourceList.noSources') }}</span>
-        </div>
+        <el-empty
+          v-if="!store.sources.length"
+          :description="t('sourceList.noSources')"
+          :image-size="64"
+          class="empty-hint"
+        />
       </el-scrollbar>
     </div>
 
@@ -113,10 +117,12 @@
           </div>
         </div>
 
-        <div v-if="!resultStreams.length" class="empty-hint">
-          <el-icon :size="24" color="#555"><Monitor /></el-icon>
-          <span>{{ t('sourceList.noResultStreams') }}</span>
-        </div>
+        <el-empty
+          v-if="!resultStreams.length"
+          :description="t('sourceList.noResultStreams')"
+          :image-size="56"
+          class="empty-hint"
+        />
       </el-scrollbar>
     </div>
 
@@ -127,7 +133,7 @@
       width="460px"
       :close-on-click-modal="false"
     >
-      <el-form :model="form" label-width="80px" @submit.prevent="addSource">
+      <el-form :model="form" label-width="132px" class="source-dialog-form" @submit.prevent="addSource">
         <el-form-item :label="t('sourceList.name')" required>
           <el-input v-model="form.name" :placeholder="t('sourceList.name')" />
         </el-form-item>
@@ -181,7 +187,7 @@
       width="460px"
       :close-on-click-modal="false"
     >
-      <el-form :model="editForm" label-width="80px" @submit.prevent="saveEdit">
+      <el-form :model="editForm" label-width="132px" class="source-dialog-form" @submit.prevent="saveEdit">
         <el-form-item :label="t('sourceList.name')" required>
           <el-input v-model="editForm.name" :placeholder="t('sourceList.name')" />
         </el-form-item>
@@ -609,6 +615,10 @@ onMounted(async () => {
   width: 100%;
 }
 
+.source-dialog-form :deep(.el-form-item__label) {
+  white-space: nowrap;
+}
+
 .route-hint {
   margin-top: 2px;
   color: #7587af;
@@ -627,13 +637,11 @@ onMounted(async () => {
 }
 
 .empty-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   padding: 20px;
-  gap: 8px;
-  color: #555;
+}
+
+.empty-hint :deep(.el-empty__description) {
+  color: #8aa6d9;
   font-size: 13px;
 }
 </style>

@@ -1,5 +1,10 @@
 <template>
-  <div class="video-wall">
+  <div
+    class="video-wall"
+    v-loading="store.loading && !store.sources.length"
+    :element-loading-text="t('videoWall.loading')"
+    element-loading-background="rgba(13, 13, 26, 0.72)"
+  >
     <!-- Left panel: source list -->
     <div class="left-panel">
       <SourceList />
@@ -13,11 +18,13 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSourceStore } from '../stores/source.js'
 import SourceList from '../components/SourceList.vue'
 import VideoGrid from '../components/VideoGrid.vue'
 
 const store = useSourceStore()
+const { t } = useI18n()
 
 onMounted(async () => {
   await store.fetchSources()

@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock
 from unittest.mock import patch
 from httpx import AsyncClient
+from loguru import logger
 
 from backend.db.database import (
     create_notification_policy,
@@ -20,7 +21,16 @@ from backend.models.schemas import (
 )
 from backend.auth.security import create_access_token
 from backend.notifications.dispatcher import NotificationDispatcher
-from core.notification_client import NotificationPayload, SmtpNotificationProvider
+from core.notification_client import NotificationPayload, SmtpNotificationProvider, WebhookNotificationProvider
+
+
+def _capture_log_messages(target: list[str]):
+    """Create a sink that appends each loguru Message's rendered text to target."""
+
+    def sink(message) -> None:
+        target.append(str(message.record["message"]))
+
+    return sink
 
 
 class TestSceneFoundation:
@@ -146,8 +156,7 @@ class TestNotificationFoundation:
                     "url": "https://example.com/hooks/ops",
                     "method": "POST",
                     "headers": {"X-Test": "1"},
-                    "subject_template": "Alert {source_name}",
-                    "body_template": "Message: {message}",
+                    "payload_template": {"text": "Message: {message}"},
                 },
             },
         )
@@ -259,6 +268,86 @@ class TestSmtpNotificationProvider:
         assert message["Subject"] == "Alert"
 
 
+class TestWebhookNotificationProvider:
+    def test_webhook_sends_configured_dictionary_payload(self):
+        captured = {}
+
+        class FakeResponse:
+            status = 204
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        def fake_urlopen(req, timeout):
+            captured["method"] = req.get_method()
+            captured["headers"] = dict(req.header_items())
+            captured["body"] = req.data.decode("utf-8")
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        provider = WebhookNotificationProvider(
+            {
+                "url": "https://example.com/hooks/ops",
+                "method": "PATCH",
+                "headers": {"X-Test": "1"},
+                "payload_template": {
+                    "title": "{event_label}",
+                    "source": {"name": "{source_name}"},
+                    "labels": ["{event_type}", "{message}"],
+                    "static": 1,
+                },
+            }
+        )
+
+        with patch("core.notification_client.urllib_request.urlopen", side_effect=fake_urlopen):
+            result = provider.send_sync(
+                NotificationPayload(
+                    subject="Ignored subject",
+                    body="Ignored body",
+                    context={
+                        "event_label": "Smoke",
+                        "source_name": "Cam1",
+                        "event_type": "smoke",
+                        "message": "Detected smoke",
+                    },
+                )
+            )
+
+        assert result == {"status": "SUCCESS", "message": "204"}
+        assert captured["method"] == "PATCH"
+        headers = {key.lower(): value for key, value in captured["headers"].items()}
+        assert headers["content-type"] == "application/json"
+        assert headers["x-test"] == "1"
+        assert captured["timeout"] == 10
+        assert captured["body"] == (
+            '{"title": "Smoke", "source": {"name": "Cam1"}, '
+            '"labels": ["smoke", "Detected smoke"], "static": 1}'
+        )
+
+    def test_webhook_rejects_non_object_payload_template(self):
+        provider = WebhookNotificationProvider(
+            {
+                "url": "https://example.com/hooks/ops",
+                "payload_template": ["not", "an", "object"],
+            }
+        )
+        with pytest.raises(ValueError, match="payload_template"):
+            provider.send_sync(NotificationPayload(subject="", body="", context={}))
+
+    def test_webhook_rejects_non_string_payload_keys(self):
+        provider = WebhookNotificationProvider(
+            {
+                "url": "https://example.com/hooks/ops",
+                "payload_template": {1: "bad"},
+            }
+        )
+        with pytest.raises(ValueError, match="keys must be strings"):
+            provider.send_sync(NotificationPayload(subject="", body="", context={}))
+
+
 class TestNotificationDispatcher:
     async def test_dispatcher_fans_out_all_enabled_instances(self, init_db):
         email_provider = await create_notification_provider(
@@ -286,6 +375,11 @@ class TestNotificationDispatcher:
         )
 
         dispatcher = NotificationDispatcher()
+        log_messages: list[str] = []
+        sink_id = logger.add(
+            _capture_log_messages(log_messages),
+            level="INFO",
+        )
         with patch.object(
             dispatcher,
             "_send_provider",
@@ -294,19 +388,33 @@ class TestNotificationDispatcher:
                 {"status": "SUCCESS", "message": webhook_provider.id},
             ]),
         ) as send_provider:
-            results = await dispatcher.send_event(
-                {
-                    "timestamp": "2026-01-01T00:00:00+00:00",
-                    "source_id": "s1",
-                    "source_name": "Cam1",
-                    "event_type": "smoke",
-                    "event_label": "Smoke",
-                }
-            )
+            try:
+                results = await dispatcher.send_event(
+                    {
+                        "timestamp": "2026-01-01T00:00:00+00:00",
+                        "source_id": "s1",
+                        "source_name": "Cam1",
+                        "event_type": "smoke",
+                        "event_label": "Smoke",
+                    }
+                )
+            finally:
+                logger.remove(sink_id)
 
         assert len(results) == 2
         assert {item["message"] for item in results} == {email_provider.id, webhook_provider.id}
         assert send_provider.await_count == 2
+        assert any(
+            f"Notification dispatch started: provider={email_provider.id}" in item
+            and "type=email" in item
+            for item in log_messages
+        )
+        assert any(
+            f"Notification dispatch succeeded: provider={webhook_provider.id}" in item
+            and "type=webhook" in item
+            and f"message={webhook_provider.id}" in item
+            for item in log_messages
+        )
 
     async def test_dispatcher_uses_source_bound_policy(self, init_db):
         provider = await create_notification_provider(
@@ -441,17 +549,30 @@ class TestNotificationDispatcher:
         }
 
         dispatcher = NotificationDispatcher()
+        log_messages: list[str] = []
+        sink_id = logger.add(
+            _capture_log_messages(log_messages),
+            level="INFO",
+        )
         with patch(
             "core.notification_client.SmtpNotificationProvider.send",
             new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
         ) as send:
-            await dispatcher.send_event(event)
-            skipped = await dispatcher.send_event(event)
-            forced = await dispatcher.send_event(event, force=True)
+            try:
+                await dispatcher.send_event(event)
+                skipped = await dispatcher.send_event(event)
+                forced = await dispatcher.send_event(event, force=True)
+            finally:
+                logger.remove(sink_id)
 
         assert skipped == []
         assert forced == [{"status": "SUCCESS", "message": "sent"}]
         assert send.await_count == 2
+        assert any(
+            f"Notification dispatch skipped by cooldown: provider={provider.id}" in item
+            and "cooldown_seconds=3600" in item
+            for item in log_messages
+        )
 
     async def test_dispatcher_force_uses_enabled_provider_without_source_policy(self, init_db):
         await create_notification_provider(
@@ -486,7 +607,7 @@ class TestNotificationDispatcher:
         assert results == [{"status": "SUCCESS", "message": "sent"}]
         send.assert_awaited_once()
 
-    async def test_dispatcher_uses_settings_email_for_default_provider(self, init_db):
+    async def test_dispatcher_does_not_use_legacy_settings_email_provider(self, init_db):
         await update_settings(
             {
                 "email_smtp_host": "smtp.example.com",
@@ -517,15 +638,8 @@ class TestNotificationDispatcher:
                 force=True,
             )
 
-        assert results == [{"status": "SUCCESS", "message": "sent"}]
-        send_provider.assert_awaited_once()
-        provider_type, config, payload = send_provider.await_args.args
-        assert provider_type == "email"
-        assert config["smtp_username"] == "sender@example.com"
-        assert config["smtp_password"] == "test-password-do-not-use"
-        assert config["use_tls"] is True
-        assert payload.subject == "Door open at Persisted Cam"
-        assert payload.body == "Source: Persisted Cam\nMessage: door open"
+        assert results == []
+        send_provider.assert_not_awaited()
 
     async def test_dispatcher_requires_complete_settings_email_provider(self, init_db):
         await update_settings(

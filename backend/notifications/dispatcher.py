@@ -4,16 +4,11 @@ import asyncio
 import base64
 import html
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from typing import Any
 
 from loguru import logger
 
 from backend.db import database as db
-from backend.notifications.email_config import (
-    build_email_settings_smtp_config,
-    has_email_settings_recipients,
-)
 from core.notification_client import (
     NotificationPayload,
     SmtpNotificationProvider,
@@ -71,19 +66,12 @@ class NotificationDispatcher:
         }
         templates = {template.id: template for template in await db.list_notification_templates()}
         policy_overrides = await self._policy_overrides_for_source(source)
-        settings_email_config = build_email_settings_smtp_config(app_settings)
-        if not providers and self._legacy_settings_email_enabled(app_settings) and has_email_settings_recipients(settings_email_config):
-            providers["default-email"] = SimpleNamespace(
-                id="default-email",
-                type="email",
-                enabled=True,
-                config={
-                    **settings_email_config,
-                    "subject_template": app_settings.get("email_event_subject_template", ""),
-                    "body_template": app_settings.get("email_event_body_template", ""),
-                },
-            )
         if not providers:
+            logger.info(
+                "Notification dispatch skipped: no enabled providers for source={} event={}",
+                event.get("source_id", ""),
+                event.get("event_type") or event.get("event_label") or "event",
+            )
             return []
 
         def build_payload(provider: Any, template_id: str | None = None) -> NotificationPayload:
@@ -113,6 +101,10 @@ class NotificationDispatcher:
 
         async def dispatch_provider(provider: Any) -> dict[str, str] | None:
             provider_id = str(getattr(provider, "id", ""))
+            provider_type = str(provider.type)
+            provider_name = str(getattr(provider, "name", None) or provider_id)
+            source_id = str(event.get("source_id") or "")
+            event_type = str(event.get("event_type") or event.get("event_label") or "event")
             provider_config = dict(getattr(provider, "config", {}) or {})
             override = policy_overrides.get(provider_id, {})
             cooldown_seconds = self._cooldown_seconds(
@@ -121,19 +113,60 @@ class NotificationDispatcher:
                 event,
             )
             if not force and not self._should_send(provider_id, cooldown_seconds, event):
+                logger.info(
+                    "Notification dispatch skipped by cooldown: provider={} name={} type={} source={} event={} cooldown_seconds={}",
+                    provider_id,
+                    provider_name,
+                    provider_type,
+                    source_id,
+                    event_type,
+                    cooldown_seconds,
+                )
                 return None
             payload = build_payload(provider, override.get("template_id"))
+            logger.info(
+                "Notification dispatch started: provider={} name={} type={} source={} event={}",
+                provider_id,
+                provider_name,
+                provider_type,
+                source_id,
+                event_type,
+            )
             try:
                 result = await self._send_provider(provider.type, provider_config, payload)
             except Exception as exc:  # pragma: no cover - side-effect logging
                 logger.warning(
-                    "Failed to send notification via provider {}: {}",
+                    "Notification dispatch failed: provider={} name={} type={} source={} event={} error={}",
                     provider_id,
+                    provider_name,
+                    provider_type,
+                    source_id,
+                    event_type,
                     exc,
                 )
                 result = {"status": "ERROR", "message": str(exc)}
             if result.get("status") == "SUCCESS":
                 self._mark_sent(provider_id, event)
+                logger.info(
+                    "Notification dispatch succeeded: provider={} name={} type={} source={} event={} message={}",
+                    provider_id,
+                    provider_name,
+                    provider_type,
+                    source_id,
+                    event_type,
+                    result.get("message", ""),
+                )
+            else:
+                logger.warning(
+                    "Notification dispatch finished with non-success status: provider={} name={} type={} source={} event={} status={} message={}",
+                    provider_id,
+                    provider_name,
+                    provider_type,
+                    source_id,
+                    event_type,
+                    result.get("status", ""),
+                    result.get("message", ""),
+                )
             return result
 
         results = await asyncio.gather(*(dispatch_provider(provider) for provider in providers.values()))
@@ -154,9 +187,6 @@ class NotificationDispatcher:
     def _cooldown_key(self, policy_id: str, event: dict[str, Any]) -> str:
         event_type = str(event.get("event_type") or event.get("label") or "event")
         return f"{policy_id}:{event.get('source_id', '')}:{event_type}"
-
-    def _legacy_settings_email_enabled(self, app_settings: dict[str, Any]) -> bool:
-        return str(app_settings.get("email_event_enabled", "true")).lower() in {"true", "1", "yes"}
 
     async def _policy_overrides_for_source(self, source: Any) -> dict[str, dict[str, Any]]:
         if source is None:

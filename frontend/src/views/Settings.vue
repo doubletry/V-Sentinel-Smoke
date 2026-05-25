@@ -706,6 +706,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
+import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
 import { scenesApi, settingsApi } from '../api/index.js'
@@ -1221,6 +1222,19 @@ async function reload() {
 }
 
 async function restoreSection(sectionId, keys) {
+  try {
+    await ElMessageBox.confirm(
+      t('settings.restoreSectionConfirmMessage'),
+      t('settings.restoreSectionConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('settings.restoreSection'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
+  } catch (_) {
+    return
+  }
   activeRestoreSection.value = sectionId
   try {
     const data = await appSettingsStore.fetchSettings(true)
@@ -1378,12 +1392,40 @@ function onSiteIconChange(uploadFile) {
   reader.readAsDataURL(raw)
 }
 
-function resetSiteIcon() {
+async function resetSiteIcon() {
+  try {
+    await ElMessageBox.confirm(
+      t('settings.resetSiteIconConfirmMessage'),
+      t('settings.resetSiteIconConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('settings.resetSiteIcon'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
+  } catch (_) {
+    return
+  }
   form.value.favicon_url = '/favicon.ico'
+  ElMessage.success(t('common.reset'))
 }
 
-function resetSmokeAdvancedThresholds() {
+async function resetSmokeAdvancedThresholds() {
+  try {
+    await ElMessageBox.confirm(
+      t('settings.resetAdvancedThresholdsConfirmMessage'),
+      t('settings.resetAdvancedThresholdsConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('settings.resetAdvancedThresholds'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
+  } catch (_) {
+    return
+  }
   Object.assign(form.value, SMOKE_ADVANCED_DEFAULTS)
+  ElMessage.success(t('common.reset'))
 }
 
 watch(
