@@ -25,7 +25,7 @@ from core.notification_client import NotificationPayload, SmtpNotificationProvid
 
 
 def _capture_log_messages(target: list[str]):
-    """Create a loguru sink that appends rendered log messages to target."""
+    """Create a sink that appends each loguru Message's rendered text to target."""
 
     def sink(message) -> None:
         target.append(str(message.record["message"]))
@@ -412,7 +412,7 @@ class TestNotificationDispatcher:
         assert any(
             f"Notification dispatch succeeded: provider={webhook_provider.id}" in item
             and "type=webhook" in item
-            and "status=SUCCESS" in item
+            and f"message={webhook_provider.id}" in item
             for item in log_messages
         )
 

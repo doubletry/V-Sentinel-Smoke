@@ -165,13 +165,12 @@ class NotificationDispatcher:
             if result.get("status") == "SUCCESS":
                 self._mark_sent(provider_id, event)
                 logger.info(
-                    "Notification dispatch succeeded: provider={} name={} type={} source={} event={} status={} message={}",
+                    "Notification dispatch succeeded: provider={} name={} type={} source={} event={} message={}",
                     provider_id,
                     provider_name,
                     provider_type,
                     source_id,
                     event_type,
-                    result.get("status", ""),
                     result.get("message", ""),
                 )
             else:
