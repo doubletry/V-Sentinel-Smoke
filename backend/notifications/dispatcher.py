@@ -150,7 +150,7 @@ class NotificationDispatcher:
                 event_type,
             )
             try:
-                result = await self._send_provider(provider_type, provider_config, payload)
+                result = await self._send_provider(provider.type, provider_config, payload)
             except Exception as exc:  # pragma: no cover - side-effect logging
                 logger.warning(
                     "Notification dispatch failed: provider={} name={} type={} source={} event={} error={}",

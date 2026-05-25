@@ -28,8 +28,7 @@ def _capture_log_messages(target: list[str]):
     """Create a loguru sink that appends rendered log messages to target."""
 
     def sink(message) -> None:
-        record = getattr(message, "record", {})
-        target.append(str(record.get("message", "")))
+        target.append(str(message.record["message"]))
 
     return sink
 
