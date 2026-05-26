@@ -1875,6 +1875,10 @@ onMounted(async () => {
   --management-nav-card-bg-end: rgba(11, 17, 31, 0.78);
   --management-nav-card-active-start: rgba(34, 74, 148, 0.85);
   --management-nav-card-active-end: rgba(15, 28, 58, 0.95);
+  --users-management-side-card-bg-start: rgba(25, 35, 60, 0.86);
+  --users-management-side-card-bg-end: rgba(14, 20, 36, 0.94);
+  --users-management-side-card-border: rgba(77, 101, 154, 0.55);
+  --users-management-side-card-shadow: rgba(4, 10, 24, 0.22);
   height: 100%;
   overflow-y: auto;
   padding: 24px 28px 32px;
@@ -2373,7 +2377,7 @@ onMounted(async () => {
 
 .users-management-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
   gap: 18px;
   align-items: start;
 }
@@ -2391,17 +2395,21 @@ onMounted(async () => {
 
 .users-management-side .section-card {
   background:
-    linear-gradient(180deg, rgba(25, 35, 60, 0.86), rgba(14, 20, 36, 0.94)),
+    linear-gradient(
+      180deg,
+      var(--users-management-side-card-bg-start),
+      var(--users-management-side-card-bg-end)
+    ),
     rgba(255, 255, 255, 0.025);
-  border-color: rgba(77, 101, 154, 0.55);
-  box-shadow: 0 18px 42px rgba(4, 10, 24, 0.22);
+  border-color: var(--users-management-side-card-border);
+  box-shadow: 0 18px 42px var(--users-management-side-card-shadow);
 }
 
 .users-management-side .section-card + .section-card {
   margin-top: 0;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
   .users-management-layout {
     grid-template-columns: 1fr;
   }
