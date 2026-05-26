@@ -45,10 +45,10 @@
          canvas; shown again on cancel or completion.
          主工具栏——绘制时隐藏以免遮挡画布，取消或完成时重新显示。 -->
     <div v-if="!isDrawing" class="roi-toolbar">
-      <!-- Zoom controls + frozen-frame badge (shown in both edit and preview modes).
-           缩放控件 + 冻结画面徽章（编辑模式和预览模式都显示）。 -->
+      <!-- Zoom controls + mode badge (shown in both edit and preview modes).
+           缩放控件 + 模式徽章（编辑模式和预览模式都显示）。 -->
       <el-tag size="small" type="warning" effect="dark" class="frozen-badge">
-        {{ t('roi.frozenBadge') }}
+        {{ readOnly ? t('roi.liveZoomBadge') : t('roi.frozenBadge') }}
       </el-tag>
       <el-button-group class="zoom-group">
         <el-button size="small" :disabled="zoom <= MIN_ZOOM + 1e-6" @click="zoomOutBtn" :title="t('roi.zoomOut')">
@@ -209,9 +209,9 @@ const spaceHeld = ref(false)
 const isPanning = ref(false)
 let panStart = null
 
-// Frozen frame state — captured from the underlying <video> element when
-// the drawer mounts. While the drawer is active the live video is paused
-// and visually hidden so that all rendering happens on the canvas.
+// Frozen frame state — captured from the underlying <video> element in edit
+// mode only. Preview mode keeps the live video running and applies the same
+// CSS transform as the canvas so zoom/pan remains aligned.
 const frameCanvas = ref(null) // HTMLCanvasElement | null
 const frameAspect = ref(0) // videoWidth/videoHeight at snapshot time
 const cssFallbackZoom = ref(false) // true if drawImage threw SecurityError
@@ -588,10 +588,9 @@ function render() {
 
   const invZoom = 1 / Math.max(zoom.value, 1e-6)
 
-  // Draw the frozen frame inside the videoRect (replaces the implicit
-  // show-through of the live <video>). If the snapshot is unavailable
-  // (e.g. tainted-canvas fallback), the underlying <video> remains
-  // visible behind the canvas and is scaled via CSS — we skip drawing.
+  // Edit mode draws the frozen frame inside the videoRect. Preview mode (or
+  // edit-mode tainted-canvas fallback) keeps the underlying <video> visible
+  // behind the canvas and scaled via CSS, so we skip drawing a frame here.
   if (frameCanvas.value && !cssFallbackZoom.value) {
     try {
       ctx.drawImage(
@@ -1008,8 +1007,8 @@ function captureFrame(videoEl) {
   }
 }
 
-/** Apply the freeze: pause the video, hide it (if snapshot succeeded), and
- *  scale it via CSS in fallback mode. */
+/** Edit mode only: pause the video, hide it if snapshot succeeds, or keep it
+ *  visible and scaled via CSS in fallback mode. */
 function freezeVideo() {
   videoElRef = getVideoElement()
   if (!videoElRef) return
@@ -1025,10 +1024,10 @@ function freezeVideo() {
 
 function applyVideoStyle() {
   if (!videoElRef) return
-  if (cssFallbackZoom.value) {
-    // In CSS-zoom fallback, we keep the <video> visible and apply a CSS
-    // transform that mirrors the canvas view transform. The video sits
-    // behind the canvas (z-index of <video> < .roi-canvas:100).
+  if (props.readOnly || cssFallbackZoom.value) {
+    // In preview mode, or in edit-mode CSS-zoom fallback, keep the <video>
+    // visible and apply a CSS transform that mirrors the canvas view
+    // transform. Preview mode deliberately does not pause or snapshot video.
     videoElRef.style.transformOrigin = '0 0'
     videoElRef.style.transform = `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`
     videoElRef.style.visibility = 'visible'
@@ -1056,7 +1055,23 @@ function restoreVideo() {
   cssFallbackZoom.value = false
 }
 
+function enableLiveVideoZoom() {
+  videoElRef = getVideoElement()
+  if (!videoElRef) return
+  videoWasPlaying = false
+  frameCanvas.value = null
+  frameAspect.value = 0
+  cssFallbackZoom.value = false
+  applyVideoStyle()
+}
+
 function reSnapshotIfPossible() {
+  if (props.readOnly) {
+    enableLiveVideoZoom()
+    resetView()
+    return
+  }
+
   const videoEl = getVideoElement()
   if (!videoEl) return
   // Only re-capture if videoWidth is available; otherwise wait until next
@@ -1072,7 +1087,7 @@ function reSnapshotIfPossible() {
 
 // Keep CSS transform in sync with reactive zoom/pan in fallback mode.
 watch([zoom, panX, panY], () => {
-  if (cssFallbackZoom.value) applyVideoStyle()
+  if (props.readOnly || cssFallbackZoom.value) applyVideoStyle()
 })
 
 watch(() => props.source?.id, () => {
@@ -1090,6 +1105,13 @@ watch(activePluginId, () => {
 watch(() => props.readOnly, () => {
   selectedIdx.value = null
   clearDrawingState()
+  restoreVideo()
+  resetView()
+  if (props.readOnly) {
+    enableLiveVideoZoom()
+  } else {
+    reSnapshotIfPossible()
+  }
   render()
 })
 
@@ -1105,12 +1127,14 @@ onMounted(async () => {
   resizeCanvas()
   overlayEl.value?.focus()
 
-  // Freeze the underlying video as soon as the drawer mounts. If the video
-  // is not ready yet, wait for the next loadedmetadata / loadeddata event
-  // and snapshot then.
+  // Edit mode freezes the underlying video as soon as the drawer mounts.
+  // Preview mode keeps the video live and only applies zoom/pan transforms.
   const videoEl = getVideoElement()
   if (videoEl) {
-    if (videoEl.videoWidth && videoEl.videoHeight) {
+    if (props.readOnly) {
+      enableLiveVideoZoom()
+      render()
+    } else if (videoEl.videoWidth && videoEl.videoHeight) {
       freezeVideo()
       render()
     } else {

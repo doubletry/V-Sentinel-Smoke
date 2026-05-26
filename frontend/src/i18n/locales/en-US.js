@@ -164,6 +164,7 @@ export default {
     exportFailed: 'Failed to export ROIs',
     importSuccess: 'ROIs imported successfully',
     importFailed: 'Failed to import ROIs',
+    liveZoomBadge: 'Live preview · scroll to zoom',
     frozenBadge: 'Frame paused · scroll to zoom',
     frameCaptureFailed: 'Cannot snapshot current frame, falling back to CSS zoom mode',
     zoomIn: 'Zoom in',

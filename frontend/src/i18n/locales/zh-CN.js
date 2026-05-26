@@ -164,6 +164,7 @@ export default {
     exportFailed: '导出 ROI 失败',
     importSuccess: 'ROI 导入成功',
     importFailed: 'ROI 导入失败',
+    liveZoomBadge: '实时预览 · 滚轮缩放',
     frozenBadge: '画面已暂停 · 滚轮缩放',
     frameCaptureFailed: '无法快照当前画面，将使用降级模式（CSS 缩放）',
     zoomIn: '放大',
