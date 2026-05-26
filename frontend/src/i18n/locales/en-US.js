@@ -164,6 +164,13 @@ export default {
     exportFailed: 'Failed to export ROIs',
     importSuccess: 'ROIs imported successfully',
     importFailed: 'Failed to import ROIs',
+    frozenBadge: 'Frame paused · scroll to zoom',
+    frameCaptureFailed: 'Cannot snapshot current frame, falling back to CSS zoom mode',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    resetView: 'Reset view',
+    zoomLevel: 'Zoom {percent}%',
+    panHint: 'Hold Space or middle mouse button to pan',
   },
   videoPlayer: {
     connecting: 'Connecting...',

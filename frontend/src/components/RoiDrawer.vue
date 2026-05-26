@@ -3,15 +3,20 @@
     class="roi-drawer-overlay"
     :class="{ 'read-only': readOnly }"
     @keydown="onKeyDown"
+    @keyup="onKeyUp"
     tabindex="0"
     ref="overlayEl"
   >
     <canvas
       ref="canvasEl"
       class="roi-canvas"
+      :class="{ 'is-panning': isPanning, 'space-down': spaceHeld && !readOnly }"
       @mousedown="onMouseDown"
       @mousemove="onMouseMove"
       @mouseup="onMouseUp"
+      @mouseleave="onMouseLeave"
+      @wheel.prevent="onWheel"
+      @contextmenu.prevent
       @dblclick.prevent="onDblClick"
     />
 
@@ -40,6 +45,26 @@
          canvas; shown again on cancel or completion.
          主工具栏——绘制时隐藏以免遮挡画布，取消或完成时重新显示。 -->
     <div v-if="!isDrawing" class="roi-toolbar">
+      <!-- Zoom controls + frozen-frame badge (shown in both edit and preview modes).
+           缩放控件 + 冻结画面徽章（编辑模式和预览模式都显示）。 -->
+      <el-tag size="small" type="warning" effect="dark" class="frozen-badge">
+        {{ t('roi.frozenBadge') }}
+      </el-tag>
+      <el-button-group class="zoom-group">
+        <el-button size="small" :disabled="zoom <= MIN_ZOOM + 1e-6" @click="zoomOutBtn" :title="t('roi.zoomOut')">
+          <el-icon><ZoomOut /></el-icon>
+        </el-button>
+        <el-button size="small" disabled class="zoom-level-btn">
+          {{ t('roi.zoomLevel', { percent: Math.round(zoom * 100) }) }}
+        </el-button>
+        <el-button size="small" :disabled="zoom >= MAX_ZOOM - 1e-6" @click="zoomInBtn" :title="t('roi.zoomIn')">
+          <el-icon><ZoomIn /></el-icon>
+        </el-button>
+        <el-button size="small" :disabled="zoom === 1 && panX === identityPan.x && panY === identityPan.y" @click="resetView" :title="t('roi.resetView')">
+          <el-icon><Refresh /></el-icon>
+        </el-button>
+      </el-button-group>
+
       <template v-if="!readOnly">
         <el-button-group>
           <el-button
@@ -114,6 +139,8 @@
 
     <div v-if="!readOnly && isDrawing" class="draw-hint">
       {{ mode === 'polygon' ? t('roi.polygonHint') : t('roi.rectangleHint') }}
+      <br />
+      <span class="draw-hint-sub">{{ t('roi.panHint') }}</span>
     </div>
   </div>
 </template>
@@ -122,10 +149,20 @@
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
+import { ZoomIn, ZoomOut, Refresh } from '@element-plus/icons-vue'
 import { useSourceStore } from '../stores/source.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { scenesApi, sourcesApi } from '../api/index.js'
 import { localizedSceneLabel, sceneScopedRoiTagLabel } from '../utils/roiTags.js'
+import {
+  MIN_ZOOM,
+  MAX_ZOOM,
+  WHEEL_STEP,
+  clampPan,
+  identityView,
+  screenToWorld,
+  zoomAt,
+} from '../utils/roiView.js'
 
 const props = defineProps({
   source: {
@@ -160,6 +197,27 @@ const pointerPos = ref(null)
 /** Screen-relative position where the shape was selected (for floating menu).
     形状被选中时的屏幕相对坐标（用于浮动菜单）。 */
 const selectionPos = ref({ x: 0, y: 0 })
+
+// ── View transform (zoom + pan) state ──────────────────────────────────────
+// View transform maps world-space (the same coordinate system as the
+// existing getVideoRect / canvasToNorm helpers) to screen-space.
+// Forward: screen = world * scale + pan ; Inverse: world = (screen - pan)/scale
+const zoom = ref(1)
+const panX = ref(0)
+const panY = ref(0)
+const spaceHeld = ref(false)
+const isPanning = ref(false)
+let panStart = null
+
+// Frozen frame state — captured from the underlying <video> element when
+// the drawer mounts. While the drawer is active the live video is paused
+// and visually hidden so that all rendering happens on the canvas.
+const frameCanvas = ref(null) // HTMLCanvasElement | null
+const frameAspect = ref(0) // videoWidth/videoHeight at snapshot time
+const cssFallbackZoom = ref(false) // true if drawImage threw SecurityError
+let videoElRef = null
+let videoWasPlaying = false
+let rafHandle = 0
 
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const activePluginId = computed(() => appSettingsStore.activePluginId || DEFAULT_SCENE_ID)
@@ -218,17 +276,93 @@ const contextMenuStyle = computed(() => {
 
 let dragState = null
 
+function clampPanReactive(scaleVal = zoom.value) {
+  const canvas = canvasEl.value
+  if (!canvas) return
+  const videoRect = getVideoRect()
+  const clamped = clampPan(panX.value, panY.value, scaleVal, videoRect, {
+    width: canvas.width,
+    height: canvas.height,
+  })
+  panX.value = clamped.panX
+  panY.value = clamped.panY
+}
+
+const identityPan = computed(() => {
+  const canvas = canvasEl.value
+  if (!canvas) return { x: 0, y: 0 }
+  const videoRect = getVideoRect()
+  const id = identityView(videoRect, { width: canvas.width, height: canvas.height })
+  return { x: id.panX, y: id.panY }
+})
+
+function resetView() {
+  zoom.value = 1
+  panX.value = 0
+  panY.value = 0
+  clampPanReactive(1)
+  scheduleRender()
+}
+
+function applyZoomAt(cursor, newScale) {
+  const canvas = canvasEl.value
+  if (!canvas) return
+  const videoRect = getVideoRect()
+  const next = zoomAt(
+    cursor,
+    newScale,
+    { scale: zoom.value, panX: panX.value, panY: panY.value },
+    videoRect,
+    { width: canvas.width, height: canvas.height },
+  )
+  zoom.value = next.scale
+  panX.value = next.panX
+  panY.value = next.panY
+  scheduleRender()
+}
+
+function zoomInBtn() {
+  const canvas = canvasEl.value
+  if (!canvas) return
+  applyZoomAt({ x: canvas.width / 2, y: canvas.height / 2 }, zoom.value * WHEEL_STEP)
+}
+
+function zoomOutBtn() {
+  const canvas = canvasEl.value
+  if (!canvas) return
+  applyZoomAt({ x: canvas.width / 2, y: canvas.height / 2 }, zoom.value / WHEEL_STEP)
+}
+
+function scheduleRender() {
+  if (rafHandle) return
+  rafHandle = requestAnimationFrame(() => {
+    rafHandle = 0
+    render()
+  })
+}
+
 function resizeCanvas() {
   if (!canvasEl.value) return
   const parent = canvasEl.value.parentElement
   canvasEl.value.width = parent.clientWidth
   canvasEl.value.height = parent.clientHeight
+  clampPanReactive()
   render()
 }
 
 function getCanvasPos(event) {
   const rect = canvasEl.value.getBoundingClientRect()
   return { x: event.clientX - rect.left, y: event.clientY - rect.top }
+}
+
+/** Convert a mouse event to world-space coordinates (the coordinate system
+    used by getVideoRect / canvasToNorm). */
+function getWorldPos(event) {
+  return screenToWorld(getCanvasPos(event), {
+    scale: zoom.value,
+    panX: panX.value,
+    panY: panY.value,
+  })
 }
 
 function getVideoElement() {
@@ -329,6 +463,8 @@ function isPointInPolygon(point, polygon) {
 
 function hitTestShapes(pos) {
   const videoRect = getVideoRect()
+  // Hit radius is fixed in screen pixels (8 px); divide by zoom for world space.
+  const hitRadius = 8 / Math.max(zoom.value, 1e-6)
   for (let i = shapes.value.length - 1; i >= 0; i--) {
     const shape = shapes.value[i]
     const canvasPoints = shape.points.map((point) => normToCanvas(point, videoRect))
@@ -336,7 +472,7 @@ function hitTestShapes(pos) {
     for (let j = 0; j < canvasPoints.length; j++) {
       const dx = canvasPoints[j].x - pos.x
       const dy = canvasPoints[j].y - pos.y
-      if (Math.sqrt(dx * dx + dy * dy) < 8) {
+      if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
         return { shapeIdx: i, vertexIdx: j }
       }
     }
@@ -349,7 +485,7 @@ function hitTestShapes(pos) {
   return null
 }
 
-function drawShape(ctx, shape, idx, videoRect) {
+function drawShape(ctx, shape, idx, videoRect, invZoom) {
   const points = shape.points.map((point) => normToCanvas(point, videoRect))
   if (!points.length) return
 
@@ -363,7 +499,7 @@ function drawShape(ctx, shape, idx, videoRect) {
   }
   ctx.closePath()
   ctx.strokeStyle = color
-  ctx.lineWidth = 2
+  ctx.lineWidth = 2 * invZoom
   ctx.stroke()
   ctx.fillStyle = `${color}22`
   ctx.fill()
@@ -371,20 +507,20 @@ function drawShape(ctx, shape, idx, videoRect) {
   if (!props.readOnly) {
     points.forEach((point) => {
       ctx.beginPath()
-      ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2)
+      ctx.arc(point.x, point.y, 4.5 * invZoom, 0, Math.PI * 2)
       ctx.fillStyle = color
       ctx.fill()
     })
   }
 
   if (shape.tag) {
-    ctx.font = '12px sans-serif'
+    ctx.font = `${12 * invZoom}px sans-serif`
     ctx.fillStyle = color
-    ctx.fillText(shape.tag, points[0].x + 6, points[0].y - 8)
+    ctx.fillText(shape.tag, points[0].x + 6 * invZoom, points[0].y - 8 * invZoom)
   }
 }
 
-function drawPolygonPreview(ctx, videoRect) {
+function drawPolygonPreview(ctx, videoRect, invZoom) {
   if (!(isDrawing.value && mode.value === 'polygon' && currentPoints.value.length)) return
 
   const points = currentPoints.value.map((point) => normToCanvas(point, videoRect))
@@ -401,12 +537,12 @@ function drawPolygonPreview(ctx, videoRect) {
     ctx.lineTo(pointer.x, pointer.y)
   }
   ctx.strokeStyle = '#80ff80'
-  ctx.lineWidth = 2
+  ctx.lineWidth = 2 * invZoom
   ctx.stroke()
 
   if (pointer && points.length >= 2) {
     ctx.beginPath()
-    ctx.setLineDash([4, 4])
+    ctx.setLineDash([4 * invZoom, 4 * invZoom])
     ctx.moveTo(pointer.x, pointer.y)
     ctx.lineTo(points[0].x, points[0].y)
     ctx.strokeStyle = '#80ff80aa'
@@ -416,13 +552,13 @@ function drawPolygonPreview(ctx, videoRect) {
 
   points.forEach((point) => {
     ctx.beginPath()
-    ctx.arc(point.x, point.y, 4, 0, Math.PI * 2)
+    ctx.arc(point.x, point.y, 4 * invZoom, 0, Math.PI * 2)
     ctx.fillStyle = '#80ff80'
     ctx.fill()
   })
 }
 
-function drawRectanglePreview(ctx, videoRect) {
+function drawRectanglePreview(ctx, videoRect, invZoom) {
   if (!(isDrawing.value && mode.value === 'rectangle' && rectStart.value && pointerPos.value)) return
 
   const start = normToCanvas(rectStart.value, videoRect)
@@ -433,7 +569,7 @@ function drawRectanglePreview(ctx, videoRect) {
   const height = Math.abs(start.y - end.y)
 
   ctx.strokeStyle = '#80ff80'
-  ctx.lineWidth = 2
+  ctx.lineWidth = 2 * invZoom
   ctx.strokeRect(x, y, width, height)
 }
 
@@ -445,16 +581,44 @@ function render() {
   const videoRect = getVideoRect()
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+  // Apply view transform: screen = world * scale + pan
   ctx.save()
-  ctx.setLineDash([6, 4])
+  ctx.translate(panX.value, panY.value)
+  ctx.scale(zoom.value, zoom.value)
+
+  const invZoom = 1 / Math.max(zoom.value, 1e-6)
+
+  // Draw the frozen frame inside the videoRect (replaces the implicit
+  // show-through of the live <video>). If the snapshot is unavailable
+  // (e.g. tainted-canvas fallback), the underlying <video> remains
+  // visible behind the canvas and is scaled via CSS — we skip drawing.
+  if (frameCanvas.value && !cssFallbackZoom.value) {
+    try {
+      ctx.drawImage(
+        frameCanvas.value,
+        videoRect.x,
+        videoRect.y,
+        videoRect.width,
+        videoRect.height,
+      )
+    } catch (_err) {
+      // Defensive: should never happen because frameCanvas is our own canvas.
+    }
+  }
+
+  // Dashed outline of the video region.
+  ctx.save()
+  ctx.setLineDash([6 * invZoom, 4 * invZoom])
   ctx.strokeStyle = 'rgba(64, 160, 240, 0.5)'
-  ctx.lineWidth = 1
+  ctx.lineWidth = 1 * invZoom
   ctx.strokeRect(videoRect.x, videoRect.y, videoRect.width, videoRect.height)
   ctx.restore()
 
-  shapes.value.forEach((shape, idx) => drawShape(ctx, shape, idx, videoRect))
-  drawPolygonPreview(ctx, videoRect)
-  drawRectanglePreview(ctx, videoRect)
+  shapes.value.forEach((shape, idx) => drawShape(ctx, shape, idx, videoRect, invZoom))
+  drawPolygonPreview(ctx, videoRect, invZoom)
+  drawRectanglePreview(ctx, videoRect, invZoom)
+
+  ctx.restore()
 }
 
 function clearDrawingState() {
@@ -497,6 +661,24 @@ function finishPolygon() {
 }
 
 function onMouseDown(event) {
+  overlayEl.value?.focus()
+
+  // Pan: middle button OR Space+left button. Allowed in both readOnly and edit modes.
+  const isPanGesture =
+    event.button === 1 || (event.button === 0 && spaceHeld.value)
+  if (isPanGesture) {
+    isPanning.value = true
+    panStart = {
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      panX: panX.value,
+      panY: panY.value,
+    }
+    event.preventDefault()
+    return
+  }
+
+  if (event.button !== 0) return
   if (props.readOnly) return
 
   const videoEl = getVideoElement()
@@ -505,8 +687,7 @@ function onMouseDown(event) {
     return
   }
 
-  overlayEl.value?.focus()
-  const pos = getCanvasPos(event)
+  const pos = getWorldPos(event)
   pointerPos.value = pos
   const videoRect = getVideoRect()
 
@@ -521,7 +702,7 @@ function onMouseDown(event) {
         startMouse: pos,
         startPoints: shapes.value[hit.shapeIdx].points.map((point) => ({ ...point })),
       }
-      render()
+      scheduleRender()
       return
     }
   }
@@ -537,7 +718,7 @@ function onMouseDown(event) {
   if (mode.value === 'polygon') {
     isDrawing.value = true
     currentPoints.value.push(pointNorm)
-    render()
+    scheduleRender()
     return
   }
 
@@ -549,16 +730,24 @@ function onMouseDown(event) {
       finalizeRectangle(rectStart.value, pointNorm)
       clearDrawingState()
     }
-    render()
+    scheduleRender()
   }
 }
 
 function onMouseMove(event) {
-  const pos = getCanvasPos(event)
+  if (isPanning.value && panStart) {
+    panX.value = panStart.panX + (event.clientX - panStart.mouseX)
+    panY.value = panStart.panY + (event.clientY - panStart.mouseY)
+    clampPanReactive()
+    scheduleRender()
+    return
+  }
+
+  const pos = getWorldPos(event)
   pointerPos.value = pos
 
   if (props.readOnly) {
-    render()
+    scheduleRender()
     return
   }
 
@@ -566,6 +755,7 @@ function onMouseMove(event) {
     const videoRect = getVideoRect()
     const width = videoRect.width || 1
     const height = videoRect.height || 1
+    // pos and startMouse are both in world space → delta is already correct.
     const dx = (pos.x - dragState.startMouse.x) / width
     const dy = (pos.y - dragState.startMouse.y) / height
     const shape = shapes.value[dragState.shapeIdx]
@@ -583,24 +773,45 @@ function onMouseMove(event) {
       })
     }
 
-    render()
+    scheduleRender()
     return
   }
 
   if (isDrawing.value) {
-    render()
+    scheduleRender()
   }
 }
 
 function onMouseUp(event) {
+  if (isPanning.value) {
+    isPanning.value = false
+    panStart = null
+    return
+  }
   if (dragState) {
     // Update context-menu anchor to the release position so the floating
     // toolbar follows the shape after dragging.
     // 更新上下文菜单锚点到释放位置，使浮动工具栏跟随形状拖拽。
     selectionPos.value = { x: event.clientX, y: event.clientY }
     dragState = null
-    render()
+    scheduleRender()
   }
+}
+
+function onMouseLeave() {
+  // Cancel any in-progress pan if the cursor leaves the canvas; otherwise
+  // a stuck pan-state can prevent normal interaction.
+  if (isPanning.value) {
+    isPanning.value = false
+    panStart = null
+  }
+}
+
+function onWheel(event) {
+  // Zoom centered on the cursor; clamp into [MIN_ZOOM, MAX_ZOOM].
+  const cursor = getCanvasPos(event)
+  const factor = event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP
+  applyZoomAt(cursor, zoom.value * factor)
 }
 
 function onDblClick() {
@@ -610,6 +821,13 @@ function onDblClick() {
 }
 
 function onKeyDown(event) {
+  if (event.code === 'Space' || event.key === ' ') {
+    if (!spaceHeld.value) spaceHeld.value = true
+    // Prevent page scroll when overlay is focused.
+    event.preventDefault()
+    return
+  }
+
   if (event.key === 'Escape') {
     if (isDrawing.value) {
       clearDrawingState()
@@ -629,6 +847,17 @@ function onKeyDown(event) {
 
   if ((event.key === 'Delete' || event.key === 'Backspace') && selectedIdx.value !== null) {
     deleteSelected()
+  }
+}
+
+function onKeyUp(event) {
+  if (event.code === 'Space' || event.key === ' ') {
+    spaceHeld.value = false
+    // If pan ended with Space release, drop pan state.
+    if (isPanning.value) {
+      isPanning.value = false
+      panStart = null
+    }
   }
 }
 
@@ -745,11 +974,117 @@ function loadExistingRois() {
 
 const resizeObserver = new ResizeObserver(resizeCanvas)
 
-watch(() => props.source?.id, loadExistingRois)
+// ── Frame-freeze / snapshot helpers ────────────────────────────────────────
+
+/** Snapshot the current frame of the underlying <video> into an offscreen
+ *  canvas. On SecurityError (tainted canvas) fall back to CSS-zoom mode.
+ *  对底层 <video> 当前帧进行快照；若画布被污染则降级使用 CSS 缩放。 */
+function captureFrame(videoEl) {
+  if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+    frameCanvas.value = null
+    frameAspect.value = 0
+    return false
+  }
+  try {
+    const off = document.createElement('canvas')
+    off.width = videoEl.videoWidth
+    off.height = videoEl.videoHeight
+    const ctx = off.getContext('2d')
+    ctx.drawImage(videoEl, 0, 0, off.width, off.height)
+    // Touch the pixels so a CORS taint surfaces synchronously here, not
+    // later inside render(). If this throws we drop to CSS-zoom fallback.
+    ctx.getImageData(0, 0, 1, 1)
+    frameCanvas.value = off
+    frameAspect.value = off.width / off.height
+    cssFallbackZoom.value = false
+    return true
+  } catch (err) {
+    // SecurityError → cross-origin/tainted canvas → CSS-zoom fallback.
+    frameCanvas.value = null
+    frameAspect.value = 0
+    cssFallbackZoom.value = true
+    ElMessage.warning(t('roi.frameCaptureFailed'))
+    return false
+  }
+}
+
+/** Apply the freeze: pause the video, hide it (if snapshot succeeded), and
+ *  scale it via CSS in fallback mode. */
+function freezeVideo() {
+  videoElRef = getVideoElement()
+  if (!videoElRef) return
+  videoWasPlaying = !videoElRef.paused
+  try {
+    videoElRef.pause()
+  } catch (_err) {
+    // ignore
+  }
+  captureFrame(videoElRef)
+  applyVideoStyle()
+}
+
+function applyVideoStyle() {
+  if (!videoElRef) return
+  if (cssFallbackZoom.value) {
+    // In CSS-zoom fallback, we keep the <video> visible and apply a CSS
+    // transform that mirrors the canvas view transform. The video sits
+    // behind the canvas (z-index of <video> < .roi-canvas:100).
+    videoElRef.style.transformOrigin = '0 0'
+    videoElRef.style.transform = `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`
+    videoElRef.style.visibility = 'visible'
+  } else if (frameCanvas.value) {
+    // Snapshot succeeded → hide the live video, the canvas paints the frame.
+    videoElRef.style.transform = ''
+    videoElRef.style.transformOrigin = ''
+    videoElRef.style.visibility = 'hidden'
+  }
+}
+
+function restoreVideo() {
+  if (!videoElRef) return
+  videoElRef.style.visibility = ''
+  videoElRef.style.transform = ''
+  videoElRef.style.transformOrigin = ''
+  if (videoWasPlaying) {
+    videoElRef.play().catch(() => {
+      // play() may reject if the element is mid-reconnect; ignore.
+    })
+  }
+  videoElRef = null
+  frameCanvas.value = null
+  frameAspect.value = 0
+  cssFallbackZoom.value = false
+}
+
+function reSnapshotIfPossible() {
+  const videoEl = getVideoElement()
+  if (!videoEl) return
+  // Only re-capture if videoWidth is available; otherwise wait until next
+  // loadedmetadata.
+  if (videoEl.videoWidth && videoEl.videoHeight) {
+    videoElRef = videoEl
+    try { videoEl.pause() } catch (_e) { /* ignore */ }
+    captureFrame(videoEl)
+    applyVideoStyle()
+    resetView()
+  }
+}
+
+// Keep CSS transform in sync with reactive zoom/pan in fallback mode.
+watch([zoom, panX, panY], () => {
+  if (cssFallbackZoom.value) applyVideoStyle()
+})
+
+watch(() => props.source?.id, () => {
+  loadExistingRois()
+  resetView()
+  reSnapshotIfPossible()
+})
 watch(activePluginId, () => {
   selectedIdx.value = null
   clearDrawingState()
-  render()
+  resetView()
+  reSnapshotIfPossible()
 })
 
 watch(() => props.readOnly, () => {
@@ -770,6 +1105,26 @@ onMounted(async () => {
   resizeCanvas()
   overlayEl.value?.focus()
 
+  // Freeze the underlying video as soon as the drawer mounts. If the video
+  // is not ready yet, wait for the next loadedmetadata / loadeddata event
+  // and snapshot then.
+  const videoEl = getVideoElement()
+  if (videoEl) {
+    if (videoEl.videoWidth && videoEl.videoHeight) {
+      freezeVideo()
+      render()
+    } else {
+      const handler = () => {
+        videoEl.removeEventListener('loadeddata', handler)
+        videoEl.removeEventListener('loadedmetadata', handler)
+        freezeVideo()
+        render()
+      }
+      videoEl.addEventListener('loadeddata', handler, { once: true })
+      videoEl.addEventListener('loadedmetadata', handler, { once: true })
+    }
+  }
+
   if (canvasEl.value) {
     resizeObserver.observe(canvasEl.value.parentElement)
   }
@@ -777,6 +1132,11 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   resizeObserver.disconnect()
+  if (rafHandle) {
+    cancelAnimationFrame(rafHandle)
+    rafHandle = 0
+  }
+  restoreVideo()
 })
 </script>
 
@@ -794,8 +1154,20 @@ onBeforeUnmount(() => {
   cursor: crosshair;
 }
 
+.roi-canvas.space-down {
+  cursor: grab;
+}
+
+.roi-canvas.is-panning {
+  cursor: grabbing;
+}
+
 .roi-drawer-overlay.read-only .roi-canvas {
-  cursor: default;
+  cursor: grab;
+}
+
+.roi-drawer-overlay.read-only .roi-canvas.is-panning {
+  cursor: grabbing;
 }
 
 .roi-context-menu {
@@ -831,6 +1203,17 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.frozen-badge {
+  font-weight: 600;
+}
+
+.zoom-group .zoom-level-btn {
+  min-width: 64px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
 .tag-select {
   min-width: 140px;
 }
@@ -857,5 +1240,9 @@ onBeforeUnmount(() => {
   padding: 6px 8px;
   border-radius: 6px;
   max-width: min(80%, 360px);
+}
+
+.draw-hint-sub {
+  opacity: 0.78;
 }
 </style>
