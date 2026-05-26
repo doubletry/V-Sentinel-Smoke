@@ -120,6 +120,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ElMessage from 'element-plus/es/components/message/index'
 import { useAuthStore } from '../stores/auth.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { defaultLandingFor } from '../utils/settingsRoutes.js'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -151,8 +152,10 @@ const pageTitle = computed(() => (
 ))
 
 function redirectTarget() {
+  const fallback = defaultLandingFor(authStore.role)
+  if (authStore.role === 'user') return fallback
   const value = String(route.query.redirect || '')
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback
   try {
     const decoded = decodeURIComponent(value)
     const normalized = decoded.trim().toLowerCase()
@@ -162,12 +165,12 @@ function redirectTarget() {
       || normalized.includes('://')
       || /^(javascript|data|vbscript):/.test(normalizedWithoutLeadingSlash)
     ) {
-      return '/'
+      return fallback
     }
     const resolved = router.resolve(decoded)
-    return resolved.matched.length && resolved.path !== '/auth' ? resolved.path : '/'
+    return resolved.matched.length && resolved.path !== '/auth' ? resolved.path : fallback
   } catch (_) {
-    return '/'
+    return fallback
   }
 }
 
@@ -186,6 +189,26 @@ async function submitLogin() {
     loginForm.password = ''
     await finishAuth('auth.loginSuccess')
   } catch (err) {
+    if (err?.status === 403 && err?.detail && typeof err.detail === 'object' && err.detail.code === 'IP_BLOCKED') {
+      const blockedUntil = err.detail.blocked_until
+      if (blockedUntil) {
+        ElMessage.error(t('auth.ipBlockedUntil', { time: blockedUntil }))
+      } else {
+        ElMessage.error(t('auth.ipBlockedManual'))
+      }
+      return
+    }
+    if (err?.status === 401 && typeof err?.detail === 'string') {
+      const detail = err.detail.toLowerCase()
+      if (detail.includes('banned')) {
+        ElMessage.error(t('auth.accountBanned'))
+        return
+      }
+      if (detail.includes('expired')) {
+        ElMessage.error(t('auth.accountExpired'))
+        return
+      }
+    }
     ElMessage.error(t('auth.loginFailed', { message: err.message }))
   }
 }

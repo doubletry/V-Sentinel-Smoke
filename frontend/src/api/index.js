@@ -24,8 +24,29 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const msg = error.response?.data?.detail || error.message || 'Request failed'
-    return Promise.reject(new Error(msg))
+    const status = error.response?.status
+    const detail = error.response?.data?.detail
+    const detailText =
+      typeof detail === 'string'
+        ? detail
+        : detail?.message || error.message || 'Request failed'
+    const url = error.config?.url || ''
+    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/bootstrap')
+    if (status === 401 && !isAuthEndpoint && typeof window !== 'undefined') {
+      try {
+        window.localStorage?.removeItem(AUTH_TOKEN_STORAGE_KEY)
+      } catch (_) { /* ignore */ }
+      // Notify listeners (router/auth store) so they can redirect.
+      try {
+        window.dispatchEvent(new CustomEvent('v-sentinel:auth-expired', {
+          detail: { reason: typeof detail === 'string' ? detail : detail?.code || 'unauthorized' },
+        }))
+      } catch (_) { /* ignore */ }
+    }
+    const err = new Error(detailText)
+    err.status = status
+    err.detail = detail
+    return Promise.reject(err)
   }
 )
 
@@ -85,6 +106,19 @@ export const authApi = {
 export const usersApi = {
   list: () => api.get('/api/users'),
   create: (data) => api.post('/api/users', data),
+  update: (username, data) => api.patch(`/api/users/${encodeURIComponent(username)}`, data),
+  remove: (username) => api.delete(`/api/users/${encodeURIComponent(username)}`),
+  resetPassword: (username, newPassword) => api.post(
+    `/api/users/${encodeURIComponent(username)}/password`,
+    { new_password: newPassword },
+  ),
+}
+
+export const accessApi = {
+  roles: () => api.get('/api/access/roles'),
+  listBlockedIps: () => api.get('/api/access/blocked-ips'),
+  unblockIp: (ip) => api.delete(`/api/access/blocked-ips/${encodeURIComponent(ip)}`),
+  blockIp: (data) => api.post('/api/access/blocked-ips', data),
 }
 
 export const scenesApi = {

@@ -375,14 +375,70 @@
                   <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
                 </div>
               </div>
-              <div class="user-list">
-                <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
-                  <span>{{ item.username }}</span>
-                  <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
-                  <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
-                </div>
-                <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
-              </div>
+              <el-table :data="authStore.users" class="user-table" empty-text=" " size="small">
+                <el-table-column prop="username" :label="t('settings.username')">
+                  <template #default="{ row }">
+                    <span>{{ row.username }}</span>
+                    <el-tag v-if="row.username === authStore.user?.username" size="small" type="info" effect="plain" style="margin-left: 6px;">
+                      {{ t('settings.currentAccountTag') }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('settings.userRole')" width="120">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="dark">{{ t(`auth.roles.${row.role}`) }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('settings.userStatus')" width="120">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.is_banned" size="small" type="danger" effect="dark">
+                      {{ t('settings.statusBanned') }}
+                    </el-tag>
+                    <el-tag v-else-if="row.expired" size="small" type="warning" effect="dark">
+                      {{ t('settings.statusExpired') }}
+                    </el-tag>
+                    <el-tag v-else size="small" type="success" effect="plain">
+                      {{ t('settings.statusActive') }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('settings.userExpiresAt')" width="200">
+                  <template #default="{ row }">
+                    <span v-if="row.expires_at">{{ formatCreatedAt(row.expires_at) }}</span>
+                    <span v-else class="user-created-at">{{ t('settings.userNeverExpires') }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('settings.createdAt')" width="180">
+                  <template #default="{ row }">
+                    <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('common.actions')" width="320" align="right">
+                  <template #default="{ row }">
+                    <el-button size="small" @click="openEditUser(row)">{{ t('common.edit') }}</el-button>
+                    <el-button size="small" type="warning" @click="openResetPassword(row)">
+                      {{ t('settings.resetPassword') }}
+                    </el-button>
+                    <el-button
+                      size="small"
+                      :type="row.is_banned ? 'success' : 'warning'"
+                      :disabled="!canToggleBan(row)"
+                      @click="toggleUserBan(row)"
+                    >
+                      {{ row.is_banned ? t('settings.unbanUser') : t('settings.banUser') }}
+                    </el-button>
+                    <el-button
+                      size="small"
+                      type="danger"
+                      :disabled="!canDeleteUser(row)"
+                      @click="deleteUserAccount(row)"
+                    >
+                      {{ t('common.delete') }}
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
             </section>
 
             <section class="settings-section section-card">
@@ -405,9 +461,127 @@
               <el-form-item :label="t('settings.temporaryPassword')">
                 <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
               </el-form-item>
+              <el-form-item :label="t('settings.userExpiresAt')">
+                <el-date-picker
+                  v-model="userForm.expires_at"
+                  type="datetime"
+                  style="width: 100%;"
+                  :placeholder="t('settings.userExpiresAtPlaceholder')"
+                  format="YYYY-MM-DD HH:mm"
+                  value-format="YYYY-MM-DDTHH:mm:ss"
+                />
+                <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+              </el-form-item>
               <div class="section-card__actions single-action">
                 <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
                   {{ t('settings.createUser') }}
+                </el-button>
+              </div>
+            </section>
+
+            <section v-if="canManageSettings" class="settings-section section-card">
+              <div class="section-card__head">
+                <div>
+                  <h2>{{ t('settings.accountExpirationDefaults') }}</h2>
+                  <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
+                </div>
+              </div>
+              <el-form-item :label="t('settings.expirationDaysUser')">
+                <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
+              </el-form-item>
+              <el-form-item :label="t('settings.expirationDaysOperator')">
+                <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
+              </el-form-item>
+              <el-form-item :label="t('settings.expirationDaysAdmin')">
+                <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
+              </el-form-item>
+              <div class="section-card__actions single-action">
+                <el-button
+                  type="primary"
+                  :loading="activeSaveSection === 'accountExpiration'"
+                  @click="saveAccountExpirationSettings"
+                >
+                  {{ t('common.save') }}
+                </el-button>
+              </div>
+            </section>
+
+            <section v-if="canManageSettings" class="settings-section section-card">
+              <div class="section-card__head">
+                <div>
+                  <h2>{{ t('settings.loginSecurity') }}</h2>
+                  <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
+                </div>
+              </div>
+              <el-form-item :label="t('settings.lockoutMaxAttempts')">
+                <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
+              </el-form-item>
+              <el-form-item :label="t('settings.lockoutWindowSeconds')">
+                <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
+              </el-form-item>
+              <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
+                <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+              </el-form-item>
+              <div class="section-card__actions single-action">
+                <el-button
+                  type="primary"
+                  :loading="activeSaveSection === 'loginSecurity'"
+                  @click="saveLoginSecuritySettings"
+                >
+                  {{ t('common.save') }}
+                </el-button>
+              </div>
+
+              <el-divider />
+
+              <div class="section-card__head">
+                <div>
+                  <h3>{{ t('settings.blockedIps') }}</h3>
+                  <p class="info-tip">{{ t('settings.blockedIpsHint') }}</p>
+                </div>
+                <div>
+                  <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
+                </div>
+              </div>
+              <el-table :data="blockedIps" empty-text=" " size="small">
+                <el-table-column prop="ip" label="IP" />
+                <el-table-column :label="t('settings.blockedAt')">
+                  <template #default="{ row }">
+                    <span>{{ formatCreatedAt(row.blocked_at) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('settings.blockedUntil')">
+                  <template #default="{ row }">
+                    <span v-if="row.blocked_until">{{ formatCreatedAt(row.blocked_until) }}</span>
+                    <span v-else>{{ t('settings.blockedUntilManual') }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="reason" :label="t('settings.blockedReason')" />
+                <el-table-column :label="t('common.actions')" width="140" align="right">
+                  <template #default="{ row }">
+                    <el-button size="small" type="success" @click="unblockIp(row)">
+                      {{ t('settings.unblockIp') }}
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <span v-if="!blockedIps.length" class="empty-list-message">{{ t('settings.noBlockedIps') }}</span>
+
+              <el-divider />
+              <h3>{{ t('settings.manualBlockIp') }}</h3>
+              <el-form-item label="IP">
+                <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
+              </el-form-item>
+              <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
+              </el-form-item>
+              <el-form-item :label="t('settings.blockedReason')">
+                <el-input v-model="manualBlockForm.reason" />
+              </el-form-item>
+              <div class="section-card__actions single-action">
+                <el-button type="warning" @click="manualBlockIp">
+                  {{ t('settings.manualBlockIp') }}
                 </el-button>
               </div>
             </section>
@@ -696,6 +870,62 @@
             </el-tabs>
           </template>
         </el-dialog>
+
+        <el-dialog
+          v-model="editUserDialog.visible"
+          :title="t('settings.editUserTitle', { username: editUserDialog.username })"
+          width="420px"
+          destroy-on-close
+        >
+          <el-form label-position="top">
+            <el-form-item :label="t('settings.userRole')">
+              <el-select v-model="editUserDialog.role" style="width: 100%">
+                <el-option value="user" :label="t('auth.roles.user')" />
+                <el-option value="operator" :label="t('auth.roles.operator')" />
+                <el-option value="admin" :label="t('auth.roles.admin')" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="t('settings.userExpiresAt')">
+              <el-date-picker
+                v-model="editUserDialog.expires_at"
+                type="datetime"
+                style="width: 100%;"
+                :placeholder="t('settings.userExpiresAtPlaceholder')"
+                format="YYYY-MM-DD HH:mm"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                clearable
+              />
+              <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="editUserDialog.visible = false">{{ t('common.cancel') }}</el-button>
+            <el-button type="primary" @click="submitEditUser">{{ t('common.save') }}</el-button>
+          </template>
+        </el-dialog>
+
+        <el-dialog
+          v-model="resetPasswordDialog.visible"
+          :title="t('settings.resetPasswordTitle', { username: resetPasswordDialog.username })"
+          width="420px"
+          destroy-on-close
+        >
+          <el-form label-position="top">
+            <el-form-item :label="t('auth.newPassword')" required>
+              <el-input
+                v-model="resetPasswordDialog.new_password"
+                type="password"
+                show-password
+                autocomplete="new-password"
+                @keyup.enter="submitResetPassword"
+              />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="resetPasswordDialog.visible = false">{{ t('common.cancel') }}</el-button>
+            <el-button type="primary" @click="submitResetPassword">{{ t('settings.resetPassword') }}</el-button>
+          </template>
+        </el-dialog>
       </el-form>
     </div>
   </div>
@@ -709,7 +939,7 @@ import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
-import { scenesApi, settingsApi } from '../api/index.js'
+import { accessApi, scenesApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
@@ -940,6 +1170,24 @@ const userForm = ref({
   username: '',
   password: '',
   role: 'operator',
+  expires_at: '',
+})
+const editUserDialog = ref({
+  visible: false,
+  username: '',
+  role: 'operator',
+  expires_at: '',
+})
+const resetPasswordDialog = ref({
+  visible: false,
+  username: '',
+  new_password: '',
+})
+const blockedIps = ref([])
+const manualBlockForm = ref({
+  ip: '',
+  duration_seconds: '',
+  reason: '',
 })
 const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
 const canViewLogs = computed(() => canViewProcessingLogs(
@@ -1021,6 +1269,12 @@ const form = ref({
   max_pull_workers: '',
   max_push_workers: '',
   max_cpu_workers: '',
+  account_expiration_days_user: '0',
+  account_expiration_days_operator: '0',
+  account_expiration_days_admin: '0',
+  login_lockout_max_attempts: '5',
+  login_lockout_window_seconds: '300',
+  login_lockout_duration_seconds: '900',
 })
 const firstAllowedSectionKey = computed(() => {
   return getDefaultManagementSection(canManageSettings.value, authStore.canManageUsers, canViewLogs.value)
@@ -1213,6 +1467,7 @@ async function reload() {
     ensureValidSettingsRoute()
     if (authStore.canManageUsers) {
       await authStore.fetchUsers()
+      await reloadBlockedIps()
     }
   } catch (err) {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))
@@ -1255,17 +1510,181 @@ async function createUserAccount() {
   }
   creatingUser.value = true
   try {
-    await authStore.createUser(userForm.value)
+    await authStore.createUser({
+      username: userForm.value.username,
+      password: userForm.value.password,
+      role: userForm.value.role,
+      ...(userForm.value.expires_at ? { expires_at: userForm.value.expires_at } : {}),
+    })
     userForm.value = {
       username: '',
       password: '',
       role: 'operator',
+      expires_at: '',
     }
     ElMessage.success(t('settings.createUserSuccess'))
   } catch (err) {
     ElMessage.error(t('settings.createUserFailed', { message: err.message }))
   } finally {
     creatingUser.value = false
+  }
+}
+
+function canDeleteUser(row) {
+  if (!row) return false
+  if (row.username === authStore.user?.username) return false
+  if (row.role === 'admin') {
+    const adminCount = (authStore.users || []).filter((u) => u.role === 'admin').length
+    if (adminCount <= 1) return false
+  }
+  return true
+}
+
+function canToggleBan(row) {
+  if (!row) return false
+  if (row.username === authStore.user?.username) return false
+  if (!row.is_banned && row.role === 'admin') {
+    const activeAdmins = (authStore.users || []).filter((u) => u.role === 'admin' && !u.is_banned).length
+    if (activeAdmins <= 1) return false
+  }
+  return true
+}
+
+async function toggleUserBan(row) {
+  try {
+    await authStore.updateUser(row.username, { is_banned: !row.is_banned })
+    ElMessage.success(t(!row.is_banned ? 'settings.banSuccess' : 'settings.unbanSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function deleteUserAccount(row) {
+  try {
+    await ElMessageBox.confirm(
+      t('settings.deleteUserConfirmMessage', { username: row.username }),
+      t('settings.deleteUserConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+      },
+    )
+  } catch (_) {
+    return
+  }
+  try {
+    await authStore.deleteUser(row.username)
+    ElMessage.success(t('settings.deleteUserSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+function openEditUser(row) {
+  editUserDialog.value = {
+    visible: true,
+    username: row.username,
+    role: row.role,
+    expires_at: row.expires_at || '',
+  }
+}
+
+async function submitEditUser() {
+  const payload = {
+    role: editUserDialog.value.role,
+  }
+  if (editUserDialog.value.expires_at) {
+    payload.expires_at = editUserDialog.value.expires_at
+  } else {
+    payload.clear_expires_at = true
+  }
+  try {
+    await authStore.updateUser(editUserDialog.value.username, payload)
+    editUserDialog.value.visible = false
+    ElMessage.success(t('settings.editUserSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+function openResetPassword(row) {
+  resetPasswordDialog.value = {
+    visible: true,
+    username: row.username,
+    new_password: '',
+  }
+}
+
+async function submitResetPassword() {
+  if (!resetPasswordDialog.value.new_password) {
+    ElMessage.warning(t('settings.missingFields'))
+    return
+  }
+  try {
+    await authStore.adminResetPassword(
+      resetPasswordDialog.value.username,
+      resetPasswordDialog.value.new_password,
+    )
+    resetPasswordDialog.value.visible = false
+    ElMessage.success(t('settings.resetPasswordSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function saveAccountExpirationSettings() {
+  await saveSection('accountExpiration', [
+    'account_expiration_days_user',
+    'account_expiration_days_operator',
+    'account_expiration_days_admin',
+  ])
+}
+
+async function saveLoginSecuritySettings() {
+  await saveSection('loginSecurity', [
+    'login_lockout_max_attempts',
+    'login_lockout_window_seconds',
+    'login_lockout_duration_seconds',
+  ])
+}
+
+async function reloadBlockedIps() {
+  if (!authStore.canManageUsers) return
+  try {
+    blockedIps.value = await accessApi.listBlockedIps()
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function unblockIp(row) {
+  try {
+    await accessApi.unblockIp(row.ip)
+    ElMessage.success(t('settings.unblockIpSuccess'))
+    await reloadBlockedIps()
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function manualBlockIp() {
+  if (!manualBlockForm.value.ip) {
+    ElMessage.warning(t('settings.missingFields'))
+    return
+  }
+  const payload = { ip: manualBlockForm.value.ip, reason: manualBlockForm.value.reason || '' }
+  const duration = Number(manualBlockForm.value.duration_seconds)
+  if (!Number.isNaN(duration) && duration > 0) {
+    payload.duration_seconds = duration
+  }
+  try {
+    await accessApi.blockIp(payload)
+    manualBlockForm.value = { ip: '', duration_seconds: '', reason: '' }
+    ElMessage.success(t('settings.manualBlockIpSuccess'))
+    await reloadBlockedIps()
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
   }
 }
 

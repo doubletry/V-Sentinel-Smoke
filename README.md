@@ -357,6 +357,39 @@ See [`docs/processor-plugin-usage.md`](docs/processor-plugin-usage.md).
 |------|-------------|
 | `/ws/messages` | Real-time analysis message stream |
 
+### Accounts & Access Control
+
+The `user` role is restricted to the `/messages` view only. The frontend
+router redirects `user`-role logins to `/messages`, and the backend trims
+the `user` role's permission set accordingly. Operators and administrators
+keep the full live-video and settings access they had previously.
+
+Account management lives under `Settings → User Management` (admin-only):
+
+- `POST /api/users`, `PATCH /api/users/{username}`, `DELETE /api/users/{username}`,
+  `POST /api/users/{username}/password` cover create / update / delete / admin
+  password reset. The API refuses to delete the signed-in user or the last
+  admin, and refuses to ban the signed-in user or the last unbanned admin.
+- Banned (`401 Account banned`) or expired (`401 Account expired`) accounts
+  are rejected immediately on the next request; the existing token does
+  not have to expire first.
+- Three settings keys control per-role default expiration (in days, `0` or
+  empty = never): `account_expiration_days_user`,
+  `account_expiration_days_operator`, `account_expiration_days_admin`.
+  An explicit `expires_at` on `POST /api/users` overrides the role default.
+
+Brute-force login protection (admin-only):
+
+- Settings keys `login_lockout_max_attempts`,
+  `login_lockout_window_seconds`, `login_lockout_duration_seconds` control
+  IP-level lockout. `duration_seconds = 0` means the IP stays blocked until
+  an administrator unblocks it.
+- `GET /api/access/blocked-ips`, `DELETE /api/access/blocked-ips/{ip}`, and
+  `POST /api/access/blocked-ips` (optional manual block) live under the
+  `users:*` permission.
+- A blocked IP receives HTTP `403` with `detail.code = IP_BLOCKED` and a
+  `blocked_until` ISO timestamp; the frontend renders a friendly message.
+
 ---
 
 ## Docker
