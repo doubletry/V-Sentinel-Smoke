@@ -109,6 +109,16 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "max_pull_workers": "20",
     "max_push_workers": "10",
     "max_cpu_workers": "16",
+    # Account expiration defaults per role (days; "0" or "" = never expires) /
+    # 各角色账号有效期默认值（天；"0" 或空表示永不过期）
+    "account_expiration_days_user": "0",
+    "account_expiration_days_operator": "0",
+    "account_expiration_days_admin": "0",
+    # Login brute-force protection / 登录暴力破解防护
+    "login_lockout_max_attempts": "5",
+    "login_lockout_window_seconds": "300",
+    "login_lockout_duration_seconds": "900",
+    "login_lockout_trust_proxy": "false",
 }
 
 

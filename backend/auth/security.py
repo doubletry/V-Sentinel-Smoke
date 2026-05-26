@@ -131,18 +131,36 @@ async def authenticate_user(username: str, password: str, role: str | None) -> d
     normalized_username = str(username or "").strip()
     record = await db.get_user_auth_record(normalized_username)
     if record is not None:
-        record_username, password_hash, stored_role = record
+        record_username, password_hash, stored_role, is_banned, expires_at = record
         normalized_role = str(role or "").strip().lower()
         if normalized_role and stored_role != normalized_role:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         if not verify_password(password, password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
+        if is_banned:
+            raise HTTPException(status_code=401, detail="Account banned")
+        if _is_account_expired(expires_at):
+            raise HTTPException(status_code=401, detail="Account expired")
         return create_access_token(username=record_username, role=stored_role)
 
     normalized_role = str(role or "").strip().lower()
     if normalized_role not in ROLE_PERMISSIONS:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return authenticate_role(normalized_username, password, normalized_role)
+
+
+def _is_account_expired(expires_at: str | None) -> bool:
+    """Return True if ``expires_at`` is set and already in the past.
+    若 ``expires_at`` 已设置且早于当前时间，返回 True。"""
+    if not expires_at:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(expires_at))
+    except ValueError:
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt < datetime.now(timezone.utc)
 
 
 def verify_access_token(token: str) -> dict[str, Any]:
