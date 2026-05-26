@@ -1956,9 +1956,15 @@ async def list_analysis_messages(
     page_size: int = 20,
     source_id: str | None = None,
     false_positive_only: bool = False,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> dict[str, object]:
     """List persisted analysis messages ordered newest-first.
-    按时间倒序列出持久化分析消息。"""
+    按时间倒序列出持久化分析消息。
+
+    ``start_date`` / ``end_date`` are inclusive ``YYYY-MM-DD`` calendar days
+    (UTC) used to bound ``created_at``. Invalid values are silently ignored.
+    """
     safe_page = max(1, int(page))
     safe_size = min(100, max(1, int(page_size)))
     if limit is not None:
@@ -1971,6 +1977,27 @@ async def list_analysis_messages(
         query_values.append(source_id)
     if false_positive_only:
         where_clauses.append("false_positive = 1")
+    safe_start = (start_date or "").strip()
+    if safe_start and MESSAGE_IMAGE_DAY_RE.fullmatch(safe_start):
+        try:
+            start_iso = datetime.strptime(safe_start, "%Y-%m-%d").replace(tzinfo=timezone.utc).isoformat()
+        except ValueError:
+            start_iso = None
+        if start_iso is not None:
+            where_clauses.append("created_at >= ?")
+            query_values.append(start_iso)
+    safe_end = (end_date or "").strip()
+    if safe_end and MESSAGE_IMAGE_DAY_RE.fullmatch(safe_end):
+        try:
+            end_iso = (
+                datetime.strptime(safe_end, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                + timedelta(days=1)
+            ).isoformat()
+        except ValueError:
+            end_iso = None
+        if end_iso is not None:
+            where_clauses.append("created_at < ?")
+            query_values.append(end_iso)
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     async with _db_session() as db:
         count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
@@ -2125,6 +2152,92 @@ async def unmark_analysis_message_false_positive(message_id: str) -> dict[str, o
         "false_positive": False,
         "exported_files": [],
     }
+
+
+async def delete_analysis_message(message_id: str) -> dict[str, object] | None:
+    """Permanently delete one persisted message and its thumbnail files.
+    永久删除单条已持久化消息及其缩略图文件。
+
+    Only the thumbnails under ``message_thumbnails/`` are removed. Images
+    that were previously exported to ``false_positives/`` by
+    :func:`export_false_positive_images` live in a different directory and
+    are intentionally **not** touched here, satisfying the "do not affect
+    images in other directories" requirement. ``_delete_message_image`` is
+    a thumbnail-only helper (see ``_message_image_path_from_stored_value``).
+    """
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT image_url, original_image_url, detected_image_url, false_positive "
+            "FROM analysis_messages WHERE id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        legacy_image_url, original_image_url, detected_image_url, false_positive = row
+        await db.execute(
+            "DELETE FROM analysis_messages WHERE id = ?",
+            (message_id,),
+        )
+        await db.commit()
+    _delete_message_image(legacy_image_url)
+    _delete_message_image(original_image_url)
+    _delete_message_image(detected_image_url)
+    return {
+        "id": message_id,
+        "deleted": True,
+        "false_positive_was": bool(false_positive),
+    }
+
+
+async def delete_analysis_messages(message_ids: list[str]) -> dict[str, object]:
+    """Permanently delete multiple persisted messages and their thumbnails.
+    永久批量删除已持久化消息及其缩略图。
+
+    Only thumbnails under ``message_thumbnails/`` are removed; exports under
+    ``false_positives/`` are intentionally preserved.
+    """
+    unique_ids: list[str] = []
+    seen: set[str] = set()
+    for raw in message_ids or []:
+        text = str(raw or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        unique_ids.append(text)
+
+    deleted_ids: list[str] = []
+    image_urls_to_delete: list[str | None] = []
+    if not unique_ids:
+        return {"deleted_ids": [], "missing_ids": []}
+
+    async with _db_session() as db:
+        chunk_size = 900
+        for offset in range(0, len(unique_ids), chunk_size):
+            chunk = unique_ids[offset : offset + chunk_size]
+            placeholders = ",".join("?" for _ in chunk)
+            async with db.execute(
+                f"SELECT id, image_url, original_image_url, detected_image_url "
+                f"FROM analysis_messages WHERE id IN ({placeholders})",
+                chunk,
+            ) as cursor:
+                rows = await cursor.fetchall()
+            for row in rows:
+                deleted_ids.append(str(row[0]))
+                image_urls_to_delete.append(row[1])
+                image_urls_to_delete.append(row[2])
+                image_urls_to_delete.append(row[3])
+            if rows:
+                await db.execute(
+                    f"DELETE FROM analysis_messages WHERE id IN ({placeholders})",
+                    chunk,
+                )
+        await db.commit()
+    for image_url in image_urls_to_delete:
+        _delete_message_image(image_url)
+    deleted_set = set(deleted_ids)
+    missing_ids = [mid for mid in unique_ids if mid not in deleted_set]
+    return {"deleted_ids": deleted_ids, "missing_ids": missing_ids}
 
 
 async def get_analysis_message_image_path(message_id: str, *, kind: str = "detected") -> Path | None:

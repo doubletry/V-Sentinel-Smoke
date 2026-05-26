@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from backend.auth.dependencies import require_permission
 from backend.db.database import (
+    delete_analysis_message,
+    delete_analysis_messages,
     get_analysis_message_image_path,
     get_analysis_message_for_notification,
     list_analysis_messages,
@@ -15,6 +17,8 @@ from backend.models.schemas import AnalysisMessage, PaginatedMessagesResponse
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
 
+MAX_BATCH_DELETE_IDS = 500
+
 
 @router.get("", response_model=PaginatedMessagesResponse)
 async def get_messages(
@@ -22,14 +26,23 @@ async def get_messages(
     page_size: int = Query(default=20, ge=1, le=100),
     source_id: str | None = Query(default=None),
     false_positive_only: bool = Query(default=False),
+    start_date: str | None = Query(default=None, description="Inclusive YYYY-MM-DD lower bound (UTC)."),
+    end_date: str | None = Query(default=None, description="Inclusive YYYY-MM-DD upper bound (UTC)."),
 ) -> PaginatedMessagesResponse:
     """Return persisted analysis messages ordered newest-first.
-    返回按时间倒序排列的持久化分析消息。"""
+    返回按时间倒序排列的持久化分析消息。
+
+    ``start_date`` / ``end_date`` (YYYY-MM-DD) filter ``created_at`` by UTC
+    calendar day; both bounds are inclusive.
+    ``start_date`` / ``end_date``（YYYY-MM-DD）按 UTC 自然日过滤创建时间，
+    起止日期均包含。"""
     result = await list_analysis_messages(
         page=page,
         page_size=page_size,
         source_id=source_id,
         false_positive_only=false_positive_only,
+        start_date=start_date,
+        end_date=end_date,
     )
     return PaginatedMessagesResponse(
         items=[AnalysisMessage(**row) for row in result["items"]],
@@ -88,6 +101,50 @@ async def unmark_message_false_positive(
     return result
 
 
+@router.delete("/{message_id}")
+async def delete_message(
+    message_id: str,
+    _role: str = Depends(require_permission("messages:delete")),
+) -> dict[str, object]:
+    """Permanently delete one message and its associated thumbnail images.
+    永久删除一条消息及其关联的缩略图。
+
+    Exports under ``false_positives/`` are intentionally preserved.
+    ``false_positives/`` 目录下导出的误报图片不会被删除。"""
+    result = await delete_analysis_message(message_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return result
+
+
+@router.post("/batch-delete")
+async def batch_delete_messages(
+    payload: dict = Body(...),
+    _role: str = Depends(require_permission("messages:delete")),
+) -> dict[str, object]:
+    """Permanently delete multiple messages in one request.
+    一次性永久删除多条消息。
+
+    Body: ``{"ids": ["...", "..."]}``. Exports under ``false_positives/`` are
+    intentionally preserved.
+    请求体：``{"ids": ["...", "..."]}``。``false_positives/`` 目录下的导出图片
+    不会被删除。"""
+    raw_ids = payload.get("ids") if isinstance(payload, dict) else None
+    if not isinstance(raw_ids, list):
+        raise HTTPException(status_code=400, detail="'ids' must be a list of message IDs")
+    if len(raw_ids) > MAX_BATCH_DELETE_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many ids; maximum {MAX_BATCH_DELETE_IDS} per request",
+        )
+    cleaned: list[str] = []
+    for entry in raw_ids:
+        if not isinstance(entry, str) or not entry.strip():
+            raise HTTPException(status_code=400, detail="Each id must be a non-empty string")
+        cleaned.append(entry.strip())
+    return await delete_analysis_messages(cleaned)
+
+
 @router.get("/{message_id}/image", include_in_schema=False)
 async def get_message_image(message_id: str) -> FileResponse:
     """Backward-compatible detected-image endpoint.
@@ -106,3 +163,4 @@ async def get_message_image_by_kind(message_id: str, image_kind: str) -> FileRes
     if file_path is None or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Message image not found")
     return FileResponse(file_path)
+

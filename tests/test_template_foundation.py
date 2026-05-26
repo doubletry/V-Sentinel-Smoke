@@ -306,6 +306,7 @@ class TestRbacFoundation:
                 "video:watch",
                 "messages:read",
                 "messages:annotate",
+                "messages:delete",
             ],
         }
 
