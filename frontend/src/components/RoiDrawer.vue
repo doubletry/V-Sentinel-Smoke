@@ -60,7 +60,7 @@
         <el-button size="small" :disabled="zoom >= MAX_ZOOM - 1e-6" @click="zoomInBtn" :title="t('roi.zoomIn')">
           <el-icon><ZoomIn /></el-icon>
         </el-button>
-        <el-button size="small" :disabled="zoom === 1 && panX === identityPan.x && panY === identityPan.y" @click="resetView" :title="t('roi.resetView')">
+        <el-button size="small" :disabled="Math.abs(zoom - 1) < 1e-6 && Math.abs(panX - identityPan.x) < 1e-6 && Math.abs(panY - identityPan.y) < 1e-6" @click="resetView" :title="t('roi.resetView')">
           <el-icon><Refresh /></el-icon>
         </el-button>
       </el-button-group>
@@ -1115,6 +1115,9 @@ onMounted(async () => {
       render()
     } else {
       const handler = () => {
+        // Both loadeddata and loadedmetadata may fire; { once: true } only
+        // removes the listener that actually triggered, so explicitly drop
+        // the sibling listener to avoid a double-freeze.
         videoEl.removeEventListener('loadeddata', handler)
         videoEl.removeEventListener('loadedmetadata', handler)
         freezeVideo()
