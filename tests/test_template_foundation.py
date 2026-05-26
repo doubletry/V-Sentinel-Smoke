@@ -192,6 +192,7 @@ class TestNotificationFoundation:
                 },
             },
         )
+        assert create_resp.status_code == 201, create_resp.text
         instance_id = create_resp.json()["id"]
 
         async def fake_send(self, payload):  # noqa: ARG001
@@ -225,6 +226,7 @@ class TestNotificationFoundation:
                 },
             },
         )
+        assert create_resp.status_code == 201, create_resp.text
         instance_id = create_resp.json()["id"]
 
         async def boom(self, payload):  # noqa: ARG001
