@@ -216,7 +216,7 @@ const frameCanvas = ref(null) // HTMLCanvasElement | null
 const frameAspect = ref(0) // videoWidth/videoHeight at snapshot time
 const cssFallbackZoom = ref(false) // true if drawImage threw SecurityError
 let videoElRef = null
-let videoWasPlaying = false
+let shouldResumeVideo = false
 let rafHandle = 0
 
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
@@ -1012,7 +1012,7 @@ function captureFrame(videoEl) {
 function freezeVideo() {
   videoElRef = getVideoElement()
   if (!videoElRef) return
-  videoWasPlaying = !videoElRef.paused
+  shouldResumeVideo = !videoElRef.paused
   try {
     videoElRef.pause()
   } catch (_err) {
@@ -1044,11 +1044,12 @@ function restoreVideo() {
   videoElRef.style.visibility = ''
   videoElRef.style.transform = ''
   videoElRef.style.transformOrigin = ''
-  if (videoWasPlaying) {
+  if (shouldResumeVideo) {
     videoElRef.play().catch(() => {
       // play() may reject if the element is mid-reconnect; ignore.
     })
   }
+  shouldResumeVideo = false
   videoElRef = null
   frameCanvas.value = null
   frameAspect.value = 0
@@ -1058,7 +1059,9 @@ function restoreVideo() {
 function enableLiveVideoZoom() {
   videoElRef = getVideoElement()
   if (!videoElRef) return
-  videoWasPlaying = false
+  // Preview mode never pauses the video, so exiting preview must not force
+  // playback if the element was already paused by something else.
+  shouldResumeVideo = false
   frameCanvas.value = null
   frameAspect.value = 0
   cssFallbackZoom.value = false
@@ -1105,6 +1108,8 @@ watch(activePluginId, () => {
 watch(() => props.readOnly, () => {
   selectedIdx.value = null
   clearDrawingState()
+  // Clear the previous mode's CSS/snapshot state before attaching the video
+  // again for the next mode below.
   restoreVideo()
   resetView()
   if (props.readOnly) {
