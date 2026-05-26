@@ -213,11 +213,12 @@ let panStart = null
 // mode only. Preview mode keeps the live video running and applies the same
 // CSS transform as the canvas so zoom/pan remains aligned.
 const frameCanvas = ref(null) // HTMLCanvasElement | null
-const frameAspect = ref(0) // videoWidth/videoHeight at snapshot time
 const cssFallbackZoom = ref(false) // true if drawImage threw SecurityError
 let videoElRef = null
 let shouldResumeVideo = false
 let rafHandle = 0
+let pendingMetadataVideoEl = null
+let pendingMetadataHandler = null
 
 const sceneById = computed(() => new Map(scenes.value.map((scene) => [scene.id, scene])))
 const activePluginId = computed(() => appSettingsStore.activePluginId || DEFAULT_SCENE_ID)
@@ -981,7 +982,6 @@ const resizeObserver = new ResizeObserver(resizeCanvas)
 function captureFrame(videoEl) {
   if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
     frameCanvas.value = null
-    frameAspect.value = 0
     return false
   }
   try {
@@ -994,13 +994,11 @@ function captureFrame(videoEl) {
     // later inside render(). If this throws we drop to CSS-zoom fallback.
     ctx.getImageData(0, 0, 1, 1)
     frameCanvas.value = off
-    frameAspect.value = off.width / off.height
     cssFallbackZoom.value = false
     return true
   } catch (err) {
     // SecurityError → cross-origin/tainted canvas → CSS-zoom fallback.
     frameCanvas.value = null
-    frameAspect.value = 0
     cssFallbackZoom.value = true
     ElMessage.warning(t('roi.frameCaptureFailed'))
     return false
@@ -1040,6 +1038,7 @@ function applyVideoStyle() {
 }
 
 function restoreVideo() {
+  clearPendingMetadataListener()
   if (!videoElRef) return
   videoElRef.style.visibility = ''
   videoElRef.style.transform = ''
@@ -1052,7 +1051,6 @@ function restoreVideo() {
   shouldResumeVideo = false
   videoElRef = null
   frameCanvas.value = null
-  frameAspect.value = 0
   cssFallbackZoom.value = false
 }
 
@@ -1063,9 +1061,29 @@ function enableLiveVideoZoom() {
   // playback if the element was already paused by something else.
   shouldResumeVideo = false
   frameCanvas.value = null
-  frameAspect.value = 0
   cssFallbackZoom.value = false
   applyVideoStyle()
+}
+
+function clearPendingMetadataListener() {
+  if (pendingMetadataVideoEl && pendingMetadataHandler) {
+    pendingMetadataVideoEl.removeEventListener('loadeddata', pendingMetadataHandler)
+    pendingMetadataVideoEl.removeEventListener('loadedmetadata', pendingMetadataHandler)
+  }
+  pendingMetadataVideoEl = null
+  pendingMetadataHandler = null
+}
+
+function registerPendingMetadataListener(videoEl, onReady) {
+  clearPendingMetadataListener()
+  const handler = () => {
+    clearPendingMetadataListener()
+    onReady()
+  }
+  pendingMetadataVideoEl = videoEl
+  pendingMetadataHandler = handler
+  videoEl.addEventListener('loadeddata', handler, { once: true })
+  videoEl.addEventListener('loadedmetadata', handler, { once: true })
 }
 
 function reSnapshotIfPossible() {
@@ -1085,6 +1103,12 @@ function reSnapshotIfPossible() {
     captureFrame(videoEl)
     applyVideoStyle()
     resetView()
+  } else {
+    registerPendingMetadataListener(videoEl, () => {
+      if (props.readOnly) return
+      freezeVideo()
+      resetView()
+    })
   }
 }
 
@@ -1143,17 +1167,11 @@ onMounted(async () => {
       freezeVideo()
       render()
     } else {
-      const handler = () => {
-        // Both loadeddata and loadedmetadata may fire; { once: true } only
-        // removes the listener that actually triggered, so explicitly drop
-        // the sibling listener to avoid a double-freeze.
-        videoEl.removeEventListener('loadeddata', handler)
-        videoEl.removeEventListener('loadedmetadata', handler)
+      registerPendingMetadataListener(videoEl, () => {
+        if (props.readOnly) return
         freezeVideo()
         render()
-      }
-      videoEl.addEventListener('loadeddata', handler, { once: true })
-      videoEl.addEventListener('loadedmetadata', handler, { once: true })
+      })
     }
   }
 
