@@ -58,9 +58,20 @@
 
         <footer class="notification-instance-card__footer">
           <span class="notification-instance-card__timestamp">{{ formatTimestamp(item.created_at) }}</span>
-          <el-button size="small" plain @click="openEditDialog(item)">
-            {{ t('common.edit') }}
-          </el-button>
+          <div class="notification-instance-card__actions">
+            <el-button
+              size="small"
+              plain
+              :loading="testingInstanceId === item.id"
+              :disabled="Boolean(testingInstanceId)"
+              @click="testInstance(item)"
+            >
+              {{ t('settings.testNotificationInstance') }}
+            </el-button>
+            <el-button size="small" plain @click="openEditDialog(item)">
+              {{ t('common.edit') }}
+            </el-button>
+          </div>
         </footer>
       </article>
 
@@ -237,6 +248,7 @@ const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const loading = ref(false)
 const saving = ref(false)
+const testingInstanceId = ref('')
 const dialogVisible = ref(false)
 const editingInstanceId = ref('')
 const instances = ref([])
@@ -488,6 +500,19 @@ async function submit() {
   }
 }
 
+async function testInstance(item) {
+  if (!item?.id || testingInstanceId.value) return
+  testingInstanceId.value = item.id
+  try {
+    const result = await notificationsApi.testInstance(item.id)
+    ElMessage.success(t('settings.notificationTestSuccess', { status: result?.status || result?.message || 'SUCCESS' }))
+  } catch (err) {
+    ElMessage.error(t('settings.notificationTestFailed', { message: err.message }))
+  } finally {
+    testingInstanceId.value = ''
+  }
+}
+
 async function toggleEnabled(item, enabled) {
   try {
     await notificationsApi.updateInstance(item.id, { enabled })
@@ -608,6 +633,10 @@ onMounted(loadInstances)
   gap: 10px;
 }
 
+.notification-instance-card__footer {
+  margin-top: auto;
+}
+
 .notification-instance-card__title-wrap {
   display: flex;
   align-items: center;
@@ -696,6 +725,13 @@ onMounted(loadInstances)
 .notification-instance-card__timestamp {
   color: #94a3b8;
   font-size: 12px;
+}
+
+.notification-instance-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .notification-instance-empty {

@@ -175,6 +175,79 @@ class TestNotificationFoundation:
         assert update_resp.json()["enabled"] is False
         assert update_resp.json()["name"] == "Ops Webhook Disabled"
 
+    async def test_notification_instance_test_endpoint_invokes_provider(
+        self, async_client: AsyncClient
+    ):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Ops Webhook",
+                "type": "webhook",
+                "enabled": True,
+                "config": {
+                    "url": "https://example.com/hooks/ops",
+                    "method": "POST",
+                    "headers": {"X-Test": "1"},
+                    "payload_template": {"text": "Message: {message}"},
+                },
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        instance_id = create_resp.json()["id"]
+
+        async def fake_send(self, payload):  # noqa: ARG001
+            return {"status": "SUCCESS", "message": "200"}
+
+        with patch(
+            "backend.api.notifications.WebhookNotificationProvider.send",
+            new=fake_send,
+        ):
+            test_resp = await async_client.post(
+                f"/api/notifications/instances/{instance_id}/test"
+            )
+        assert test_resp.status_code == 200, test_resp.text
+        assert test_resp.json()["status"] == "SUCCESS"
+
+    async def test_notification_instance_test_endpoint_surfaces_provider_errors(
+        self, async_client: AsyncClient
+    ):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Bad SMTP",
+                "type": "email",
+                "enabled": True,
+                "config": {
+                    "smtp_host": "smtp.invalid",
+                    "smtp_port": "587",
+                    "use_tls": True,
+                    "from_address": "ops@example.com",
+                    "to_addresses": "team@example.com",
+                },
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        instance_id = create_resp.json()["id"]
+
+        async def boom(self, payload):  # noqa: ARG001
+            raise RuntimeError("SMTP connection refused")
+
+        with patch(
+            "backend.api.notifications.SmtpNotificationProvider.send",
+            new=boom,
+        ):
+            test_resp = await async_client.post(
+                f"/api/notifications/instances/{instance_id}/test"
+            )
+        assert test_resp.status_code == 400
+        assert "SMTP connection refused" in test_resp.json()["detail"]
+
+    async def test_notification_instance_test_endpoint_returns_404_for_missing(
+        self, async_client: AsyncClient
+    ):
+        resp = await async_client.post("/api/notifications/instances/does-not-exist/test")
+        assert resp.status_code == 404
+
 
 class TestRbacFoundation:
     async def test_three_roles_are_exposed(self, async_client: AsyncClient):

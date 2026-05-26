@@ -14,7 +14,7 @@
           {{ t('messageList.falsePositive') }}
         </el-tag>
         <span class="msg-source">{{ msg.source_name }}</span>
-        <span class="msg-time">{{ formatTimeWithTimezone(msg.timestamp, appSettingsStore.timeZone) }}</span>
+        <span class="msg-time">{{ formatDateTimeWithTimezone(msg.timestamp, appSettingsStore.timeZone) }}</span>
       </div>
       <div class="msg-body">{{ msg.message }}</div>
       <div v-if="hasAnyImage(msg)" class="msg-image-grid">
@@ -85,7 +85,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
-import { formatTimeWithTimezone } from '../utils/time.js'
+import { formatDateTimeWithTimezone } from '../utils/time.js'
 
 defineProps({
   messages: {

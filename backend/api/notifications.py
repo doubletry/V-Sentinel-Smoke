@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth.dependencies import require_permission
@@ -15,6 +17,12 @@ from backend.models.schemas import (
     NotificationTemplateCreate,
     NotificationTemplateUpdate,
 )
+from core.notification_client import (
+    NotificationPayload,
+    SmtpNotificationProvider,
+    WebhookNotificationProvider,
+)
+from core.notification_template import build_template_context, render_template
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -83,6 +91,74 @@ async def update_instance(
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification instance not found")
     return provider
+
+
+def _build_test_payload(app_settings: dict[str, str], provider: NotificationProvider) -> NotificationPayload:
+    """Build a sample notification payload for the per-instance test action.
+    为单个通知实例的测试动作构造示例消息。"""
+    site_title = str(app_settings.get("site_title") or "V-Sentinel")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    sample_event = {
+        "source_id": "test-source",
+        "source_name": "Test Source",
+        "event_type": "test",
+        "event_label": "Test Notification",
+        "message": f"Test notification triggered for instance {provider.name}.",
+        "timestamp": now_iso,
+    }
+    context = build_template_context(app_settings, sample_event)
+    subject = f"{site_title} 通知配置测试 / Notification test"
+    body = (
+        f"这是一封来自 {site_title} 的通知测试。\n"
+        f"This is a test notification from {site_title}.\n\n"
+        f"Instance: {provider.name}\n"
+        f"Type: {provider.type}\n"
+        f"Local time: {context.get('local_time', '')} ({context.get('timezone', '')})\n"
+    )
+    if provider.type == "email":
+        config = dict(provider.config or {})
+        subject_template = str(config.get("subject_template") or "")
+        body_template = str(config.get("body_template") or "")
+        if subject_template:
+            subject = render_template(subject_template, context)
+        if body_template:
+            body = render_template(body_template, context)
+    return NotificationPayload(subject=subject, body=body, context=context)
+
+
+@router.post("/instances/{instance_id}/test")
+async def test_instance(
+    instance_id: str,
+    _role: str = Depends(require_permission("notifications:*")),
+) -> dict[str, str]:
+    """Send a test notification through one persisted notification instance.
+    通过一个已持久化的通知实例发送测试通知。
+
+    The persisted configuration is used so the result reflects what the
+    backend will actually send for real alarm events. 使用已持久化的配置，
+    以确保测试结果与后端真实告警时发送的内容一致。"""
+    providers = await db.list_notification_providers()
+    provider = next((item for item in providers if item.id == instance_id), None)
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Notification instance not found")
+    app_settings = await db.get_all_settings()
+    payload = _build_test_payload(app_settings, provider)
+    config = dict(provider.config or {})
+    try:
+        if provider.type == "email":
+            result = await SmtpNotificationProvider(config).send(payload)
+        elif provider.type == "webhook":
+            result = await WebhookNotificationProvider(config).send(payload)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported notification instance type: {provider.type}",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - surface provider errors to the UI
+        raise HTTPException(status_code=400, detail=str(exc) or exc.__class__.__name__) from exc
+    return result
 
 
 @router.get("/templates", response_model=list[NotificationTemplate])
