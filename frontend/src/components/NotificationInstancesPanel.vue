@@ -216,8 +216,16 @@
       </el-form>
 
       <template #footer>
+        <el-button
+          v-if="editingInstanceId"
+          :loading="testing"
+          :disabled="saving"
+          @click="testInstance"
+        >
+          {{ t('settings.testNotificationInstance') }}
+        </el-button>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="submit">
+        <el-button type="primary" :loading="saving" :disabled="testing" @click="submit">
           {{ t('common.save') }}
         </el-button>
       </template>
@@ -229,6 +237,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
+import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { notificationsApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
@@ -237,8 +246,10 @@ const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const loading = ref(false)
 const saving = ref(false)
+const testing = ref(false)
 const dialogVisible = ref(false)
 const editingInstanceId = ref('')
+const editingSnapshot = ref('')
 const instances = ref([])
 const placeholderItems = ref([
   'site_title', 'timestamp', 'local_time', 'timezone', 'source_name', 'source_id',
@@ -383,6 +394,7 @@ async function loadInstances() {
 function openCreateDialog() {
   editingInstanceId.value = ''
   form.value = createDefaultForm()
+  editingSnapshot.value = ''
   dialogVisible.value = true
 }
 
@@ -413,7 +425,18 @@ function openEditDialog(item) {
     subject_template: item.config?.subject_template || defaultSubjectTemplate,
     body_template: item.config?.body_template || defaultBodyTemplate,
   }
+  editingSnapshot.value = snapshotForm()
   dialogVisible.value = true
+}
+
+function snapshotForm() {
+  try {
+    return JSON.stringify(buildPayload())
+  } catch {
+    // If the current form values are invalid, treat the form as dirty so
+    // the user is asked to save (and surface the validation error) before testing.
+    return ''
+  }
 }
 
 function buildPayload() {
@@ -485,6 +508,51 @@ async function submit() {
     ElMessage.error(err.message || t('settings.failedToSave', { message: err.message }))
   } finally {
     saving.value = false
+  }
+}
+
+async function testInstance() {
+  if (!editingInstanceId.value) return
+  // Tests always run against the persisted backend configuration so the result
+  // reflects what the backend will actually send. If the form has unsaved
+  // edits, require the user to save first to keep frontend and backend
+  // configurations consistent.
+  if (snapshotForm() !== editingSnapshot.value) {
+    try {
+      await ElMessageBox.confirm(
+        t('settings.notificationTestSaveFirstMessage'),
+        t('settings.notificationTestSaveFirstTitle'),
+        {
+          type: 'warning',
+          confirmButtonText: t('common.save'),
+          cancelButtonText: t('common.cancel'),
+        }
+      )
+    } catch (_) {
+      return
+    }
+    saving.value = true
+    try {
+      const payload = buildPayload()
+      await notificationsApi.updateInstance(editingInstanceId.value, payload)
+      await loadInstances()
+      editingSnapshot.value = snapshotForm()
+      ElMessage.success(t('settings.settingsSaved'))
+    } catch (err) {
+      ElMessage.error(err.message || t('settings.failedToSave', { message: err.message }))
+      return
+    } finally {
+      saving.value = false
+    }
+  }
+  testing.value = true
+  try {
+    const result = await notificationsApi.testInstance(editingInstanceId.value)
+    ElMessage.success(t('settings.notificationTestSuccess', { status: result?.status || result?.message || 'SUCCESS' }))
+  } catch (err) {
+    ElMessage.error(t('settings.notificationTestFailed', { message: err.message }))
+  } finally {
+    testing.value = false
   }
 }
 

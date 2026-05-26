@@ -105,6 +105,7 @@ export const notificationsApi = {
   instances: () => api.get('/api/notifications/instances'),
   createInstance: (data) => api.post('/api/notifications/instances', data),
   updateInstance: (id, data) => api.put(`/api/notifications/instances/${id}`, data),
+  testInstance: (id) => api.post(`/api/notifications/instances/${id}/test`),
   templates: () => api.get('/api/notifications/templates'),
   createTemplate: (data) => api.post('/api/notifications/templates', data),
   updateTemplate: (id, data) => api.put(`/api/notifications/templates/${id}`, data),
