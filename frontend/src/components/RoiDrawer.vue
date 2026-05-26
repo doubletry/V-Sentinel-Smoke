@@ -1067,8 +1067,9 @@ function enableLiveVideoZoom() {
 
 function clearPendingMetadataListener() {
   if (pendingMetadataVideoEl && pendingMetadataHandler) {
-    pendingMetadataVideoEl.removeEventListener('loadeddata', pendingMetadataHandler)
-    pendingMetadataVideoEl.removeEventListener('loadedmetadata', pendingMetadataHandler)
+    for (const eventName of ['loadeddata', 'loadedmetadata']) {
+      pendingMetadataVideoEl.removeEventListener(eventName, pendingMetadataHandler)
+    }
   }
   pendingMetadataVideoEl = null
   pendingMetadataHandler = null
@@ -1082,8 +1083,9 @@ function registerPendingMetadataListener(videoEl, onReady) {
   }
   pendingMetadataVideoEl = videoEl
   pendingMetadataHandler = handler
-  videoEl.addEventListener('loadeddata', handler, { once: true })
-  videoEl.addEventListener('loadedmetadata', handler, { once: true })
+  for (const eventName of ['loadeddata', 'loadedmetadata']) {
+    videoEl.addEventListener(eventName, handler, { once: true })
+  }
 }
 
 function reSnapshotIfPossible() {
@@ -1099,7 +1101,11 @@ function reSnapshotIfPossible() {
   // loadedmetadata.
   if (videoEl.videoWidth && videoEl.videoHeight) {
     videoElRef = videoEl
-    try { videoEl.pause() } catch (_e) { /* ignore */ }
+    try {
+      videoEl.pause()
+    } catch (_e) {
+      // ignore
+    }
     captureFrame(videoEl)
     applyVideoStyle()
     resetView()
