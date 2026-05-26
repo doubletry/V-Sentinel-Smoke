@@ -367,8 +367,8 @@
         </section>
 
             <section v-else-if="isUsersPage" class="settings-page-panel">
-          <div class="settings-split-grid">
-            <section class="settings-section section-card">
+          <div class="users-management-layout">
+            <section class="settings-section section-card users-management-main">
               <div class="section-card__head">
                 <div>
                   <h2>{{ t('settings.accountList') }}</h2>
@@ -441,43 +441,44 @@
               <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
             </section>
 
-            <section class="settings-section section-card">
-              <div class="section-card__head">
-                <div>
-                  <h2>{{ t('settings.createUser') }}</h2>
-                  <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
+            <div class="users-management-side">
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.createUser') }}</h2>
+                    <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
+                  </div>
                 </div>
-              </div>
-              <el-form-item :label="t('settings.username')">
-                <el-input v-model="userForm.username" autocomplete="username" />
-              </el-form-item>
-              <el-form-item :label="t('settings.userRole')">
-                <el-select v-model="userForm.role" style="width: 100%">
-                  <el-option value="user" :label="t('auth.roles.user')" />
-                  <el-option value="operator" :label="t('auth.roles.operator')" />
-                  <el-option value="admin" :label="t('auth.roles.admin')" />
-                </el-select>
-              </el-form-item>
-              <el-form-item :label="t('settings.temporaryPassword')">
-                <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
-              </el-form-item>
-              <el-form-item :label="t('settings.userExpiresAt')">
-                <el-date-picker
-                  v-model="userForm.expires_at"
-                  type="datetime"
-                  style="width: 100%;"
-                  :placeholder="t('settings.userExpiresAtPlaceholder')"
-                  format="YYYY-MM-DD HH:mm"
-                  value-format="YYYY-MM-DDTHH:mm:ss"
-                />
-                <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
-              </el-form-item>
-              <div class="section-card__actions single-action">
-                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-                  {{ t('settings.createUser') }}
-                </el-button>
-              </div>
-            </section>
+                <el-form-item :label="t('settings.username')">
+                  <el-input v-model="userForm.username" autocomplete="username" />
+                </el-form-item>
+                <el-form-item :label="t('settings.userRole')">
+                  <el-select v-model="userForm.role" style="width: 100%">
+                    <el-option value="user" :label="t('auth.roles.user')" />
+                    <el-option value="operator" :label="t('auth.roles.operator')" />
+                    <el-option value="admin" :label="t('auth.roles.admin')" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item :label="t('settings.temporaryPassword')">
+                  <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
+                </el-form-item>
+                <el-form-item :label="t('settings.userExpiresAt')">
+                  <el-date-picker
+                    v-model="userForm.expires_at"
+                    type="datetime"
+                    style="width: 100%;"
+                    :placeholder="t('settings.userExpiresAtPlaceholder')"
+                    format="YYYY-MM-DD HH:mm"
+                    value-format="YYYY-MM-DDTHH:mm:ss"
+                  />
+                  <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+                </el-form-item>
+                <div class="section-card__actions single-action">
+                  <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                    {{ t('settings.createUser') }}
+                  </el-button>
+                </div>
+              </section>
 
             <section v-if="canManageSettings" class="settings-section section-card">
               <div class="section-card__head">
@@ -585,6 +586,7 @@
                 </el-button>
               </div>
             </section>
+            </div>
           </div>
         </section>
 
@@ -2367,6 +2369,46 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
+}
+
+.users-management-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+  gap: 18px;
+  align-items: start;
+}
+
+.users-management-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.users-management-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.users-management-side .section-card {
+  background:
+    linear-gradient(180deg, rgba(25, 35, 60, 0.86), rgba(14, 20, 36, 0.94)),
+    rgba(255, 255, 255, 0.025);
+  border-color: rgba(77, 101, 154, 0.55);
+  box-shadow: 0 18px 42px rgba(4, 10, 24, 0.22);
+}
+
+.users-management-side .section-card + .section-card {
+  margin-top: 0;
+}
+
+@media (max-width: 960px) {
+  .users-management-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .users-management-side {
+    max-width: none;
+  }
 }
 
 .settings-stack {
