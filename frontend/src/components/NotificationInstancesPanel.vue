@@ -216,6 +216,7 @@
       </el-form>
 
       <template #footer>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button
           v-if="editingInstanceId"
           :loading="testing"
@@ -224,7 +225,6 @@
         >
           {{ t('settings.testNotificationInstance') }}
         </el-button>
-        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="saving" :disabled="testing" @click="submit">
           {{ t('common.save') }}
         </el-button>
