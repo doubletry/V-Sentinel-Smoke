@@ -15,6 +15,28 @@
             {{ t(layout.labelKey) }}
           </el-button>
         </el-button-group>
+        <template v-if="showPagination">
+          <span class="toolbar-divider" />
+          <el-button-group>
+            <el-button
+              size="small"
+              :disabled="currentPage === 0"
+              @click="setPage(currentPage - 1)"
+            >
+              {{ t('videoGrid.previousPage') }}
+            </el-button>
+            <el-button
+              size="small"
+              :disabled="currentPage >= pageCount - 1"
+              @click="setPage(currentPage + 1)"
+            >
+              {{ t('videoGrid.nextPage') }}
+            </el-button>
+          </el-button-group>
+          <span class="toolbar-label">
+            {{ t('videoGrid.pageIndicator', { current: currentPage + 1, total: pageCount }) }}
+          </span>
+        </template>
       </el-space>
     </div>
 
@@ -27,41 +49,41 @@
         v-for="(_, cellIdx) in totalCells"
         :key="cellIdx"
         class="grid-cell"
-        :class="{ 'has-source': !!assignments[cellIdx], 'drag-over': dragOverCell === cellIdx }"
-        @dragover.prevent="dragOverCell = cellIdx"
+        :class="{ 'has-source': !!visibleAssignments[cellIdx], 'drag-over': dragOverCell === globalCellIndex(cellIdx) }"
+        @dragover.prevent="dragOverCell = globalCellIndex(cellIdx)"
         @dragleave="dragOverCell = null"
-        @drop.prevent="onDrop($event, cellIdx)"
+        @drop.prevent="onDrop($event, globalCellIndex(cellIdx))"
       >
-        <template v-if="assignments[cellIdx]">
+        <template v-if="visibleAssignments[cellIdx]">
           <!-- Occupied cell -->
           <VideoPlayer
-            :stream-path="assignments[cellIdx].streamPath || getStreamPath(assignments[cellIdx])"
-            :label="assignments[cellIdx].name"
+            :stream-path="visibleAssignments[cellIdx].streamPath || getStreamPath(visibleAssignments[cellIdx])"
+            :label="visibleAssignments[cellIdx].name"
           />
           <div class="cell-controls">
-            <template v-if="!assignments[cellIdx].isResult">
+            <template v-if="!visibleAssignments[cellIdx].isResult">
               <el-button
                 size="small"
-                :type="roiPreviewCellIndex === cellIdx ? 'info' : 'default'"
-                @click="toggleRoiPreview(cellIdx)"
+                :type="roiPreviewCellIndex === globalCellIndex(cellIdx) ? 'info' : 'default'"
+                @click="toggleRoiPreview(globalCellIndex(cellIdx))"
               >
                 <el-icon><View /></el-icon>
-                {{ roiPreviewCellIndex === cellIdx ? t('videoGrid.hideRoi') : t('videoGrid.showRoi') }}
+                {{ roiPreviewCellIndex === globalCellIndex(cellIdx) ? t('videoGrid.hideRoi') : t('videoGrid.showRoi') }}
               </el-button>
               <el-button
                 v-if="canOperateSources"
                 size="small"
-                :type="roiCellIndex === cellIdx ? 'warning' : 'default'"
-                @click="toggleRoiEditor(cellIdx)"
+                :type="roiCellIndex === globalCellIndex(cellIdx) ? 'warning' : 'default'"
+                @click="toggleRoiEditor(globalCellIndex(cellIdx))"
               >
                 <el-icon><Edit /></el-icon>
-                {{ roiCellIndex === cellIdx ? t('videoGrid.exitEdit') : t('videoGrid.editRoi') }}
+                {{ roiCellIndex === globalCellIndex(cellIdx) ? t('videoGrid.exitEdit') : t('videoGrid.editRoi') }}
               </el-button>
             </template>
             <el-button
               size="small"
               type="danger"
-              @click="confirmRemoveCell(cellIdx)"
+              @click="confirmRemoveCell(globalCellIndex(cellIdx))"
             >
               <el-icon><Close /></el-icon>
               {{ t('videoGrid.removeSource') }}
@@ -69,15 +91,15 @@
           </div>
 
           <RoiDrawer
-            v-if="roiCellIndex === cellIdx && !assignments[cellIdx].isResult"
-            :source="assignments[cellIdx]"
+            v-if="roiCellIndex === globalCellIndex(cellIdx) && !visibleAssignments[cellIdx].isResult"
+            :source="visibleAssignments[cellIdx]"
             :read-only="!canOperateSources"
             @close="roiCellIndex = null"
           />
 
           <RoiDrawer
-            v-else-if="roiPreviewCellIndex === cellIdx && !assignments[cellIdx].isResult"
-            :source="assignments[cellIdx]"
+            v-else-if="roiPreviewCellIndex === globalCellIndex(cellIdx) && !visibleAssignments[cellIdx].isResult"
+            :source="visibleAssignments[cellIdx]"
             :read-only="true"
             @close="roiPreviewCellIndex = null"
           />
@@ -95,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
@@ -147,6 +169,29 @@ const gridStyle = computed(() => ({
 
 const assignments = computed(() => store.gridAssignments)
 const canOperateSources = computed(() => authStore.hasPermission('sources:operate'))
+const currentPage = ref(0)
+const assignedCellIndexes = computed(() => (
+  Object.keys(assignments.value)
+    .map((index) => Number(index))
+    .filter((index) => Number.isInteger(index) && index >= 0)
+))
+const pageCount = computed(() => {
+  if (!assignedCellIndexes.value.length) return 1
+  const maxCellIndex = Math.max(...assignedCellIndexes.value)
+  return Math.max(1, Math.floor(maxCellIndex / totalCells.value) + 1)
+})
+const showPagination = computed(() => pageCount.value > 1)
+const pageStartCell = computed(() => currentPage.value * totalCells.value)
+const visibleAssignments = computed(() => {
+  const visible = {}
+  for (let cellIdx = 0; cellIdx < totalCells.value; cellIdx += 1) {
+    const assignment = assignments.value[pageStartCell.value + cellIdx]
+    if (assignment) {
+      visible[cellIdx] = assignment
+    }
+  }
+  return visible
+})
 
 function setLayout(cols) {
   if (!ALLOWED_LAYOUTS.includes(cols)) return
@@ -155,6 +200,16 @@ function setLayout(cols) {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(GRID_LAYOUT_STORAGE_KEY, String(cols))
   }
+}
+
+function globalCellIndex(visibleCellIndex) {
+  return pageStartCell.value + visibleCellIndex
+}
+
+function setPage(page) {
+  currentPage.value = Math.min(Math.max(page, 0), pageCount.value - 1)
+  roiCellIndex.value = null
+  roiPreviewCellIndex.value = null
 }
 
 function getStreamPath(source) {
@@ -229,6 +284,12 @@ function onDrop(event, cellIdx) {
     store.assignToCell(cellIdx, source)
   }
 }
+
+watch([totalCells, pageCount], () => {
+  if (currentPage.value > pageCount.value - 1) {
+    setPage(pageCount.value - 1)
+  }
+})
 </script>
 
 <style scoped>
@@ -254,6 +315,12 @@ function onDrop(event, cellIdx) {
   color: #888;
   font-size: 13px;
   white-space: nowrap;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: #333;
 }
 
 .video-grid {

@@ -135,6 +135,9 @@ export default {
     removeConfirmTitle: 'Remove tile',
     removeConfirmMessage: '"{name}" will be removed from grid tile #{index}. Continue?',
     removeSuccess: 'Tile #{index} removed',
+    previousPage: 'Previous',
+    nextPage: 'Next',
+    pageIndicator: '{current}/{total}',
   },
   roi: {
     polygon: 'Polygon',

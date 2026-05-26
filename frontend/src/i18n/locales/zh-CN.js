@@ -135,6 +135,9 @@ export default {
     removeConfirmTitle: '移除画面',
     removeConfirmMessage: '将从画面墙 #{index} 移除 “{name}”，是否继续？',
     removeSuccess: '已移除画面 #{index}',
+    previousPage: '上一页',
+    nextPage: '下一页',
+    pageIndicator: '{current}/{total}',
   },
   roi: {
     polygon: '多边形',

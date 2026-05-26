@@ -633,6 +633,10 @@ onMounted(loadInstances)
   gap: 10px;
 }
 
+.notification-instance-card__footer {
+  margin-top: auto;
+}
+
 .notification-instance-card__title-wrap {
   display: flex;
   align-items: center;
