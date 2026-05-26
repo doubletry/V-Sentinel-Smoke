@@ -350,8 +350,6 @@ export default {
     testNotificationInstance: 'Test notification',
     notificationTestSuccess: 'Notification test succeeded: {status}',
     notificationTestFailed: 'Notification test failed: {message}',
-    notificationTestSaveFirstTitle: 'Save configuration first',
-    notificationTestSaveFirstMessage: 'The current edits have not been saved. Test notifications are sent by the backend using the saved configuration. Please save your changes before testing.',
     emailEventEnabled: 'Enable Event Email',
     emailEventSubjectTemplate: 'Event Email Subject Template',
     emailEventBodyTemplate: 'Event Email Body Template',

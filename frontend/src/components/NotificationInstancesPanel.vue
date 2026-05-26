@@ -58,9 +58,20 @@
 
         <footer class="notification-instance-card__footer">
           <span class="notification-instance-card__timestamp">{{ formatTimestamp(item.created_at) }}</span>
-          <el-button size="small" plain @click="openEditDialog(item)">
-            {{ t('common.edit') }}
-          </el-button>
+          <div class="notification-instance-card__actions">
+            <el-button
+              size="small"
+              plain
+              :loading="testingInstanceId === item.id"
+              :disabled="Boolean(testingInstanceId)"
+              @click="testInstance(item)"
+            >
+              {{ t('settings.testNotificationInstance') }}
+            </el-button>
+            <el-button size="small" plain @click="openEditDialog(item)">
+              {{ t('common.edit') }}
+            </el-button>
+          </div>
         </footer>
       </article>
 
@@ -217,15 +228,7 @@
 
       <template #footer>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button
-          v-if="editingInstanceId"
-          :loading="testing"
-          :disabled="saving"
-          @click="testInstance"
-        >
-          {{ t('settings.testNotificationInstance') }}
-        </el-button>
-        <el-button type="primary" :loading="saving" :disabled="testing" @click="submit">
+        <el-button type="primary" :loading="saving" @click="submit">
           {{ t('common.save') }}
         </el-button>
       </template>
@@ -237,7 +240,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
-import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { notificationsApi, settingsApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
@@ -246,10 +248,9 @@ const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
 const loading = ref(false)
 const saving = ref(false)
-const testing = ref(false)
+const testingInstanceId = ref('')
 const dialogVisible = ref(false)
 const editingInstanceId = ref('')
-const editingSnapshot = ref('')
 const instances = ref([])
 const placeholderItems = ref([
   'site_title', 'timestamp', 'local_time', 'timezone', 'source_name', 'source_id',
@@ -394,7 +395,6 @@ async function loadInstances() {
 function openCreateDialog() {
   editingInstanceId.value = ''
   form.value = createDefaultForm()
-  editingSnapshot.value = ''
   dialogVisible.value = true
 }
 
@@ -425,18 +425,7 @@ function openEditDialog(item) {
     subject_template: item.config?.subject_template || defaultSubjectTemplate,
     body_template: item.config?.body_template || defaultBodyTemplate,
   }
-  editingSnapshot.value = snapshotForm()
   dialogVisible.value = true
-}
-
-function snapshotForm() {
-  try {
-    return JSON.stringify(buildPayload())
-  } catch {
-    // If the current form values are invalid, treat the form as dirty so
-    // the user is asked to save (and surface the validation error) before testing.
-    return ''
-  }
 }
 
 function buildPayload() {
@@ -511,48 +500,16 @@ async function submit() {
   }
 }
 
-async function testInstance() {
-  if (!editingInstanceId.value) return
-  // Tests always run against the persisted backend configuration so the result
-  // reflects what the backend will actually send. If the form has unsaved
-  // edits, require the user to save first to keep frontend and backend
-  // configurations consistent.
-  if (snapshotForm() !== editingSnapshot.value) {
-    try {
-      await ElMessageBox.confirm(
-        t('settings.notificationTestSaveFirstMessage'),
-        t('settings.notificationTestSaveFirstTitle'),
-        {
-          type: 'warning',
-          confirmButtonText: t('common.save'),
-          cancelButtonText: t('common.cancel'),
-        }
-      )
-    } catch (_) {
-      return
-    }
-    saving.value = true
-    try {
-      const payload = buildPayload()
-      await notificationsApi.updateInstance(editingInstanceId.value, payload)
-      await loadInstances()
-      editingSnapshot.value = snapshotForm()
-      ElMessage.success(t('settings.settingsSaved'))
-    } catch (err) {
-      ElMessage.error(err.message || t('settings.failedToSave', { message: err.message }))
-      return
-    } finally {
-      saving.value = false
-    }
-  }
-  testing.value = true
+async function testInstance(item) {
+  if (!item?.id || testingInstanceId.value) return
+  testingInstanceId.value = item.id
   try {
-    const result = await notificationsApi.testInstance(editingInstanceId.value)
+    const result = await notificationsApi.testInstance(item.id)
     ElMessage.success(t('settings.notificationTestSuccess', { status: result?.status || result?.message || 'SUCCESS' }))
   } catch (err) {
     ElMessage.error(t('settings.notificationTestFailed', { message: err.message }))
   } finally {
-    testing.value = false
+    testingInstanceId.value = ''
   }
 }
 
@@ -764,6 +721,13 @@ onMounted(loadInstances)
 .notification-instance-card__timestamp {
   color: #94a3b8;
   font-size: 12px;
+}
+
+.notification-instance-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .notification-instance-empty {

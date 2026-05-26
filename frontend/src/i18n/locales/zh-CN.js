@@ -350,8 +350,6 @@ export default {
     testNotificationInstance: '测试通知',
     notificationTestSuccess: '通知测试成功：{status}',
     notificationTestFailed: '通知测试失败：{message}',
-    notificationTestSaveFirstTitle: '请先保存配置',
-    notificationTestSaveFirstMessage: '当前编辑的内容尚未保存。测试通知将使用后端已保存的配置发送，请先保存当前修改再进行测试。',
     emailEventEnabled: '启用事件邮件',
     emailEventSubjectTemplate: '事件邮件标题模板',
     emailEventBodyTemplate: '事件邮件正文模板',
