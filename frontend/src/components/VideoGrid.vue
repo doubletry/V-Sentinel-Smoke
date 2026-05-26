@@ -178,7 +178,7 @@ const assignedCellIndexes = computed(() => (
 const pageCount = computed(() => {
   if (!assignedCellIndexes.value.length) return 1
   const maxCellIndex = Math.max(...assignedCellIndexes.value)
-  return Math.max(1, Math.floor(maxCellIndex / totalCells.value) + 1)
+  return Math.max(1, Math.ceil((maxCellIndex + 1) / totalCells.value))
 })
 const showPagination = computed(() => pageCount.value > 1)
 const pageStartCell = computed(() => currentPage.value * totalCells.value)
@@ -285,7 +285,7 @@ function onDrop(event, cellIdx) {
   }
 }
 
-watch([totalCells, pageCount], () => {
+watch([totalCells, assignedCellIndexes], () => {
   if (currentPage.value > pageCount.value - 1) {
     setPage(pageCount.value - 1)
   }
