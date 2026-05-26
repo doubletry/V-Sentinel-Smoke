@@ -1,69 +1,97 @@
 <template>
   <div class="message-list">
-    <div
-      v-for="(msg, idx) in messages"
-      :key="messageKey(msg, idx)"
-      class="message-card"
-      :class="[`level-${msg.level}`, { 'agent-summary': msg.source_id === '__agent__' }]"
-    >
-      <div class="msg-header">
-        <el-tag :type="levelType(msg.level)" size="small" effect="dark">
-          {{ msg.source_id === '__agent__' ? t('messageList.summary') : msg.level.toUpperCase() }}
-        </el-tag>
-        <el-tag v-if="msg.false_positive" type="warning" size="small" effect="plain">
-          {{ t('messageList.falsePositive') }}
-        </el-tag>
-        <span class="msg-source">{{ msg.source_name }}</span>
-        <span class="msg-time">{{ formatDateTimeWithTimezone(msg.timestamp, appSettingsStore.timeZone) }}</span>
+    <div v-for="group in groupedMessages" :key="group.date" class="message-group">
+      <div class="msg-date-separator">
+        <el-checkbox
+          v-if="canDeleteMessages && group.selectableIds.length"
+          :model-value="group.allSelected"
+          :indeterminate="group.someSelected && !group.allSelected"
+          :aria-label="t('messageList.selectThisDate')"
+          @change="onToggleGroup(group, $event)"
+        />
+        <span class="msg-date-separator__label">{{ group.label }}</span>
+        <span class="msg-date-separator__count">{{ group.messages.length }}</span>
       </div>
-      <div class="msg-body">{{ msg.message }}</div>
-      <div v-if="hasAnyImage(msg)" class="msg-image-grid">
-        <div v-if="originalImageSrc(msg)" class="msg-image-card">
-          <div class="msg-image-title">{{ t('messageList.originalImage') }}</div>
-          <img
-            :src="originalImageSrc(msg)"
-            alt="original snapshot"
-            @dblclick="openPreview(originalImageSrc(msg))"
+      <div
+        v-for="(msg, idx) in group.messages"
+        :key="messageKey(msg, idx)"
+        class="message-card"
+        :class="[`level-${msg.level}`, { 'agent-summary': msg.source_id === '__agent__' }]"
+      >
+        <div class="msg-header">
+          <el-checkbox
+            v-if="canDeleteMessages && msg.id && msg.source_id !== '__agent__'"
+            :model-value="Boolean(selectedIds[msg.id])"
+            :aria-label="t('messageList.delete')"
+            @change="(value) => emit('toggle-select', msg.id, value)"
           />
+          <el-tag :type="levelType(msg.level)" size="small" effect="dark">
+            {{ msg.source_id === '__agent__' ? t('messageList.summary') : msg.level.toUpperCase() }}
+          </el-tag>
+          <el-tag v-if="msg.false_positive" type="warning" size="small" effect="plain">
+            {{ t('messageList.falsePositive') }}
+          </el-tag>
+          <span class="msg-source">{{ msg.source_name }}</span>
+          <span class="msg-time">{{ formatDateTimeWithTimezone(msg.timestamp, appSettingsStore.timeZone) }}</span>
         </div>
-        <div v-if="detectedImageSrc(msg)" class="msg-image-card">
-          <div class="msg-image-title">{{ t('messageList.detectedImage') }}</div>
-          <img
-            :src="detectedImageSrc(msg)"
-            alt="detected snapshot"
-            @dblclick="openPreview(detectedImageSrc(msg))"
-          />
+        <div class="msg-body">{{ msg.message }}</div>
+        <div v-if="hasAnyImage(msg)" class="msg-image-grid">
+          <div v-if="originalImageSrc(msg)" class="msg-image-card">
+            <div class="msg-image-title">{{ t('messageList.originalImage') }}</div>
+            <img
+              :src="originalImageSrc(msg)"
+              alt="original snapshot"
+              @dblclick="openPreview(originalImageSrc(msg))"
+            />
+          </div>
+          <div v-if="detectedImageSrc(msg)" class="msg-image-card">
+            <div class="msg-image-title">{{ t('messageList.detectedImage') }}</div>
+            <img
+              :src="detectedImageSrc(msg)"
+              alt="detected snapshot"
+              @dblclick="openPreview(detectedImageSrc(msg))"
+            />
+          </div>
         </div>
-      </div>
-      <div class="msg-actions">
-        <el-button
-          v-if="canAnnotateMessages && msg.id"
-          size="small"
-          type="primary"
-          plain
-          :loading="Boolean(resendingMessageIds[msg.id])"
-          @click="emit('resend-notification', msg)"
-        >
-          {{ t('messageList.resendNotification') }}
-        </el-button>
-        <el-button
-          v-if="canAnnotateMessages && msg.id && !msg.false_positive"
-          size="small"
-          type="warning"
-          plain
-          @click="emit('mark-false-positive', msg)"
-        >
-          {{ t('messageList.markFalsePositive') }}
-        </el-button>
-        <el-button
-          v-if="canAnnotateMessages && msg.id && msg.false_positive"
-          size="small"
-          type="info"
-          plain
-          @click="emit('unmark-false-positive', msg)"
-        >
-          {{ t('messageList.unmarkFalsePositive') }}
-        </el-button>
+        <div class="msg-actions">
+          <el-button
+            v-if="canAnnotateMessages && msg.id"
+            size="small"
+            type="primary"
+            plain
+            :loading="Boolean(resendingMessageIds[msg.id])"
+            @click="emit('resend-notification', msg)"
+          >
+            {{ t('messageList.resendNotification') }}
+          </el-button>
+          <el-button
+            v-if="canAnnotateMessages && msg.id && !msg.false_positive"
+            size="small"
+            type="warning"
+            plain
+            @click="emit('mark-false-positive', msg)"
+          >
+            {{ t('messageList.markFalsePositive') }}
+          </el-button>
+          <el-button
+            v-if="canAnnotateMessages && msg.id && msg.false_positive"
+            size="small"
+            type="info"
+            plain
+            @click="emit('unmark-false-positive', msg)"
+          >
+            {{ t('messageList.unmarkFalsePositive') }}
+          </el-button>
+          <el-button
+            v-if="canDeleteMessages && msg.id"
+            size="small"
+            type="danger"
+            plain
+            @click="emit('delete-message', msg)"
+          >
+            {{ t('messageList.delete') }}
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -85,9 +113,9 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
-import { formatDateTimeWithTimezone } from '../utils/time.js'
+import { formatDateTimeWithTimezone, formatWithTimezone } from '../utils/time.js'
 
-defineProps({
+const props = defineProps({
   messages: {
     type: Array,
     default: () => [],
@@ -96,8 +124,19 @@ defineProps({
     type: Object,
     default: () => ({}),
   },
+  selectedIds: {
+    type: Object,
+    default: () => ({}),
+  },
 })
-const emit = defineEmits(['mark-false-positive', 'unmark-false-positive', 'resend-notification'])
+const emit = defineEmits([
+  'mark-false-positive',
+  'unmark-false-positive',
+  'resend-notification',
+  'delete-message',
+  'toggle-select',
+  'toggle-select-group',
+])
 
 const { t } = useI18n()
 const appSettingsStore = useAppSettingsStore()
@@ -105,6 +144,7 @@ const authStore = useAuthStore()
 const previewVisible = ref(false)
 const previewImage = ref('')
 const canAnnotateMessages = computed(() => authStore.hasPermission('messages:annotate'))
+const canDeleteMessages = computed(() => authStore.hasPermission('messages:delete'))
 
 function levelType(level) {
   const map = { info: '', warning: 'warning', alert: 'danger' }
@@ -140,6 +180,72 @@ function messageKey(message, idx) {
     || `${message?.timestamp || 'no-timestamp'}-${message?.source_id || message?.source_name || 'no-source'}-${message?.level || 'no-level'}-${message?.message || 'no-message'}-${idx}`
   )
 }
+
+function timezoneDayKey(timestamp) {
+  if (!timestamp) return ''
+  const tz = appSettingsStore.timeZone || 'Asia/Shanghai'
+  const parts = formatWithTimezone(timestamp, tz, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  // Normalise to YYYY-MM-DD regardless of locale separators.
+  const digits = String(parts).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/)
+  if (!digits) return String(parts)
+  const [, y, m, d] = digits
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
+function dayLabel(dayKey) {
+  if (!dayKey) return ''
+  const tz = appSettingsStore.timeZone || 'Asia/Shanghai'
+  const todayKey = timezoneDayKey(new Date().toISOString())
+  // Compute yesterday in the active timezone via subtracting 24h from now and re-keying.
+  const yesterdayDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const yesterdayKey = timezoneDayKey(yesterdayDate.toISOString())
+  if (dayKey === todayKey) return t('messageList.today')
+  if (dayKey === yesterdayKey) return t('messageList.yesterday')
+  // Compose a noon timestamp on that day for nice locale-formatted output.
+  const display = formatWithTimezone(`${dayKey}T12:00:00Z`, tz, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  })
+  return display
+}
+
+const groupedMessages = computed(() => {
+  const groups = new Map()
+  const order = []
+  for (const msg of props.messages) {
+    const key = timezoneDayKey(msg?.timestamp) || 'unknown'
+    if (!groups.has(key)) {
+      order.push(key)
+      groups.set(key, [])
+    }
+    groups.get(key).push(msg)
+  }
+  return order.map((key) => {
+    const items = groups.get(key)
+    const selectableIds = items
+      .filter((m) => m?.id && m?.source_id !== '__agent__')
+      .map((m) => m.id)
+    const selectedCount = selectableIds.filter((id) => props.selectedIds[id]).length
+    return {
+      date: key,
+      label: dayLabel(key),
+      messages: items,
+      selectableIds,
+      allSelected: selectableIds.length > 0 && selectedCount === selectableIds.length,
+      someSelected: selectedCount > 0,
+    }
+  })
+})
+
+function onToggleGroup(group, value) {
+  emit('toggle-select-group', group.selectableIds, Boolean(value))
+}
 </script>
 
 <style scoped>
@@ -148,6 +254,40 @@ function messageKey(message, idx) {
   flex-direction: column;
   gap: 8px;
   padding: 8px;
+}
+
+.message-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msg-date-separator {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: linear-gradient(90deg, rgba(64, 158, 255, 0.18), rgba(26, 26, 46, 0.85));
+  border-left: 3px solid #409EFF;
+  border-radius: 4px;
+  color: #c8d5f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.msg-date-separator__label {
+  flex: 1 1 auto;
+}
+
+.msg-date-separator__count {
+  background: rgba(64, 158, 255, 0.25);
+  color: #c8d5f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
 }
 
 .message-card {

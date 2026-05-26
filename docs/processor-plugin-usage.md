@@ -51,7 +51,7 @@ GET  /api/access/roles
 RBAC roles are intentionally simple at this stage:
 
 - `user`: view video, sources, and messages.
-- `operator`: user permissions plus source operation and message annotation.
+- `operator`: user permissions plus source operation, message annotation, and permanent message deletion.
 - `admin`: full platform configuration and user-management permissions.
 
 The next implementation phases should wire these definitions into request-time

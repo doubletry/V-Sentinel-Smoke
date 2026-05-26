@@ -351,6 +351,17 @@ See [`docs/processor-plugin-usage.md`](docs/processor-plugin-usage.md).
 | `POST` | `/api/processor/stop` | Stop AI analysis |
 | `GET` | `/api/processor/status` | Get all processor statuses |
 
+### Messages
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/messages` | List persisted messages; supports `source_id`, `false_positive_only`, `start_date`, `end_date` (`YYYY-MM-DD`, UTC) filters |
+| `POST` | `/api/messages/{id}/false-positive` | Mark as false positive and export images to `false_positives/` (operator/admin) |
+| `DELETE` | `/api/messages/{id}/false-positive` | Clear the false-positive flag (operator/admin) |
+| `POST` | `/api/messages/{id}/resend-notification` | Manually resend notifications (operator/admin) |
+| `DELETE` | `/api/messages/{id}` | Permanently delete one message and its `message_thumbnails/` files; `false_positives/` exports are preserved (operator/admin) |
+| `POST` | `/api/messages/batch-delete` | Permanently delete many messages in one request, body `{"ids": [...]}`; `false_positives/` exports are preserved (operator/admin) |
+
 ### WebSocket
 
 | Path | Description |
