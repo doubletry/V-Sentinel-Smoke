@@ -4,6 +4,9 @@ import ElBadge from 'element-plus/es/components/badge/index'
 import ElButton, { ElButtonGroup } from 'element-plus/es/components/button/index'
 import ElConfigProvider from 'element-plus/es/components/config-provider/index'
 import ElContainer, { ElHeader, ElMain } from 'element-plus/es/components/container/index'
+import ElRow from 'element-plus/es/components/row/index'
+import ElCol from 'element-plus/es/components/col/index'
+import ElDatePicker from 'element-plus/es/components/date-picker/index'
 import ElDialog from 'element-plus/es/components/dialog/index'
 import ElDivider from 'element-plus/es/components/divider/index'
 import ElEmpty from 'element-plus/es/components/empty/index'
@@ -63,6 +66,8 @@ const elementPlusComponents = [
   ElButtonGroup,
   ElConfigProvider,
   ElContainer,
+  ElCol,
+  ElDatePicker,
   ElDialog,
   ElDivider,
   ElEmpty,
@@ -77,6 +82,7 @@ const elementPlusComponents = [
   ElOption,
   ElPagination,
   ElPopover,
+  ElRow,
   ElScrollbar,
   ElSelect,
   ElSkeleton,
