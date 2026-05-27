@@ -979,6 +979,7 @@ import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
+import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
 import ProcessingLogs from './ProcessingLogs.vue'
 
@@ -1384,26 +1385,7 @@ function roiTagLabel(scene, tag) {
 }
 
 function formatCreatedAt(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  try {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: appSettingsStore.timeZone || 'Asia/Shanghai',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).formatToParts(date)
-    const part = (type) => parts.find((item) => item.type === type)?.value || ''
-    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}:${part('second')}`
-  } catch (_) {
-    return date.toLocaleString()
-  }
+  return formatSortableDateTimeWithTimezone(value, appSettingsStore.timeZone)
 }
 
 function pluginSettingKeys(sceneId) {
@@ -1933,6 +1915,11 @@ onMounted(async () => {
   --users-management-side-card-shadow: rgba(4, 10, 24, 0.22);
   --users-management-table-bg: rgba(9, 15, 30, 0.82);
   --users-management-table-border: rgba(62, 82, 126, 0.65);
+  --users-management-cell-color: #d9e6ff;
+  --user-identity-name-color: #edf4ff;
+  --current-account-tag-border: rgba(124, 194, 255, 0.48);
+  --current-account-tag-bg: rgba(64, 158, 255, 0.12);
+  --current-account-tag-color: #9dd3ff;
   height: 100%;
   overflow-y: auto;
   padding: 24px 28px 32px;
@@ -2508,7 +2495,7 @@ onMounted(async () => {
 }
 
 .user-management-table :deep(.cell) {
-  color: #d9e6ff;
+  color: var(--users-management-cell-color);
 }
 
 .user-management-table :deep(.el-table__inner-wrapper::before),
@@ -2537,16 +2524,16 @@ onMounted(async () => {
 .user-identity__name {
   min-width: 0;
   overflow: hidden;
-  color: #edf4ff;
+  color: var(--user-identity-name-color);
   font-weight: 600;
   text-overflow: ellipsis;
 }
 
 .current-account-tag {
   flex: 0 0 auto;
-  border-color: rgba(124, 194, 255, 0.48);
-  background: rgba(64, 158, 255, 0.12);
-  color: #9dd3ff;
+  border-color: var(--current-account-tag-border);
+  background: var(--current-account-tag-bg);
+  color: var(--current-account-tag-color);
 }
 
 .settings-stack {
