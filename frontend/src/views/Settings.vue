@@ -2484,7 +2484,7 @@ onMounted(async () => {
 .users-management-side {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* Keep the right-side cards visually separated in vertical flow */
+  gap: 20px; /* Vertical spacing between side cards */
 }
 
 .users-management-layout .section-card {
@@ -2496,7 +2496,7 @@ onMounted(async () => {
     ),
     rgba(255, 255, 255, 0.025);
   border-color: rgba(103, 132, 190, 0.42);
-  box-shadow: 0 20px 48px rgba(4, 10, 24, 0.18); /* Softer modern card depth */
+  box-shadow: 0 20px 48px rgba(4, 10, 24, 0.18); /* Reduced shadow intensity for card elevation */
 }
 
 .users-management-layout .section-card + .section-card {
@@ -2535,7 +2535,7 @@ onMounted(async () => {
 
 .settings-action-footer {
   padding-top: 4px;
-  border-top: 1px solid rgba(103, 132, 190, 0.16); /* Separate form controls from submit actions */
+  border-top: 1px solid rgba(103, 132, 190, 0.16); /* Visual separator between form fields and actions */
 }
 
 .user-management-table {
@@ -2550,7 +2550,7 @@ onMounted(async () => {
   border: 1px solid rgba(103, 132, 190, 0.38);
   border-radius: 16px;
   background: var(--users-management-table-bg);
-  box-shadow: 0 12px 30px rgba(3, 9, 22, 0.16); /* Soft list container shadow */
+  box-shadow: 0 12px 30px rgba(3, 9, 22, 0.16); /* Shadow effect for table container */
 }
 
 .user-management-table-shell {
@@ -2612,7 +2612,7 @@ onMounted(async () => {
 }
 
 .user-action-space :deep(.el-button + .el-button) {
-  margin-left: 0; /* Let el-space own action-button spacing */
+  margin-left: 0; /* Let el-space handle button spacing */
 }
 
 .settings-stack {
@@ -2666,14 +2666,14 @@ onMounted(async () => {
 }
 
 .section-card__actions :deep(.el-button + .el-button) {
-  margin-left: 0; /* Avoid mixed Element Plus margin and el-space gap */
+  margin-left: 0; /* Prevent spacing conflicts with el-space */
 }
 
 :deep(.user-management-dialog) {
   border: 1px solid rgba(103, 132, 190, 0.44);
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(21, 30, 52, 0.98), rgba(13, 20, 37, 0.98));
-  box-shadow: 0 24px 64px rgba(4, 10, 24, 0.42); /* Dialog depth without harsh borders */
+  box-shadow: 0 24px 64px rgba(4, 10, 24, 0.42); /* Enhanced shadow for dialog elevation */
   overflow: hidden;
 }
 
