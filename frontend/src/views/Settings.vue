@@ -127,15 +127,17 @@
                       />
                     </el-select>
                   </el-form-item>
-                  <el-form-item :label="t('settings.siteTitle')">
-                    <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.siteDescription')">
-                    <el-input
-                      v-model="form.site_description"
-                      :placeholder="t('settings.siteDescription')"
-                    />
-                  </el-form-item>
+                  <div class="settings-inline-field-row form-grid-span-full">
+                    <el-form-item :label="t('settings.siteTitle')">
+                      <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.siteDescription')">
+                      <el-input
+                        v-model="form.site_description"
+                        :placeholder="t('settings.siteDescription')"
+                      />
+                    </el-form-item>
+                  </div>
                   <el-form-item :label="t('settings.activePlugin')" class="form-grid-span-full">
                     <div class="field-stack">
                       <el-select v-model="form.active_plugin_id" style="width: 100%">
@@ -164,7 +166,13 @@
                         <el-button>{{ t('settings.uploadSiteIcon') }}</el-button>
                       </el-upload>
                       <el-button @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
-                      <el-input v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
+                      <el-tag v-if="isEmbeddedFavicon" type="success" effect="plain" class="site-icon-uploaded-tag">
+                        {{ t('settings.siteIconUploaded') }}
+                      </el-tag>
+                      <el-input v-else v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
+                      <p class="form-hint icon-upload-hint">
+                        {{ isEmbeddedFavicon ? t('settings.siteIconUploadedHint') : t('settings.faviconUrlHint') }}
+                      </p>
                     </div>
                   </el-form-item>
                 </div>
@@ -202,17 +210,19 @@
                   <el-form-item :label="t('settings.webrtcAddress')">
                     <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
                   </el-form-item>
-                  <el-form-item :label="t('settings.mediamtxUsername')">
-                    <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.mediamtxPassword')">
-                    <el-input
-                      v-model="form.mediamtx_password"
-                      type="password"
-                      show-password
-                      placeholder="stream-pass"
-                    />
-                  </el-form-item>
+                  <div class="settings-inline-field-row form-grid-span-full">
+                    <el-form-item :label="t('settings.mediamtxUsername')">
+                      <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.mediamtxPassword')">
+                      <el-input
+                        v-model="form.mediamtx_password"
+                        type="password"
+                        show-password
+                        placeholder="stream-pass"
+                      />
+                    </el-form-item>
+                  </div>
                 </div>
               </section>
             </el-tab-pane>
@@ -1059,7 +1069,7 @@ import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
-import { accessApi, scenesApi, settingsApi } from '../api/index.js'
+import { accessApi, scenesApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
@@ -1307,6 +1317,8 @@ const resetPasswordDialog = ref({
   new_password: '',
 })
 const blockedIps = ref([])
+const userManagementLoaded = ref(false)
+let userManagementLoadPromise = null
 const manualBlockForm = ref({
   ip: '',
   duration_seconds: '',
@@ -1420,6 +1432,7 @@ const isNotificationsPage = computed(() => currentSettingsPage.value === 'notifi
 const isUsersPage = computed(() => currentSettingsPage.value === 'users')
 const isLogsPage = computed(() => currentSettingsPage.value === 'logs')
 const isPluginPage = computed(() => currentSettingsPage.value === 'plugins')
+const isEmbeddedFavicon = computed(() => String(form.value.favicon_url || '').startsWith('data:'))
 const settingsNavItems = computed(() => {
   const items = []
   if (canManageSettings.value) {
@@ -1578,20 +1591,8 @@ async function reload() {
         data.max_push_workers,
         data.max_cpu_workers,
       ].some((value) => String(value ?? '').trim() !== '')
-      try {
-        const placeholderData = await settingsApi.emailTemplatePlaceholders()
-        if (Array.isArray(placeholderData?.placeholders)) {
-          emailTemplatePlaceholders.value = placeholderData.placeholders
-        }
-      } catch (_) {
-        // Keep built-in placeholder list when the backend endpoint is unavailable.
-      }
     }
     ensureValidSettingsRoute()
-    if (authStore.canManageUsers) {
-      await authStore.fetchUsers()
-      await reloadBlockedIps()
-    }
   } catch (err) {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))
   } finally {
@@ -1779,6 +1780,32 @@ async function reloadBlockedIps() {
     blockedIps.value = await accessApi.listBlockedIps()
   } catch (err) {
     ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function reloadUserManagementData({ force = false } = {}) {
+  if (!authStore.canManageUsers) {
+    userManagementLoaded.value = false
+    blockedIps.value = []
+    return
+  }
+  if (!force && userManagementLoaded.value) return
+  if (!force && userManagementLoadPromise) {
+    return userManagementLoadPromise
+  }
+
+  userManagementLoadPromise = (async () => {
+    await authStore.fetchUsers()
+    await reloadBlockedIps()
+    userManagementLoaded.value = true
+  })()
+
+  try {
+    await userManagementLoadPromise
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  } finally {
+    userManagementLoadPromise = null
   }
 }
 
@@ -1981,6 +2008,9 @@ watch(
   () => {
     ensureValidSettingsRoute()
     pluginDialogVisible.value = route.name === 'ManagementPlugin' && Boolean(currentPluginScene.value)
+    if (isUsersPage.value) {
+      reloadUserManagementData()
+    }
   },
   { immediate: true }
 )
@@ -2300,6 +2330,8 @@ onMounted(async () => {
 }
 
 .settings-top-tabs :deep(.el-tabs__nav) {
+  display: inline-flex;
+  align-items: center;
   padding: 4px;
   border-radius: 999px;
   background: rgba(9, 14, 28, 0.72);
@@ -2310,7 +2342,12 @@ onMounted(async () => {
 }
 
 .settings-top-tabs :deep(.el-tabs__item) {
+  display: inline-flex;
+  align-items: center; /* Center selected pill with the tab text */
+  justify-content: center;
+  box-sizing: border-box;
   height: 38px;
+  line-height: 1;
   color: #aebbd7;
   padding: 0 18px;
   border-radius: 999px;
@@ -2344,6 +2381,16 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.settings-inline-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* Pair related settings on one line */
+  gap: 10px 18px;
+}
+
+.settings-inline-field-row :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
 .form-grid-span-full {
   grid-column: 1 / -1;
 }
@@ -2358,6 +2405,16 @@ onMounted(async () => {
 .icon-path-input {
   min-width: min(420px, 100%);
   flex: 1 1 320px;
+}
+
+.site-icon-uploaded-tag {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.icon-upload-hint {
+  flex-basis: 100%;
+  margin-top: 0;
 }
 
 .roi-tags-editor {
@@ -2971,6 +3028,10 @@ onMounted(async () => {
 
   .icon-path-input {
     min-width: 100%;
+  }
+
+  .settings-inline-field-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
