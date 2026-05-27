@@ -1920,7 +1920,7 @@ onMounted(async () => {
   --current-account-tag-border: rgba(124, 194, 255, 0.48);
   --current-account-tag-bg: rgba(64, 158, 255, 0.12);
   --current-account-tag-color: #9dd3ff;
-  --users-management-action-button-min-width: 96px;
+  --users-management-action-button-width: 112px;
   --user-created-at-color: #8aa6d9;
   height: 100%;
   overflow-y: auto;
@@ -2462,8 +2462,7 @@ onMounted(async () => {
 }
 
 .users-management-side .section-card__actions.single-action .el-button {
-  width: auto;
-  min-width: var(--users-management-action-button-min-width);
+  width: var(--users-management-action-button-width);
   margin-left: 0;
 }
 

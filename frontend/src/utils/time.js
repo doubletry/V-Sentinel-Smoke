@@ -41,7 +41,7 @@ export function formatSortableDateTimeWithTimezone(timestamp, timezone) {
 
   try {
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone || 'Asia/Shanghai',
+      timeZone: timezone || 'UTC',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
