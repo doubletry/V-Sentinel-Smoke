@@ -1905,6 +1905,8 @@ onMounted(async () => {
   --users-management-side-card-bg-end: rgba(14, 20, 36, 0.94);
   --users-management-side-card-border: rgba(77, 101, 154, 0.55);
   --users-management-side-card-shadow: rgba(4, 10, 24, 0.22);
+  --users-management-table-bg: rgba(9, 15, 30, 0.82);
+  --users-management-table-border: rgba(62, 82, 126, 0.65);
   height: 100%;
   overflow-y: auto;
   padding: 24px 28px 32px;
@@ -2450,22 +2452,22 @@ onMounted(async () => {
 }
 
 .user-management-table {
-  --el-table-bg-color: rgba(9, 15, 30, 0.82);
-  --el-table-tr-bg-color: rgba(9, 15, 30, 0.82);
+  --el-table-bg-color: var(--users-management-table-bg);
+  --el-table-tr-bg-color: var(--users-management-table-bg);
   --el-table-header-bg-color: rgba(18, 29, 54, 0.96);
   --el-table-row-hover-bg-color: rgba(35, 72, 132, 0.28);
-  --el-table-border-color: rgba(62, 82, 126, 0.65);
+  --el-table-border-color: var(--users-management-table-border);
   --el-table-text-color: #d9e6ff;
   --el-table-header-text-color: #9fb8e8;
   overflow: hidden;
   border: 1px solid rgba(62, 82, 126, 0.56);
   border-radius: 14px;
-  background: rgba(9, 15, 30, 0.82);
+  background: var(--users-management-table-bg);
 }
 
 .user-management-table :deep(.el-table__inner-wrapper::before),
 .user-management-table :deep(.el-table__border-left-patch) {
-  background-color: rgba(62, 82, 126, 0.65);
+  background-color: var(--users-management-table-border);
 }
 
 .user-management-table :deep(.el-table__cell) {
@@ -2473,7 +2475,7 @@ onMounted(async () => {
 }
 
 .user-management-table :deep(.el-table__empty-block) {
-  background: rgba(9, 15, 30, 0.82);
+  background: var(--users-management-table-bg);
 }
 
 .settings-stack {
