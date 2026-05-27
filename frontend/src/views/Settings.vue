@@ -2473,7 +2473,7 @@ onMounted(async () => {
 .users-management-layout {
   display: flex;
   flex-direction: column;
-  gap: 22px; /* Add breathing room between management sections */
+  gap: 22px; /* Vertical spacing between management sections */
 }
 
 .users-management-main {
@@ -2484,7 +2484,7 @@ onMounted(async () => {
 .users-management-side {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* Vertical spacing between side cards */
+  gap: 22px; /* Vertical spacing between side cards */
 }
 
 .users-management-layout .section-card {
