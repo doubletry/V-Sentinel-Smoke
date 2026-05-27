@@ -467,35 +467,34 @@
                     <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="18" class="settings-compact-fields">
+                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--short" align="bottom">
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.expirationDaysUser')">
-                      <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
+                      <el-input v-model="form.account_expiration_days_user" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.expirationDaysOperator')">
-                      <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
+                      <el-input v-model="form.account_expiration_days_operator" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.expirationDaysAdmin')">
-                      <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
+                      <el-input v-model="form.account_expiration_days_admin" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6" class="compact-action-col">
+                    <div class="compact-row-actions">
+                      <el-button
+                        type="primary"
+                        :loading="activeSaveSection === 'accountExpiration'"
+                        @click="saveAccountExpirationSettings"
+                      >
+                        {{ t('common.save') }}
+                      </el-button>
+                    </div>
+                  </el-col>
                 </el-row>
-                <div class="section-card__actions single-action settings-action-footer">
-                  <el-space :size="10" wrap alignment="center">
-                    <el-button
-                      type="primary"
-                      size="large"
-                      :loading="activeSaveSection === 'accountExpiration'"
-                      @click="saveAccountExpirationSettings"
-                    >
-                      {{ t('common.save') }}
-                    </el-button>
-                  </el-space>
-                </div>
               </section>
 
               <section v-if="canManageSettings" class="settings-section section-card">
@@ -505,36 +504,35 @@
                     <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="18" class="settings-compact-fields">
+                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--short" align="bottom">
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.lockoutMaxAttempts')">
-                      <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
+                      <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.lockoutWindowSeconds')">
-                      <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
+                      <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                      <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
+                      <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" class="short-number-input" />
                       <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
                     </el-form-item>
                   </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6" class="compact-action-col">
+                    <div class="compact-row-actions">
+                      <el-button
+                        type="primary"
+                        :loading="activeSaveSection === 'loginSecurity'"
+                        @click="saveLoginSecuritySettings"
+                      >
+                        {{ t('common.save') }}
+                      </el-button>
+                    </div>
+                  </el-col>
                 </el-row>
-                <div class="section-card__actions single-action settings-action-footer">
-                  <el-space :size="10" wrap alignment="center">
-                    <el-button
-                      type="primary"
-                      size="large"
-                      :loading="activeSaveSection === 'loginSecurity'"
-                      @click="saveLoginSecuritySettings"
-                    >
-                      {{ t('common.save') }}
-                    </el-button>
-                  </el-space>
-                </div>
 
                 <el-divider />
 
@@ -575,30 +573,30 @@
 
                 <el-divider />
                 <h3>{{ t('settings.manualBlockIp') }}</h3>
-                <el-row :gutter="18" class="settings-compact-fields manual-block-fields">
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                <el-row :gutter="18" class="settings-compact-fields manual-block-fields" align="bottom">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="7">
                     <el-form-item label="IP">
-                      <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
+                      <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" class="medium-text-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="5">
                     <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                      <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
+                      <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="7">
                     <el-form-item :label="t('settings.blockedReason')">
-                      <el-input v-model="manualBlockForm.reason" />
+                      <el-input v-model="manualBlockForm.reason" class="medium-text-input" />
                     </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="5" class="compact-action-col">
+                    <div class="compact-row-actions">
+                      <el-button type="warning" @click="manualBlockIp">
+                        {{ t('settings.manualBlockIp') }}
+                      </el-button>
+                    </div>
                   </el-col>
                 </el-row>
-                <div class="section-card__actions single-action settings-action-footer">
-                  <el-space :size="10" wrap alignment="center">
-                    <el-button type="warning" size="large" @click="manualBlockIp">
-                      {{ t('settings.manualBlockIp') }}
-                    </el-button>
-                  </el-space>
-                </div>
               </section>
             </div>
           </div>
@@ -896,42 +894,52 @@
         >
           <el-form label-position="top" class="user-dialog-form" size="large">
             <p class="plugin-dialog-hint">{{ t('settings.temporaryPasswordHint') }}</p>
-            <el-form-item :label="t('settings.username')" required>
-              <el-input
-                v-model="userForm.username"
-                autocomplete="username"
-                aria-required="true"
-                @keyup.enter="createUserAccount"
-              />
-            </el-form-item>
-            <el-form-item :label="t('settings.userRole')">
-              <el-select v-model="userForm.role" style="width: 100%">
-                <el-option value="user" :label="t('auth.roles.user')" />
-                <el-option value="operator" :label="t('auth.roles.operator')" />
-                <el-option value="admin" :label="t('auth.roles.admin')" />
-              </el-select>
-            </el-form-item>
-            <el-form-item :label="t('settings.temporaryPassword')" required>
-              <el-input
-                v-model="userForm.password"
-                type="password"
-                show-password
-                autocomplete="new-password"
-                aria-required="true"
-                @keyup.enter="createUserAccount"
-              />
-            </el-form-item>
-            <el-form-item :label="t('settings.userExpiresAt')">
-              <el-date-picker
-                v-model="userForm.expires_at"
-                type="datetime"
-                style="width: 100%;"
-                :placeholder="t('settings.userExpiresAtPlaceholder')"
-                format="YYYY-MM-DD HH:mm"
-                value-format="YYYY-MM-DDTHH:mm:ss"
-              />
-              <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
-            </el-form-item>
+            <el-row :gutter="16" class="dialog-compact-grid">
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.username')" required>
+                  <el-input
+                    v-model="userForm.username"
+                    autocomplete="username"
+                    aria-required="true"
+                    @keyup.enter="createUserAccount"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userRole')">
+                  <el-select v-model="userForm.role" class="dialog-compact-control">
+                    <el-option value="user" :label="t('auth.roles.user')" />
+                    <el-option value="operator" :label="t('auth.roles.operator')" />
+                    <el-option value="admin" :label="t('auth.roles.admin')" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.temporaryPassword')" required>
+                  <el-input
+                    v-model="userForm.password"
+                    type="password"
+                    show-password
+                    autocomplete="new-password"
+                    aria-required="true"
+                    @keyup.enter="createUserAccount"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userExpiresAt')">
+                  <el-date-picker
+                    v-model="userForm.expires_at"
+                    type="datetime"
+                    class="dialog-compact-control"
+                    :placeholder="t('settings.userExpiresAtPlaceholder')"
+                    format="YYYY-MM-DD HH:mm"
+                    value-format="YYYY-MM-DDTHH:mm:ss"
+                  />
+                  <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
           <template #footer>
             <div class="user-dialog-footer">
@@ -953,25 +961,31 @@
           destroy-on-close
         >
           <el-form label-position="top" class="user-dialog-form" size="large">
-            <el-form-item :label="t('settings.userRole')">
-              <el-select v-model="editUserDialog.role" style="width: 100%">
-                <el-option value="user" :label="t('auth.roles.user')" />
-                <el-option value="operator" :label="t('auth.roles.operator')" />
-                <el-option value="admin" :label="t('auth.roles.admin')" />
-              </el-select>
-            </el-form-item>
-            <el-form-item :label="t('settings.userExpiresAt')">
-              <el-date-picker
-                v-model="editUserDialog.expires_at"
-                type="datetime"
-                style="width: 100%;"
-                :placeholder="t('settings.userExpiresAtPlaceholder')"
-                format="YYYY-MM-DD HH:mm"
-                value-format="YYYY-MM-DDTHH:mm:ss"
-                clearable
-              />
-              <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
-            </el-form-item>
+            <el-row :gutter="16" class="dialog-compact-grid">
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userRole')">
+                  <el-select v-model="editUserDialog.role" class="dialog-compact-control">
+                    <el-option value="user" :label="t('auth.roles.user')" />
+                    <el-option value="operator" :label="t('auth.roles.operator')" />
+                    <el-option value="admin" :label="t('auth.roles.admin')" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userExpiresAt')">
+                  <el-date-picker
+                    v-model="editUserDialog.expires_at"
+                    type="datetime"
+                    class="dialog-compact-control"
+                    :placeholder="t('settings.userExpiresAtPlaceholder')"
+                    format="YYYY-MM-DD HH:mm"
+                    value-format="YYYY-MM-DDTHH:mm:ss"
+                    clearable
+                  />
+                  <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
           <template #footer>
             <div class="user-dialog-footer">
@@ -997,6 +1011,7 @@
                 type="password"
                 show-password
                 autocomplete="new-password"
+                class="dialog-password-input"
                 @keyup.enter="submitResetPassword"
               />
             </el-form-item>
@@ -2533,6 +2548,34 @@ onMounted(async () => {
   width: 100%;
 }
 
+.settings-compact-fields--short :deep(.el-form-item__content) {
+  align-items: flex-start;
+}
+
+.settings-compact-fields--short .info-tip {
+  flex-basis: 100%;
+}
+
+.short-number-input {
+  max-width: 132px; /* Keep short numeric settings visually compact */
+}
+
+.medium-text-input {
+  max-width: 240px; /* Avoid overlong single-line controls */
+}
+
+.compact-action-col {
+  display: flex;
+  align-items: flex-end;
+}
+
+.compact-row-actions {
+  display: flex;
+  justify-content: flex-end; /* Merge save/submit buttons into the same control row */
+  width: 100%;
+  padding-bottom: 18px;
+}
+
 .settings-action-footer {
   padding-top: 4px;
   border-top: 1px solid rgba(103, 132, 190, 0.16); /* Visual separator between form fields and actions */
@@ -2707,6 +2750,21 @@ onMounted(async () => {
   margin-bottom: 16px;
 }
 
+.dialog-compact-grid {
+  row-gap: 2px; /* Pair related dialog fields in the same row */
+}
+
+.dialog-compact-grid :deep(.el-input),
+.dialog-compact-control,
+.dialog-password-input {
+  width: 100%;
+  max-width: 224px;
+}
+
+.dialog-compact-grid .info-tip {
+  flex-basis: 100%;
+}
+
 .user-dialog-footer {
   display: flex;
   justify-content: flex-end; /* Realigned dialog confirmation buttons */
@@ -2833,6 +2891,19 @@ onMounted(async () => {
   .settings-compact-fields,
   .manual-block-fields {
     grid-template-columns: 1fr;
+  }
+
+  .short-number-input,
+  .medium-text-input,
+  .dialog-compact-grid :deep(.el-input),
+  .dialog-compact-control,
+  .dialog-password-input {
+    max-width: 100%;
+  }
+
+  .compact-row-actions {
+    justify-content: flex-start;
+    padding-bottom: 0;
   }
 
   .settings-form {
