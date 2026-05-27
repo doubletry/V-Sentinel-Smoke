@@ -2,10 +2,9 @@ import { createApp } from 'vue'
 import ElAvatar from 'element-plus/es/components/avatar/index'
 import ElBadge from 'element-plus/es/components/badge/index'
 import ElButton, { ElButtonGroup } from 'element-plus/es/components/button/index'
+import ElCol from 'element-plus/es/components/col/index'
 import ElConfigProvider from 'element-plus/es/components/config-provider/index'
 import ElContainer, { ElHeader, ElMain } from 'element-plus/es/components/container/index'
-import ElRow from 'element-plus/es/components/row/index'
-import ElCol from 'element-plus/es/components/col/index'
 import ElDatePicker from 'element-plus/es/components/date-picker/index'
 import ElDialog from 'element-plus/es/components/dialog/index'
 import ElDivider from 'element-plus/es/components/divider/index'
@@ -17,6 +16,7 @@ import ElLoading from 'element-plus/es/components/loading/index'
 import ElMenu, { ElMenuItem } from 'element-plus/es/components/menu/index'
 import ElPagination from 'element-plus/es/components/pagination/index'
 import ElPopover from 'element-plus/es/components/popover/index'
+import ElRow from 'element-plus/es/components/row/index'
 import ElScrollbar from 'element-plus/es/components/scrollbar/index'
 import ElSelect, { ElOption } from 'element-plus/es/components/select/index'
 import ElSkeleton from 'element-plus/es/components/skeleton/index'
@@ -64,9 +64,9 @@ const elementPlusComponents = [
   ElBadge,
   ElButton,
   ElButtonGroup,
+  ElCol,
   ElConfigProvider,
   ElContainer,
-  ElCol,
   ElDatePicker,
   ElDialog,
   ElDivider,
