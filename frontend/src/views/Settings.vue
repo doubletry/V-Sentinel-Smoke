@@ -1318,7 +1318,7 @@ const resetPasswordDialog = ref({
 })
 const blockedIps = ref([])
 const userManagementLoaded = ref(false)
-let userManagementLoadPromise = null
+const userManagementLoadPromise = ref(null)
 const manualBlockForm = ref({
   ip: '',
   duration_seconds: '',
@@ -1790,22 +1790,22 @@ async function reloadUserManagementData({ force = false } = {}) {
     return
   }
   if (!force && userManagementLoaded.value) return
-  if (!force && userManagementLoadPromise) {
-    return userManagementLoadPromise
+  if (!force && userManagementLoadPromise.value) {
+    return userManagementLoadPromise.value
   }
 
-  userManagementLoadPromise = (async () => {
+  userManagementLoadPromise.value = (async () => {
     await authStore.fetchUsers()
     await reloadBlockedIps()
     userManagementLoaded.value = true
   })()
 
   try {
-    await userManagementLoadPromise
+    await userManagementLoadPromise.value
   } catch (err) {
     ElMessage.error(err.message || t('settings.actionFailed'))
   } finally {
-    userManagementLoadPromise = null
+    userManagementLoadPromise.value = null
   }
 }
 
@@ -2343,7 +2343,7 @@ onMounted(async () => {
 
 .settings-top-tabs :deep(.el-tabs__item) {
   display: inline-flex;
-  align-items: center; /* Center selected pill with the tab text */
+  align-items: center; /* Center tab text vertically within each pill */
   justify-content: center;
   box-sizing: border-box;
   height: 38px;
