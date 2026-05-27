@@ -385,12 +385,14 @@
                 </div>
               </div>
               <el-table :data="authStore.users" class="user-table user-management-table" empty-text=" " size="small">
-                <el-table-column prop="username" :label="t('settings.username')">
+                <el-table-column prop="username" :label="t('settings.username')" min-width="220">
                   <template #default="{ row }">
-                    <span>{{ row.username }}</span>
-                    <el-tag v-if="row.username === authStore.user?.username" size="small" type="info" effect="plain" style="margin-left: 6px;">
-                      {{ t('settings.currentAccountTag') }}
-                    </el-tag>
+                    <span class="user-identity">
+                      <span class="user-identity__name" :title="row.username">{{ row.username }}</span>
+                      <el-tag v-if="row.username === authStore.user?.username" class="current-account-tag" size="small" type="info" effect="plain">
+                        {{ t('settings.currentAccountTag') }}
+                      </el-tag>
+                    </span>
                   </template>
                 </el-table-column>
                 <el-table-column :label="t('settings.userRole')" width="120">
@@ -458,15 +460,17 @@
                     <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <el-form-item :label="t('settings.expirationDaysUser')">
-                  <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
-                </el-form-item>
-                <el-form-item :label="t('settings.expirationDaysOperator')">
-                  <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
-                </el-form-item>
-                <el-form-item :label="t('settings.expirationDaysAdmin')">
-                  <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
-                </el-form-item>
+                <div class="settings-compact-fields">
+                  <el-form-item :label="t('settings.expirationDaysUser')">
+                    <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.expirationDaysOperator')">
+                    <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.expirationDaysAdmin')">
+                    <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
+                  </el-form-item>
+                </div>
                 <div class="section-card__actions single-action">
                   <el-button
                     type="primary"
@@ -485,16 +489,18 @@
                     <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
                   </div>
                 </div>
-                <el-form-item :label="t('settings.lockoutMaxAttempts')">
-                  <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
-                </el-form-item>
-                <el-form-item :label="t('settings.lockoutWindowSeconds')">
-                  <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
-                </el-form-item>
-                <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                  <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
-                  <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
-                </el-form-item>
+                <div class="settings-compact-fields">
+                  <el-form-item :label="t('settings.lockoutMaxAttempts')">
+                    <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutWindowSeconds')">
+                    <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                    <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
+                    <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+                  </el-form-item>
+                </div>
                 <div class="section-card__actions single-action">
                   <el-button
                     type="primary"
@@ -542,15 +548,17 @@
 
                 <el-divider />
                 <h3>{{ t('settings.manualBlockIp') }}</h3>
-                <el-form-item label="IP">
-                  <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
-                </el-form-item>
-                <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                  <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
-                </el-form-item>
-                <el-form-item :label="t('settings.blockedReason')">
-                  <el-input v-model="manualBlockForm.reason" />
-                </el-form-item>
+                <div class="settings-compact-fields manual-block-fields">
+                  <el-form-item label="IP">
+                    <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                    <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.blockedReason')">
+                    <el-input v-model="manualBlockForm.reason" />
+                  </el-form-item>
+                </div>
                 <div class="section-card__actions single-action">
                   <el-button type="warning" @click="manualBlockIp">
                     {{ t('settings.manualBlockIp') }}
@@ -971,7 +979,6 @@ import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
-import { formatTimeWithTimezone } from '../utils/time.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
 import ProcessingLogs from './ProcessingLogs.vue'
 
@@ -1377,7 +1384,26 @@ function roiTagLabel(scene, tag) {
 }
 
 function formatCreatedAt(value) {
-  return formatTimeWithTimezone(value, appSettingsStore.timeZone)
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: appSettingsStore.timeZone || 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(date)
+    const part = (type) => parts.find((item) => item.type === type)?.value || ''
+    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}:${part('second')}`
+  } catch (_) {
+    return date.toLocaleString()
+  }
 }
 
 function pluginSettingKeys(sceneId) {
@@ -2447,8 +2473,24 @@ onMounted(async () => {
 }
 
 .users-management-side .section-card__actions.single-action .el-button {
-  width: 100%;
+  width: auto;
+  min-width: 96px;
   margin-left: 0;
+}
+
+.settings-compact-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 240px));
+  gap: 12px 18px;
+  align-items: start;
+}
+
+.settings-compact-fields :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.manual-block-fields {
+  grid-template-columns: minmax(180px, 240px) minmax(160px, 200px) minmax(220px, 320px);
 }
 
 .user-management-table {
@@ -2465,6 +2507,10 @@ onMounted(async () => {
   background: var(--users-management-table-bg);
 }
 
+.user-management-table :deep(.cell) {
+  color: #d9e6ff;
+}
+
 .user-management-table :deep(.el-table__inner-wrapper::before),
 .user-management-table :deep(.el-table__border-left-patch) {
   background-color: var(--users-management-table-border);
@@ -2476,6 +2522,31 @@ onMounted(async () => {
 
 .user-management-table :deep(.el-table__empty-block) {
   background: var(--users-management-table-bg);
+}
+
+.user-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.user-identity__name {
+  min-width: 0;
+  overflow: hidden;
+  color: #edf4ff;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.current-account-tag {
+  flex: 0 0 auto;
+  border-color: rgba(124, 194, 255, 0.48);
+  background: rgba(64, 158, 255, 0.12);
+  color: #9dd3ff;
 }
 
 .settings-stack {
@@ -2503,9 +2574,9 @@ onMounted(async () => {
 }
 
 .user-created-at {
-  margin-left: auto;
   color: #8aa6d9;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .section-card__head {
@@ -2639,6 +2710,11 @@ onMounted(async () => {
   }
 
   .plugin-launcher-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-compact-fields,
+  .manual-block-fields {
     grid-template-columns: 1fr;
   }
 
