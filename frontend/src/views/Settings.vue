@@ -399,12 +399,12 @@
                       </span>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('settings.userRole')" width="120">
+                  <el-table-column :label="t('settings.userRole')" width="96">
                     <template #default="{ row }">
                       <el-tag size="small" effect="dark">{{ t(`auth.roles.${row.role}`) }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('settings.userStatus')" width="120">
+                  <el-table-column :label="t('settings.userStatus')" width="96">
                     <template #default="{ row }">
                       <el-tag v-if="row.is_banned" size="small" type="danger" effect="dark">
                         {{ t('settings.statusBanned') }}
@@ -417,40 +417,61 @@
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('settings.userExpiresAt')" width="200">
+                  <el-table-column :label="t('settings.userExpiresAt')" width="170">
                     <template #default="{ row }">
                       <span v-if="row.expires_at">{{ formatCreatedAt(row.expires_at) }}</span>
                       <span v-else class="user-created-at">{{ t('settings.userNeverExpires') }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('settings.createdAt')" width="180">
+                  <el-table-column :label="t('settings.createdAt')" width="160">
                     <template #default="{ row }">
                       <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('common.actions')" width="320" align="right">
+                  <el-table-column :label="t('common.actions')" width="180" align="right">
                     <template #default="{ row }">
-                      <el-space :size="8" wrap alignment="center" class="user-action-space">
-                        <el-button size="small" @click="openEditUser(row)">{{ t('common.edit') }}</el-button>
-                        <el-button size="small" type="warning" @click="openResetPassword(row)">
-                          {{ t('settings.resetPassword') }}
-                        </el-button>
-                        <el-button
-                          size="small"
-                          :type="row.is_banned ? 'success' : 'warning'"
-                          :disabled="!canToggleBan(row)"
-                          @click="toggleUserBan(row)"
-                        >
-                          {{ row.is_banned ? t('settings.unbanUser') : t('settings.banUser') }}
-                        </el-button>
-                        <el-button
-                          size="small"
-                          type="danger"
-                          :disabled="!canDeleteUser(row)"
-                          @click="deleteUserAccount(row)"
-                        >
-                          {{ t('common.delete') }}
-                        </el-button>
+                      <el-space :size="4" alignment="center" class="user-action-space">
+                        <el-tooltip :content="t('common.edit')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            :icon="Edit"
+                            :aria-label="t('common.edit')"
+                            @click="openEditUser(row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip :content="t('settings.resetPassword')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            type="warning"
+                            :icon="Key"
+                            :aria-label="t('settings.resetPassword')"
+                            @click="openResetPassword(row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip :content="row.is_banned ? t('settings.unbanUser') : t('settings.banUser')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            :type="row.is_banned ? 'success' : 'warning'"
+                            :icon="row.is_banned ? Unlock : Lock"
+                            :disabled="!canToggleBan(row)"
+                            :aria-label="row.is_banned ? t('settings.unbanUser') : t('settings.banUser')"
+                            @click="toggleUserBan(row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip :content="t('common.delete')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            type="danger"
+                            :icon="Delete"
+                            :disabled="!canDeleteUser(row)"
+                            :aria-label="t('common.delete')"
+                            @click="deleteUserAccount(row)"
+                          />
+                        </el-tooltip>
                       </el-space>
                     </template>
                   </el-table-column>
@@ -467,23 +488,23 @@
                     <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--inline-actions" align="bottom">
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                <el-row :gutter="12" class="settings-compact-fields settings-compact-fields--inline-actions settings-compact-fields--single-line" align="bottom">
+                  <el-col :span="6">
                     <el-form-item :label="t('settings.expirationDaysUser')">
                       <el-input v-model="form.account_expiration_days_user" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                  <el-col :span="6">
                     <el-form-item :label="t('settings.expirationDaysOperator')">
                       <el-input v-model="form.account_expiration_days_operator" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                  <el-col :span="6">
                     <el-form-item :label="t('settings.expirationDaysAdmin')">
                       <el-input v-model="form.account_expiration_days_admin" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6" class="compact-action-col">
+                  <el-col :span="6" class="compact-action-col">
                     <div class="compact-row-actions">
                       <el-button
                         type="primary"
@@ -504,24 +525,23 @@
                     <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--inline-actions" align="bottom">
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                <el-row :gutter="12" class="settings-compact-fields settings-compact-fields--inline-actions settings-compact-fields--single-line" align="bottom">
+                  <el-col :span="6">
                     <el-form-item :label="t('settings.lockoutMaxAttempts')">
                       <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                  <el-col :span="6">
                     <el-form-item :label="t('settings.lockoutWindowSeconds')">
                       <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" class="short-number-input" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                  <el-col :span="6">
                     <el-form-item :label="t('settings.lockoutDurationSeconds')">
                       <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" class="short-number-input" />
-                      <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="6" class="compact-action-col">
+                  <el-col :span="6" class="compact-action-col">
                     <div class="compact-row-actions">
                       <el-button
                         type="primary"
@@ -533,6 +553,7 @@
                     </div>
                   </el-col>
                 </el-row>
+                <p class="info-tip info-tip--block">{{ t('settings.lockoutDurationSecondsHint') }}</p>
 
                 <el-divider />
 
@@ -1033,7 +1054,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
+import { Bell, Crop, Delete, Document, Edit, Key, Lock, Monitor, Setting, Unlock, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
@@ -1052,7 +1073,7 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
-const USER_MANAGEMENT_USERNAME_MIN_WIDTH = 220
+const USER_MANAGEMENT_USERNAME_MIN_WIDTH = 180
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const sourceStore = useSourceStore()
@@ -2560,6 +2581,19 @@ onMounted(async () => {
   flex-basis: 100%;
 }
 
+/* Keep role-default / login-security fields and their save button on one row */
+.settings-compact-fields--single-line {
+  flex-wrap: nowrap;
+}
+
+.settings-compact-fields--single-line :deep(.el-form-item__label) {
+  white-space: nowrap;
+}
+
+.info-tip--block {
+  margin-top: 4px;
+}
+
 .short-number-input {
   max-width: var(--users-management-compact-input-short); /* Keep short numeric settings visually compact */
 }
@@ -2601,7 +2635,7 @@ onMounted(async () => {
 }
 
 .user-management-table-shell {
-  overflow-x: auto;
+  overflow-x: visible; /* Account list now fits in one row without horizontal scroll */
   border-radius: 16px;
 }
 
