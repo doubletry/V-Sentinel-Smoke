@@ -51,8 +51,8 @@ export function formatSortableDateTimeWithTimezone(timestamp, timezone) {
       second: '2-digit',
       hour12: false,
     }).formatToParts(date)
-    const part = (type) => parts.find((item) => item.type === type)?.value || ''
-    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}:${part('second')}`
+    const partsByType = Object.fromEntries(parts.map((item) => [item.type, item.value]))
+    return `${partsByType.year}-${partsByType.month}-${partsByType.day} ${partsByType.hour}:${partsByType.minute}:${partsByType.second}`
   } catch (_) {
     return date.toLocaleString()
   }
