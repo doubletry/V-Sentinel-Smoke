@@ -374,6 +374,11 @@
                   <h2>{{ t('settings.accountList') }}</h2>
                   <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
                 </div>
+                <div class="section-card__actions">
+                  <el-button type="primary" @click="createUserDialogVisible = true">
+                    {{ t('settings.createUser') }}
+                  </el-button>
+                </div>
               </div>
               <el-table :data="authStore.users" class="user-table" empty-text=" " size="small">
                 <el-table-column prop="username" :label="t('settings.username')">
@@ -442,150 +447,112 @@
             </section>
 
             <div class="users-management-side">
-              <section class="settings-section section-card">
+              <section v-if="canManageSettings" class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
-                    <h2>{{ t('settings.createUser') }}</h2>
-                    <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
+                    <h2>{{ t('settings.accountExpirationDefaults') }}</h2>
+                    <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <el-form-item :label="t('settings.username')">
-                  <el-input v-model="userForm.username" autocomplete="username" />
+                <el-form-item :label="t('settings.expirationDaysUser')">
+                  <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
                 </el-form-item>
-                <el-form-item :label="t('settings.userRole')">
-                  <el-select v-model="userForm.role" style="width: 100%">
-                    <el-option value="user" :label="t('auth.roles.user')" />
-                    <el-option value="operator" :label="t('auth.roles.operator')" />
-                    <el-option value="admin" :label="t('auth.roles.admin')" />
-                  </el-select>
+                <el-form-item :label="t('settings.expirationDaysOperator')">
+                  <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
                 </el-form-item>
-                <el-form-item :label="t('settings.temporaryPassword')">
-                  <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
-                </el-form-item>
-                <el-form-item :label="t('settings.userExpiresAt')">
-                  <el-date-picker
-                    v-model="userForm.expires_at"
-                    type="datetime"
-                    style="width: 100%;"
-                    :placeholder="t('settings.userExpiresAtPlaceholder')"
-                    format="YYYY-MM-DD HH:mm"
-                    value-format="YYYY-MM-DDTHH:mm:ss"
-                  />
-                  <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+                <el-form-item :label="t('settings.expirationDaysAdmin')">
+                  <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
                 </el-form-item>
                 <div class="section-card__actions single-action">
-                  <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-                    {{ t('settings.createUser') }}
+                  <el-button
+                    type="primary"
+                    :loading="activeSaveSection === 'accountExpiration'"
+                    @click="saveAccountExpirationSettings"
+                  >
+                    {{ t('common.save') }}
                   </el-button>
                 </div>
               </section>
 
-            <section v-if="canManageSettings" class="settings-section section-card">
-              <div class="section-card__head">
-                <div>
-                  <h2>{{ t('settings.accountExpirationDefaults') }}</h2>
-                  <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
+              <section v-if="canManageSettings" class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.loginSecurity') }}</h2>
+                    <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
+                  </div>
                 </div>
-              </div>
-              <el-form-item :label="t('settings.expirationDaysUser')">
-                <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
-              </el-form-item>
-              <el-form-item :label="t('settings.expirationDaysOperator')">
-                <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
-              </el-form-item>
-              <el-form-item :label="t('settings.expirationDaysAdmin')">
-                <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
-              </el-form-item>
-              <div class="section-card__actions single-action">
-                <el-button
-                  type="primary"
-                  :loading="activeSaveSection === 'accountExpiration'"
-                  @click="saveAccountExpirationSettings"
-                >
-                  {{ t('common.save') }}
-                </el-button>
-              </div>
-            </section>
-
-            <section v-if="canManageSettings" class="settings-section section-card">
-              <div class="section-card__head">
-                <div>
-                  <h2>{{ t('settings.loginSecurity') }}</h2>
-                  <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
+                <el-form-item :label="t('settings.lockoutMaxAttempts')">
+                  <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
+                </el-form-item>
+                <el-form-item :label="t('settings.lockoutWindowSeconds')">
+                  <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
+                </el-form-item>
+                <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                  <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
+                  <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+                </el-form-item>
+                <div class="section-card__actions single-action">
+                  <el-button
+                    type="primary"
+                    :loading="activeSaveSection === 'loginSecurity'"
+                    @click="saveLoginSecuritySettings"
+                  >
+                    {{ t('common.save') }}
+                  </el-button>
                 </div>
-              </div>
-              <el-form-item :label="t('settings.lockoutMaxAttempts')">
-                <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
-              </el-form-item>
-              <el-form-item :label="t('settings.lockoutWindowSeconds')">
-                <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
-              </el-form-item>
-              <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
-                <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
-              </el-form-item>
-              <div class="section-card__actions single-action">
-                <el-button
-                  type="primary"
-                  :loading="activeSaveSection === 'loginSecurity'"
-                  @click="saveLoginSecuritySettings"
-                >
-                  {{ t('common.save') }}
-                </el-button>
-              </div>
 
-              <el-divider />
+                <el-divider />
 
-              <div class="section-card__head">
-                <div>
-                  <h3>{{ t('settings.blockedIps') }}</h3>
-                  <p class="info-tip">{{ t('settings.blockedIpsHint') }}</p>
+                <div class="section-card__head">
+                  <div>
+                    <h3>{{ t('settings.blockedIps') }}</h3>
+                    <p class="info-tip">{{ t('settings.blockedIpsHint') }}</p>
+                  </div>
+                  <div>
+                    <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
+                  </div>
                 </div>
-                <div>
-                  <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
-                </div>
-              </div>
-              <el-table :data="blockedIps" empty-text=" " size="small">
-                <el-table-column prop="ip" label="IP" />
-                <el-table-column :label="t('settings.blockedAt')">
-                  <template #default="{ row }">
-                    <span>{{ formatCreatedAt(row.blocked_at) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="t('settings.blockedUntil')">
-                  <template #default="{ row }">
-                    <span v-if="row.blocked_until">{{ formatCreatedAt(row.blocked_until) }}</span>
-                    <span v-else>{{ t('settings.blockedUntilManual') }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="reason" :label="t('settings.blockedReason')" />
-                <el-table-column :label="t('common.actions')" width="140" align="right">
-                  <template #default="{ row }">
-                    <el-button size="small" type="success" @click="unblockIp(row)">
-                      {{ t('settings.unblockIp') }}
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <span v-if="!blockedIps.length" class="empty-list-message">{{ t('settings.noBlockedIps') }}</span>
+                <el-table :data="blockedIps" empty-text=" " size="small">
+                  <el-table-column prop="ip" label="IP" />
+                  <el-table-column :label="t('settings.blockedAt')">
+                    <template #default="{ row }">
+                      <span>{{ formatCreatedAt(row.blocked_at) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.blockedUntil')">
+                    <template #default="{ row }">
+                      <span v-if="row.blocked_until">{{ formatCreatedAt(row.blocked_until) }}</span>
+                      <span v-else>{{ t('settings.blockedUntilManual') }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="reason" :label="t('settings.blockedReason')" />
+                  <el-table-column :label="t('common.actions')" width="140" align="right">
+                    <template #default="{ row }">
+                      <el-button size="small" type="success" @click="unblockIp(row)">
+                        {{ t('settings.unblockIp') }}
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <span v-if="!blockedIps.length" class="empty-list-message">{{ t('settings.noBlockedIps') }}</span>
 
-              <el-divider />
-              <h3>{{ t('settings.manualBlockIp') }}</h3>
-              <el-form-item label="IP">
-                <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
-              </el-form-item>
-              <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
-              </el-form-item>
-              <el-form-item :label="t('settings.blockedReason')">
-                <el-input v-model="manualBlockForm.reason" />
-              </el-form-item>
-              <div class="section-card__actions single-action">
-                <el-button type="warning" @click="manualBlockIp">
-                  {{ t('settings.manualBlockIp') }}
-                </el-button>
-              </div>
-            </section>
+                <el-divider />
+                <h3>{{ t('settings.manualBlockIp') }}</h3>
+                <el-form-item label="IP">
+                  <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
+                </el-form-item>
+                <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                  <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
+                </el-form-item>
+                <el-form-item :label="t('settings.blockedReason')">
+                  <el-input v-model="manualBlockForm.reason" />
+                </el-form-item>
+                <div class="section-card__actions single-action">
+                  <el-button type="warning" @click="manualBlockIp">
+                    {{ t('settings.manualBlockIp') }}
+                  </el-button>
+                </div>
+              </section>
             </div>
           </div>
         </section>
@@ -870,6 +837,53 @@
               </el-tab-pane>
 
             </el-tabs>
+          </template>
+        </el-dialog>
+
+        <el-dialog
+          v-model="createUserDialogVisible"
+          :title="t('settings.createUser')"
+          width="460px"
+          destroy-on-close
+        >
+          <el-form label-position="top">
+            <p class="plugin-dialog-hint">{{ t('settings.temporaryPasswordHint') }}</p>
+            <el-form-item :label="t('settings.username')" required>
+              <el-input v-model="userForm.username" autocomplete="username" @keyup.enter="createUserAccount" />
+            </el-form-item>
+            <el-form-item :label="t('settings.userRole')">
+              <el-select v-model="userForm.role" style="width: 100%">
+                <el-option value="user" :label="t('auth.roles.user')" />
+                <el-option value="operator" :label="t('auth.roles.operator')" />
+                <el-option value="admin" :label="t('auth.roles.admin')" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="t('settings.temporaryPassword')" required>
+              <el-input
+                v-model="userForm.password"
+                type="password"
+                show-password
+                autocomplete="new-password"
+                @keyup.enter="createUserAccount"
+              />
+            </el-form-item>
+            <el-form-item :label="t('settings.userExpiresAt')">
+              <el-date-picker
+                v-model="userForm.expires_at"
+                type="datetime"
+                style="width: 100%;"
+                :placeholder="t('settings.userExpiresAtPlaceholder')"
+                format="YYYY-MM-DD HH:mm"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+              />
+              <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="createUserDialogVisible = false">{{ t('common.cancel') }}</el-button>
+            <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+              {{ t('settings.createUser') }}
+            </el-button>
           </template>
         </el-dialog>
 
@@ -1174,6 +1188,7 @@ const userForm = ref({
   role: 'operator',
   expires_at: '',
 })
+const createUserDialogVisible = ref(false)
 const editUserDialog = ref({
   visible: false,
   username: '',
@@ -1524,6 +1539,7 @@ async function createUserAccount() {
       role: 'operator',
       expires_at: '',
     }
+    createUserDialogVisible.value = false
     ElMessage.success(t('settings.createUserSuccess'))
   } catch (err) {
     ElMessage.error(t('settings.createUserFailed', { message: err.message }))
@@ -2407,6 +2423,21 @@ onMounted(async () => {
 
 .users-management-side .section-card + .section-card {
   margin-top: 0;
+}
+
+.users-management-side .section-card__head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.users-management-side .section-card__actions.single-action {
+  justify-content: stretch;
+}
+
+.users-management-side .section-card__actions.single-action .el-button {
+  width: 100%;
+  margin-left: 0;
 }
 
 @media (max-width: 1180px) {
