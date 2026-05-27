@@ -428,7 +428,7 @@
                       <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('common.actions')" width="340" align="right">
+                  <el-table-column :label="t('common.actions')" width="320" align="right">
                     <template #default="{ row }">
                       <el-space :size="8" wrap alignment="center" class="user-action-space">
                         <el-button size="small" @click="openEditUser(row)">{{ t('common.edit') }}</el-button>
@@ -948,7 +948,7 @@
         <el-dialog
           v-model="editUserDialog.visible"
           :title="t('settings.editUserTitle', { username: editUserDialog.username })"
-          width="min(500px, calc(100vw - 32px))"
+          width="min(520px, calc(100vw - 32px))"
           class="user-management-dialog"
           destroy-on-close
         >
@@ -986,7 +986,7 @@
         <el-dialog
           v-model="resetPasswordDialog.visible"
           :title="t('settings.resetPasswordTitle', { username: resetPasswordDialog.username })"
-          width="min(500px, calc(100vw - 32px))"
+          width="min(520px, calc(100vw - 32px))"
           class="user-management-dialog"
           destroy-on-close
         >
@@ -2700,7 +2700,7 @@ onMounted(async () => {
 .user-dialog-form {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
 }
 
 .user-dialog-form :deep(.el-form-item) {
