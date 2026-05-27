@@ -384,7 +384,7 @@
                   </el-button>
                 </div>
               </div>
-              <el-table :data="authStore.users" class="user-table" empty-text=" " size="small">
+              <el-table :data="authStore.users" class="user-table user-management-table" empty-text=" " size="small">
                 <el-table-column prop="username" :label="t('settings.username')">
                   <template #default="{ row }">
                     <span>{{ row.username }}</span>
@@ -516,7 +516,7 @@
                     <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
                   </div>
                 </div>
-                <el-table :data="blockedIps" empty-text=" " size="small">
+                <el-table :data="blockedIps" class="user-management-table" empty-text=" " size="small">
                   <el-table-column prop="ip" label="IP" />
                   <el-table-column :label="t('settings.blockedAt')">
                     <template #default="{ row }">
@@ -2402,10 +2402,9 @@ onMounted(async () => {
 }
 
 .users-management-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  display: flex;
+  flex-direction: column;
   gap: 18px;
-  align-items: start;
 }
 
 .users-management-main {
@@ -2419,7 +2418,7 @@ onMounted(async () => {
   gap: 16px;
 }
 
-.users-management-side .section-card {
+.users-management-layout .section-card {
   background:
     linear-gradient(
       180deg,
@@ -2431,7 +2430,7 @@ onMounted(async () => {
   box-shadow: 0 18px 42px var(--users-management-side-card-shadow);
 }
 
-.users-management-side .section-card + .section-card {
+.users-management-layout .section-card + .section-card {
   margin-top: 0;
 }
 
@@ -2450,14 +2449,31 @@ onMounted(async () => {
   margin-left: 0;
 }
 
-@media (max-width: 1180px) {
-  .users-management-layout {
-    grid-template-columns: 1fr;
-  }
+.user-management-table {
+  --el-table-bg-color: rgba(9, 15, 30, 0.82);
+  --el-table-tr-bg-color: rgba(9, 15, 30, 0.82);
+  --el-table-header-bg-color: rgba(18, 29, 54, 0.96);
+  --el-table-row-hover-bg-color: rgba(35, 72, 132, 0.28);
+  --el-table-border-color: rgba(62, 82, 126, 0.65);
+  --el-table-text-color: #d9e6ff;
+  --el-table-header-text-color: #9fb8e8;
+  overflow: hidden;
+  border: 1px solid rgba(62, 82, 126, 0.56);
+  border-radius: 14px;
+  background: rgba(9, 15, 30, 0.82);
+}
 
-  .users-management-side {
-    max-width: none;
-  }
+.user-management-table :deep(.el-table__inner-wrapper::before),
+.user-management-table :deep(.el-table__border-left-patch) {
+  background-color: rgba(62, 82, 126, 0.65);
+}
+
+.user-management-table :deep(.el-table__cell) {
+  border-bottom-color: rgba(62, 82, 126, 0.48);
+}
+
+.user-management-table :deep(.el-table__empty-block) {
+  background: rgba(9, 15, 30, 0.82);
 }
 
 .settings-stack {
