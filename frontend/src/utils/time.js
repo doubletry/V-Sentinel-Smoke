@@ -40,6 +40,7 @@ export function formatSortableDateTimeWithTimezone(timestamp, timezone) {
   if (Number.isNaN(date.getTime())) return String(timestamp)
 
   try {
+    // en-CA yields the sortable numeric date parts we need: YYYY-MM-DD.
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone || 'UTC',
       year: 'numeric',

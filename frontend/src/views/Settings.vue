@@ -385,7 +385,7 @@
                 </div>
               </div>
               <el-table :data="authStore.users" class="user-table user-management-table" empty-text=" " size="small">
-                <el-table-column prop="username" :label="t('settings.username')" min-width="220">
+                <el-table-column prop="username" :label="t('settings.username')" :min-width="USER_MANAGEMENT_USERNAME_MIN_WIDTH">
                   <template #default="{ row }">
                     <span class="user-identity">
                       <span class="user-identity__name" :title="row.username">{{ row.username }}</span>
@@ -986,6 +986,8 @@ import ProcessingLogs from './ProcessingLogs.vue'
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+const USER_MANAGEMENT_USERNAME_MIN_WIDTH = 220
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const sourceStore = useSourceStore()
@@ -1920,7 +1922,7 @@ onMounted(async () => {
   --current-account-tag-border: rgba(124, 194, 255, 0.48);
   --current-account-tag-bg: rgba(64, 158, 255, 0.12);
   --current-account-tag-color: #9dd3ff;
-  --users-management-action-button-width: 112px;
+  --users-management-action-button-min-width: 112px;
   --user-created-at-color: #8aa6d9;
   height: 100%;
   overflow-y: auto;
@@ -2462,7 +2464,7 @@ onMounted(async () => {
 }
 
 .users-management-side .section-card__actions.single-action .el-button {
-  width: var(--users-management-action-button-width);
+  min-width: var(--users-management-action-button-min-width);
   margin-left: 0;
 }
 
