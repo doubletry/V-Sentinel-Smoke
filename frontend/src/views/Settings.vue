@@ -2341,7 +2341,7 @@ onMounted(async () => {
   background-color: transparent;
 }
 
-.settings-top-tabs :deep(.el-tabs__item) {
+.settings-top-tabs :deep(.el-tabs__nav .el-tabs__item) {
   display: inline-flex;
   align-items: center; /* Center tab text vertically within each pill */
   justify-content: center;
@@ -2351,6 +2351,11 @@ onMounted(async () => {
   color: #aebbd7;
   padding: 0 18px;
   border-radius: 999px;
+}
+
+.settings-top-tabs :deep(.el-tabs__nav .el-tabs__item.is-top:nth-child(2)),
+.settings-top-tabs :deep(.el-tabs__nav .el-tabs__item.is-top:last-child) {
+  padding: 0 18px; /* Keep active pill text horizontally centered despite Element Plus edge-tab padding */
 }
 
 .settings-top-tabs :deep(.el-tabs__item.is-active) {
