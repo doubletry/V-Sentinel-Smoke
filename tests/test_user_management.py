@@ -132,3 +132,66 @@ class TestUserManagement:
         )
         assert resp.status_code == 200
         assert resp.json()["role"] == "operator"
+
+    async def test_role_change_applies_to_existing_token(self, async_client: AsyncClient):
+        await async_client.post(
+            "/api/users",
+            json={"username": "keeper", "password": "pw", "role": "admin"},
+        )
+        await async_client.post(
+            "/api/users",
+            json={"username": "demote", "password": "pw", "role": "admin"},
+        )
+        login = await async_client.post(
+            "/api/auth/login",
+            json={"username": "demote", "password": "pw"},
+        )
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+
+        me_before = await async_client.get(
+            "/api/auth/me",
+            headers={"Authorization": "Bearer " + token},
+        )
+        assert me_before.status_code == 200
+        assert me_before.json()["role"] == "admin"
+
+        demote_resp = await async_client.patch(
+            "/api/users/demote",
+            json={"role": "user"},
+        )
+        assert demote_resp.status_code == 200
+
+        me_after = await async_client.get(
+            "/api/auth/me",
+            headers={"Authorization": "Bearer " + token},
+        )
+        assert me_after.status_code == 200
+        assert me_after.json()["role"] == "user"
+
+        users_forbidden = await async_client.get(
+            "/api/users",
+            headers={"Authorization": "Bearer " + token},
+        )
+        assert users_forbidden.status_code == 403
+
+    async def test_cannot_ban_last_active_admin(self, async_client: AsyncClient):
+        await async_client.post(
+            "/api/users",
+            json={"username": "admin1", "password": "pw", "role": "admin"},
+        )
+        await async_client.post(
+            "/api/users",
+            json={"username": "admin2", "password": "pw", "role": "admin"},
+        )
+        ban_admin2 = await async_client.patch(
+            "/api/users/admin2",
+            json={"is_banned": True},
+        )
+        assert ban_admin2.status_code == 200
+
+        ban_admin1 = await async_client.patch(
+            "/api/users/admin1",
+            json={"is_banned": True},
+        )
+        assert ban_admin1.status_code == 400

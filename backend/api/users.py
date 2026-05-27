@@ -104,8 +104,14 @@ async def update_user(
         if data.is_banned and target_username == me.username:
             raise HTTPException(status_code=400, detail="Cannot ban yourself")
         if data.is_banned and target.role == "admin":
-            admin_count = await db.count_users_by_role("admin")
-            other_active_admins = admin_count - (1 if not target.is_banned else 0)
+            users = await db.list_users()
+            other_active_admins = sum(
+                1
+                for user in users
+                if user.role == "admin"
+                and not user.is_banned
+                and user.username != target_username
+            )
             if other_active_admins <= 0:
                 raise HTTPException(
                     status_code=400, detail="Cannot ban the last admin account"

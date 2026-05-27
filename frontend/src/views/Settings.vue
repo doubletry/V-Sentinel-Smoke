@@ -965,7 +965,7 @@
                     class="dialog-compact-control"
                     :placeholder="t('settings.userExpiresAtPlaceholder')"
                     format="YYYY-MM-DD HH:mm"
-                    value-format="YYYY-MM-DDTHH:mm:ss"
+                    value-format="YYYY-MM-DDTHH:mm:ssZ"
                   />
                   <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
                 </el-form-item>
@@ -1010,7 +1010,7 @@
                     class="dialog-compact-control"
                     :placeholder="t('settings.userExpiresAtPlaceholder')"
                     format="YYYY-MM-DD HH:mm"
-                    value-format="YYYY-MM-DDTHH:mm:ss"
+                    value-format="YYYY-MM-DDTHH:mm:ssZ"
                     clearable
                   />
                   <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
@@ -2390,10 +2390,15 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)); /* Pair related settings on one line */
   gap: 10px 18px;
+  align-items: end;
 }
 
 .settings-inline-field-row :deep(.el-form-item) {
   margin-bottom: 0;
+}
+
+.settings-inline-field-row :deep(.el-form-item__content) {
+  max-width: min(100%, 420px);
 }
 
 .form-grid-span-full {

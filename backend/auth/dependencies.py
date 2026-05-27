@@ -32,11 +32,12 @@ async def _resolve_token_payload(authorization: str | None) -> dict:
     if username:
         record = await db.get_user_auth_record(username)
         if record is not None:
-            _username, _password_hash, _stored_role, is_banned, expires_at = record
+            _username, _password_hash, stored_role, is_banned, expires_at = record
             if is_banned:
                 raise HTTPException(status_code=401, detail="Account banned")
             if _is_account_expired(expires_at):
                 raise HTTPException(status_code=401, detail="Account expired")
+            payload["role"] = stored_role
             payload["expires_at"] = expires_at
     return payload
 
