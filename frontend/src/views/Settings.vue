@@ -2432,7 +2432,7 @@ onMounted(async () => {
 }
 
 .users-management-side .section-card__actions.single-action {
-  justify-content: stretch;
+  justify-content: flex-start;
 }
 
 .users-management-side .section-card__actions.single-action .el-button {
