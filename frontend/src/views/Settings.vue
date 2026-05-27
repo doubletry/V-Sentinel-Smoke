@@ -375,7 +375,11 @@
                   <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
                 </div>
                 <div class="section-card__actions">
-                  <el-button type="primary" @click="createUserDialogVisible = true">
+                  <el-button
+                    type="primary"
+                    :aria-label="t('settings.createUser')"
+                    @click="createUserDialogVisible = true"
+                  >
                     {{ t('settings.createUser') }}
                   </el-button>
                 </div>
@@ -849,7 +853,12 @@
           <el-form label-position="top">
             <p class="plugin-dialog-hint">{{ t('settings.temporaryPasswordHint') }}</p>
             <el-form-item :label="t('settings.username')" required>
-              <el-input v-model="userForm.username" autocomplete="username" @keyup.enter="createUserAccount" />
+              <el-input
+                v-model="userForm.username"
+                autocomplete="username"
+                aria-required="true"
+                @keyup.enter="createUserAccount"
+              />
             </el-form-item>
             <el-form-item :label="t('settings.userRole')">
               <el-select v-model="userForm.role" style="width: 100%">
@@ -864,6 +873,7 @@
                 type="password"
                 show-password
                 autocomplete="new-password"
+                aria-required="true"
                 @keyup.enter="createUserAccount"
               />
             </el-form-item>
