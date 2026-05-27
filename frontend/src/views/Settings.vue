@@ -1920,6 +1920,8 @@ onMounted(async () => {
   --current-account-tag-border: rgba(124, 194, 255, 0.48);
   --current-account-tag-bg: rgba(64, 158, 255, 0.12);
   --current-account-tag-color: #9dd3ff;
+  --users-management-action-button-min-width: 96px;
+  --user-created-at-color: #8aa6d9;
   height: 100%;
   overflow-y: auto;
   padding: 24px 28px 32px;
@@ -2461,7 +2463,7 @@ onMounted(async () => {
 
 .users-management-side .section-card__actions.single-action .el-button {
   width: auto;
-  min-width: 96px;
+  min-width: var(--users-management-action-button-min-width);
   margin-left: 0;
 }
 
@@ -2561,7 +2563,7 @@ onMounted(async () => {
 }
 
 .user-created-at {
-  color: #8aa6d9;
+  color: var(--user-created-at-color);
   font-size: 12px;
   white-space: nowrap;
 }
