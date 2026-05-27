@@ -467,7 +467,7 @@
                     <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--short" align="bottom">
+                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--inline-actions" align="bottom">
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.expirationDaysUser')">
                       <el-input v-model="form.account_expiration_days_user" type="number" min="0" class="short-number-input" />
@@ -504,7 +504,7 @@
                     <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--short" align="bottom">
+                <el-row :gutter="18" class="settings-compact-fields settings-compact-fields--inline-actions" align="bottom">
                   <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.lockoutMaxAttempts')">
                       <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" class="short-number-input" />
@@ -1988,6 +1988,10 @@ onMounted(async () => {
   --current-account-tag-bg: rgba(64, 158, 255, 0.12);
   --current-account-tag-color: #9dd3ff;
   --users-management-action-button-min-width: 112px;
+  --users-management-compact-input-short: 132px;
+  --users-management-compact-input-medium: 240px;
+  --users-management-dialog-input-width: 224px;
+  --users-management-compact-action-padding: 18px;
   --user-created-at-color: #8aa6d9;
   height: 100%;
   overflow-y: auto;
@@ -2548,20 +2552,20 @@ onMounted(async () => {
   width: 100%;
 }
 
-.settings-compact-fields--short :deep(.el-form-item__content) {
+.settings-compact-fields--inline-actions :deep(.el-form-item__content) {
   align-items: flex-start;
 }
 
-.settings-compact-fields--short .info-tip {
+.settings-compact-fields--inline-actions .info-tip {
   flex-basis: 100%;
 }
 
 .short-number-input {
-  max-width: 132px; /* Keep short numeric settings visually compact */
+  max-width: var(--users-management-compact-input-short); /* Keep short numeric settings visually compact */
 }
 
 .medium-text-input {
-  max-width: 240px; /* Avoid overlong single-line controls */
+  max-width: var(--users-management-compact-input-medium); /* Avoid overlong single-line controls */
 }
 
 .compact-action-col {
@@ -2573,7 +2577,7 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end; /* Merge save/submit buttons into the same control row */
   width: 100%;
-  padding-bottom: 18px;
+  padding-bottom: var(--users-management-compact-action-padding);
 }
 
 .settings-action-footer {
@@ -2751,14 +2755,14 @@ onMounted(async () => {
 }
 
 .dialog-compact-grid {
-  row-gap: 2px; /* Pair related dialog fields in the same row */
+  row-gap: 8px; /* Pair related dialog fields in the same row */
 }
 
 .dialog-compact-grid :deep(.el-input),
 .dialog-compact-control,
 .dialog-password-input {
   width: 100%;
-  max-width: 224px;
+  max-width: var(--users-management-dialog-input-width);
 }
 
 .dialog-compact-grid .info-tip {
