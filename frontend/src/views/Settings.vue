@@ -375,80 +375,87 @@
                   <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
                 </div>
                 <div class="section-card__actions">
-                  <el-button
-                    type="primary"
-                    :aria-label="t('settings.createUser')"
-                    @click="createUserDialogVisible = true"
-                  >
-                    {{ t('settings.createUser') }}
-                  </el-button>
+                  <el-space :size="10" wrap alignment="center">
+                    <el-button
+                      type="primary"
+                      size="large"
+                      :aria-label="t('settings.createUser')"
+                      @click="createUserDialogVisible = true"
+                    >
+                      {{ t('settings.createUser') }}
+                    </el-button>
+                  </el-space>
                 </div>
               </div>
-              <el-table :data="authStore.users" class="user-table user-management-table" empty-text=" " size="small">
-                <el-table-column prop="username" :label="t('settings.username')" :min-width="USER_MANAGEMENT_USERNAME_MIN_WIDTH">
-                  <template #default="{ row }">
-                    <span class="user-identity">
-                      <span class="user-identity__name" :title="row.username">{{ row.username }}</span>
-                      <el-tag v-if="row.username === authStore.user?.username" class="current-account-tag" size="small" type="info" effect="plain">
-                        {{ t('settings.currentAccountTag') }}
+              <div class="user-management-table-shell">
+                <el-table :data="authStore.users" class="user-table user-management-table" empty-text=" " size="default">
+                  <el-table-column prop="username" :label="t('settings.username')" :min-width="USER_MANAGEMENT_USERNAME_MIN_WIDTH">
+                    <template #default="{ row }">
+                      <span class="user-identity">
+                        <span class="user-identity__name" :title="row.username">{{ row.username }}</span>
+                        <el-tag v-if="row.username === authStore.user?.username" class="current-account-tag" size="small" type="info" effect="plain">
+                          {{ t('settings.currentAccountTag') }}
+                        </el-tag>
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.userRole')" width="120">
+                    <template #default="{ row }">
+                      <el-tag size="small" effect="dark">{{ t(`auth.roles.${row.role}`) }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.userStatus')" width="120">
+                    <template #default="{ row }">
+                      <el-tag v-if="row.is_banned" size="small" type="danger" effect="dark">
+                        {{ t('settings.statusBanned') }}
                       </el-tag>
-                    </span>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="t('settings.userRole')" width="120">
-                  <template #default="{ row }">
-                    <el-tag size="small" effect="dark">{{ t(`auth.roles.${row.role}`) }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="t('settings.userStatus')" width="120">
-                  <template #default="{ row }">
-                    <el-tag v-if="row.is_banned" size="small" type="danger" effect="dark">
-                      {{ t('settings.statusBanned') }}
-                    </el-tag>
-                    <el-tag v-else-if="row.expired" size="small" type="warning" effect="dark">
-                      {{ t('settings.statusExpired') }}
-                    </el-tag>
-                    <el-tag v-else size="small" type="success" effect="plain">
-                      {{ t('settings.statusActive') }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="t('settings.userExpiresAt')" width="200">
-                  <template #default="{ row }">
-                    <span v-if="row.expires_at">{{ formatCreatedAt(row.expires_at) }}</span>
-                    <span v-else class="user-created-at">{{ t('settings.userNeverExpires') }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="t('settings.createdAt')" width="180">
-                  <template #default="{ row }">
-                    <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column :label="t('common.actions')" width="320" align="right">
-                  <template #default="{ row }">
-                    <el-button size="small" @click="openEditUser(row)">{{ t('common.edit') }}</el-button>
-                    <el-button size="small" type="warning" @click="openResetPassword(row)">
-                      {{ t('settings.resetPassword') }}
-                    </el-button>
-                    <el-button
-                      size="small"
-                      :type="row.is_banned ? 'success' : 'warning'"
-                      :disabled="!canToggleBan(row)"
-                      @click="toggleUserBan(row)"
-                    >
-                      {{ row.is_banned ? t('settings.unbanUser') : t('settings.banUser') }}
-                    </el-button>
-                    <el-button
-                      size="small"
-                      type="danger"
-                      :disabled="!canDeleteUser(row)"
-                      @click="deleteUserAccount(row)"
-                    >
-                      {{ t('common.delete') }}
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
+                      <el-tag v-else-if="row.expired" size="small" type="warning" effect="dark">
+                        {{ t('settings.statusExpired') }}
+                      </el-tag>
+                      <el-tag v-else size="small" type="success" effect="plain">
+                        {{ t('settings.statusActive') }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.userExpiresAt')" width="200">
+                    <template #default="{ row }">
+                      <span v-if="row.expires_at">{{ formatCreatedAt(row.expires_at) }}</span>
+                      <span v-else class="user-created-at">{{ t('settings.userNeverExpires') }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.createdAt')" width="180">
+                    <template #default="{ row }">
+                      <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('common.actions')" width="360" align="right">
+                    <template #default="{ row }">
+                      <el-space :size="8" wrap alignment="center" class="user-action-space">
+                        <el-button size="small" @click="openEditUser(row)">{{ t('common.edit') }}</el-button>
+                        <el-button size="small" type="warning" @click="openResetPassword(row)">
+                          {{ t('settings.resetPassword') }}
+                        </el-button>
+                        <el-button
+                          size="small"
+                          :type="row.is_banned ? 'success' : 'warning'"
+                          :disabled="!canToggleBan(row)"
+                          @click="toggleUserBan(row)"
+                        >
+                          {{ row.is_banned ? t('settings.unbanUser') : t('settings.banUser') }}
+                        </el-button>
+                        <el-button
+                          size="small"
+                          type="danger"
+                          :disabled="!canDeleteUser(row)"
+                          @click="deleteUserAccount(row)"
+                        >
+                          {{ t('common.delete') }}
+                        </el-button>
+                      </el-space>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
               <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
             </section>
 
@@ -460,25 +467,34 @@
                     <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <div class="settings-compact-fields">
-                  <el-form-item :label="t('settings.expirationDaysUser')">
-                    <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.expirationDaysOperator')">
-                    <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.expirationDaysAdmin')">
-                    <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
-                  </el-form-item>
-                </div>
-                <div class="section-card__actions single-action">
-                  <el-button
-                    type="primary"
-                    :loading="activeSaveSection === 'accountExpiration'"
-                    @click="saveAccountExpirationSettings"
-                  >
-                    {{ t('common.save') }}
-                  </el-button>
+                <el-row :gutter="18" class="settings-compact-fields">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.expirationDaysUser')">
+                      <el-input v-model="form.account_expiration_days_user" type="number" min="0" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.expirationDaysOperator')">
+                      <el-input v-model="form.account_expiration_days_operator" type="number" min="0" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.expirationDaysAdmin')">
+                      <el-input v-model="form.account_expiration_days_admin" type="number" min="0" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+                <div class="section-card__actions single-action settings-action-footer">
+                  <el-space :size="10" wrap alignment="center">
+                    <el-button
+                      type="primary"
+                      size="large"
+                      :loading="activeSaveSection === 'accountExpiration'"
+                      @click="saveAccountExpirationSettings"
+                    >
+                      {{ t('common.save') }}
+                    </el-button>
+                  </el-space>
                 </div>
               </section>
 
@@ -489,26 +505,35 @@
                     <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
                   </div>
                 </div>
-                <div class="settings-compact-fields">
-                  <el-form-item :label="t('settings.lockoutMaxAttempts')">
-                    <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.lockoutWindowSeconds')">
-                    <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                    <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
-                    <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
-                  </el-form-item>
-                </div>
-                <div class="section-card__actions single-action">
-                  <el-button
-                    type="primary"
-                    :loading="activeSaveSection === 'loginSecurity'"
-                    @click="saveLoginSecuritySettings"
-                  >
-                    {{ t('common.save') }}
-                  </el-button>
+                <el-row :gutter="18" class="settings-compact-fields">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.lockoutMaxAttempts')">
+                      <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.lockoutWindowSeconds')">
+                      <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                      <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" />
+                      <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+                <div class="section-card__actions single-action settings-action-footer">
+                  <el-space :size="10" wrap alignment="center">
+                    <el-button
+                      type="primary"
+                      size="large"
+                      :loading="activeSaveSection === 'loginSecurity'"
+                      @click="saveLoginSecuritySettings"
+                    >
+                      {{ t('common.save') }}
+                    </el-button>
+                  </el-space>
                 </div>
 
                 <el-divider />
@@ -522,47 +547,57 @@
                     <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
                   </div>
                 </div>
-                <el-table :data="blockedIps" class="user-management-table" empty-text=" " size="small">
-                  <el-table-column prop="ip" label="IP" />
-                  <el-table-column :label="t('settings.blockedAt')">
-                    <template #default="{ row }">
-                      <span>{{ formatCreatedAt(row.blocked_at) }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column :label="t('settings.blockedUntil')">
-                    <template #default="{ row }">
-                      <span v-if="row.blocked_until">{{ formatCreatedAt(row.blocked_until) }}</span>
-                      <span v-else>{{ t('settings.blockedUntilManual') }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="reason" :label="t('settings.blockedReason')" />
-                  <el-table-column :label="t('common.actions')" width="140" align="right">
-                    <template #default="{ row }">
-                      <el-button size="small" type="success" @click="unblockIp(row)">
-                        {{ t('settings.unblockIp') }}
-                      </el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                <div class="user-management-table-shell">
+                  <el-table :data="blockedIps" class="user-management-table" empty-text=" " size="default">
+                    <el-table-column prop="ip" label="IP" />
+                    <el-table-column :label="t('settings.blockedAt')">
+                      <template #default="{ row }">
+                        <span>{{ formatCreatedAt(row.blocked_at) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="t('settings.blockedUntil')">
+                      <template #default="{ row }">
+                        <span v-if="row.blocked_until">{{ formatCreatedAt(row.blocked_until) }}</span>
+                        <span v-else>{{ t('settings.blockedUntilManual') }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="reason" :label="t('settings.blockedReason')" />
+                    <el-table-column :label="t('common.actions')" width="140" align="right">
+                      <template #default="{ row }">
+                        <el-button size="small" type="success" @click="unblockIp(row)">
+                          {{ t('settings.unblockIp') }}
+                        </el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </div>
                 <span v-if="!blockedIps.length" class="empty-list-message">{{ t('settings.noBlockedIps') }}</span>
 
                 <el-divider />
                 <h3>{{ t('settings.manualBlockIp') }}</h3>
-                <div class="settings-compact-fields manual-block-fields">
-                  <el-form-item label="IP">
-                    <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                    <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.blockedReason')">
-                    <el-input v-model="manualBlockForm.reason" />
-                  </el-form-item>
-                </div>
-                <div class="section-card__actions single-action">
-                  <el-button type="warning" @click="manualBlockIp">
-                    {{ t('settings.manualBlockIp') }}
-                  </el-button>
+                <el-row :gutter="18" class="settings-compact-fields manual-block-fields">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item label="IP">
+                      <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
+                    <el-form-item :label="t('settings.lockoutDurationSeconds')">
+                      <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :xs="24" :sm="12" :md="8" :lg="8">
+                    <el-form-item :label="t('settings.blockedReason')">
+                      <el-input v-model="manualBlockForm.reason" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+                <div class="section-card__actions single-action settings-action-footer">
+                  <el-space :size="10" wrap alignment="center">
+                    <el-button type="warning" size="large" @click="manualBlockIp">
+                      {{ t('settings.manualBlockIp') }}
+                    </el-button>
+                  </el-space>
                 </div>
               </section>
             </div>
@@ -855,10 +890,11 @@
         <el-dialog
           v-model="createUserDialogVisible"
           :title="t('settings.createUser')"
-          width="460px"
+          width="min(520px, calc(100vw - 32px))"
+          class="user-management-dialog"
           destroy-on-close
         >
-          <el-form label-position="top">
+          <el-form label-position="top" class="user-dialog-form" size="large">
             <p class="plugin-dialog-hint">{{ t('settings.temporaryPasswordHint') }}</p>
             <el-form-item :label="t('settings.username')" required>
               <el-input
@@ -898,20 +934,25 @@
             </el-form-item>
           </el-form>
           <template #footer>
-            <el-button @click="createUserDialogVisible = false">{{ t('common.cancel') }}</el-button>
-            <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-              {{ t('settings.createUser') }}
-            </el-button>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="createUserDialogVisible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                  {{ t('settings.createUser') }}
+                </el-button>
+              </el-space>
+            </div>
           </template>
         </el-dialog>
 
         <el-dialog
           v-model="editUserDialog.visible"
           :title="t('settings.editUserTitle', { username: editUserDialog.username })"
-          width="420px"
+          width="min(500px, calc(100vw - 32px))"
+          class="user-management-dialog"
           destroy-on-close
         >
-          <el-form label-position="top">
+          <el-form label-position="top" class="user-dialog-form" size="large">
             <el-form-item :label="t('settings.userRole')">
               <el-select v-model="editUserDialog.role" style="width: 100%">
                 <el-option value="user" :label="t('auth.roles.user')" />
@@ -933,18 +974,23 @@
             </el-form-item>
           </el-form>
           <template #footer>
-            <el-button @click="editUserDialog.visible = false">{{ t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="submitEditUser">{{ t('common.save') }}</el-button>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="editUserDialog.visible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="primary" @click="submitEditUser">{{ t('common.save') }}</el-button>
+              </el-space>
+            </div>
           </template>
         </el-dialog>
 
         <el-dialog
           v-model="resetPasswordDialog.visible"
           :title="t('settings.resetPasswordTitle', { username: resetPasswordDialog.username })"
-          width="420px"
+          width="min(500px, calc(100vw - 32px))"
+          class="user-management-dialog"
           destroy-on-close
         >
-          <el-form label-position="top">
+          <el-form label-position="top" class="user-dialog-form" size="large">
             <el-form-item :label="t('auth.newPassword')" required>
               <el-input
                 v-model="resetPasswordDialog.new_password"
@@ -956,8 +1002,12 @@
             </el-form-item>
           </el-form>
           <template #footer>
-            <el-button @click="resetPasswordDialog.visible = false">{{ t('common.cancel') }}</el-button>
-            <el-button type="primary" @click="submitResetPassword">{{ t('settings.resetPassword') }}</el-button>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="resetPasswordDialog.visible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="primary" @click="submitResetPassword">{{ t('settings.resetPassword') }}</el-button>
+              </el-space>
+            </div>
           </template>
         </el-dialog>
       </el-form>
@@ -2423,7 +2473,7 @@ onMounted(async () => {
 .users-management-layout {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px; /* Add breathing room between management sections */
 }
 
 .users-management-main {
@@ -2434,7 +2484,7 @@ onMounted(async () => {
 .users-management-side {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px; /* Keep the right-side cards visually separated in vertical flow */
 }
 
 .users-management-layout .section-card {
@@ -2445,8 +2495,8 @@ onMounted(async () => {
       var(--users-management-side-card-bg-end)
     ),
     rgba(255, 255, 255, 0.025);
-  border-color: var(--users-management-side-card-border);
-  box-shadow: 0 18px 42px var(--users-management-side-card-shadow);
+  border-color: rgba(103, 132, 190, 0.42);
+  box-shadow: 0 20px 48px rgba(4, 10, 24, 0.18); /* Softer modern card depth */
 }
 
 .users-management-layout .section-card + .section-card {
@@ -2460,7 +2510,8 @@ onMounted(async () => {
 }
 
 .users-management-side .section-card__actions.single-action {
-  justify-content: flex-start;
+  justify-content: flex-end; /* Realigned confirmation buttons */
+  margin-top: 18px;
 }
 
 .users-management-side .section-card__actions.single-action .el-button {
@@ -2469,18 +2520,22 @@ onMounted(async () => {
 }
 
 .settings-compact-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 240px));
-  gap: 12px 18px;
-  align-items: start;
+  row-gap: 16px; /* Use Element Plus row gutters with consistent vertical rhythm */
 }
 
 .settings-compact-fields :deep(.el-form-item) {
   margin-bottom: 0;
 }
 
-.manual-block-fields {
-  grid-template-columns: minmax(180px, 240px) minmax(160px, 200px) minmax(220px, 320px);
+.settings-compact-fields :deep(.el-input),
+.settings-compact-fields :deep(.el-select),
+.settings-compact-fields :deep(.el-date-editor) {
+  width: 100%;
+}
+
+.settings-action-footer {
+  padding-top: 4px;
+  border-top: 1px solid rgba(103, 132, 190, 0.16); /* Separate form controls from submit actions */
 }
 
 .user-management-table {
@@ -2492,13 +2547,20 @@ onMounted(async () => {
   --el-table-text-color: #d9e6ff;
   --el-table-header-text-color: #9fb8e8;
   overflow: hidden;
-  border: 1px solid rgba(62, 82, 126, 0.56);
-  border-radius: 14px;
+  border: 1px solid rgba(103, 132, 190, 0.38);
+  border-radius: 16px;
   background: var(--users-management-table-bg);
+  box-shadow: 0 12px 30px rgba(3, 9, 22, 0.16); /* Soft list container shadow */
+}
+
+.user-management-table-shell {
+  overflow-x: auto;
+  border-radius: 16px;
 }
 
 .user-management-table :deep(.cell) {
   color: var(--users-management-cell-color);
+  line-height: 1.45;
 }
 
 .user-management-table :deep(.el-table__inner-wrapper::before),
@@ -2508,10 +2570,15 @@ onMounted(async () => {
 
 .user-management-table :deep(.el-table__cell) {
   border-bottom-color: rgba(62, 82, 126, 0.48);
+  padding: 12px 0; /* Add breathing room inside rows */
 }
 
 .user-management-table :deep(.el-table__empty-block) {
   background: var(--users-management-table-bg);
+}
+
+.user-management-table :deep(.el-table__header-wrapper th) {
+  font-weight: 700;
 }
 
 .user-identity {
@@ -2537,6 +2604,14 @@ onMounted(async () => {
   border-color: var(--current-account-tag-border);
   background: var(--current-account-tag-bg);
   color: var(--current-account-tag-color);
+}
+
+.user-action-space {
+  justify-content: flex-end;
+}
+
+.user-action-space :deep(.el-button + .el-button) {
+  margin-left: 0; /* Let el-space own action-button spacing */
 }
 
 .settings-stack {
@@ -2587,6 +2662,57 @@ onMounted(async () => {
 
 .section-card__actions.single-action {
   justify-content: flex-end;
+}
+
+.section-card__actions :deep(.el-button + .el-button) {
+  margin-left: 0; /* Avoid mixed Element Plus margin and el-space gap */
+}
+
+:deep(.user-management-dialog) {
+  border: 1px solid rgba(103, 132, 190, 0.44);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(21, 30, 52, 0.98), rgba(13, 20, 37, 0.98));
+  box-shadow: 0 24px 64px rgba(4, 10, 24, 0.42); /* Dialog depth without harsh borders */
+  overflow: hidden;
+}
+
+:deep(.user-management-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(103, 132, 190, 0.18);
+}
+
+:deep(.user-management-dialog .el-dialog__title) {
+  color: #eef4ff;
+  font-weight: 700;
+}
+
+:deep(.user-management-dialog .el-dialog__body) {
+  padding: 20px 24px 8px;
+}
+
+:deep(.user-management-dialog .el-dialog__footer) {
+  padding: 16px 24px 22px;
+  border-top: 1px solid rgba(103, 132, 190, 0.14);
+}
+
+.user-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-dialog-form :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.user-dialog-footer {
+  display: flex;
+  justify-content: flex-end; /* Realigned dialog confirmation buttons */
+}
+
+.user-dialog-footer :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .expert-card {
