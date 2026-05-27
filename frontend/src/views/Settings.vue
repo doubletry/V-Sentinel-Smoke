@@ -428,7 +428,7 @@
                       <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="t('common.actions')" width="360" align="right">
+                  <el-table-column :label="t('common.actions')" width="340" align="right">
                     <template #default="{ row }">
                       <el-space :size="8" wrap alignment="center" class="user-action-space">
                         <el-button size="small" @click="openEditUser(row)">{{ t('common.edit') }}</el-button>
@@ -586,7 +586,7 @@
                       <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" />
                     </el-form-item>
                   </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="8">
+                  <el-col :xs="24" :sm="12" :md="8" :lg="6">
                     <el-form-item :label="t('settings.blockedReason')">
                       <el-input v-model="manualBlockForm.reason" />
                     </el-form-item>
@@ -2570,7 +2570,8 @@ onMounted(async () => {
 
 .user-management-table :deep(.el-table__cell) {
   border-bottom-color: rgba(62, 82, 126, 0.48);
-  padding: 12px 0; /* Add breathing room inside rows */
+  padding-top: 12px; /* Add breathing room inside rows */
+  padding-bottom: 12px;
 }
 
 .user-management-table :deep(.el-table__empty-block) {
