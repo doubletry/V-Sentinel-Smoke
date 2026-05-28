@@ -501,26 +501,26 @@
                 <div class="numeric-setting-list">
                   <el-form-item :label="t('settings.expirationDaysUser')" class="numeric-setting-item">
                     <el-input-number
-                      :model-value="Number(form.account_expiration_days_user || 0)"
+                      :model-value="numericFieldValue(form.account_expiration_days_user)"
                       :min="0"
                       class="themed-number-input"
-                      @update:model-value="form.account_expiration_days_user = $event == null ? '' : String($event)"
+                      @update:model-value="setNumericField(form, 'account_expiration_days_user', $event)"
                     />
                   </el-form-item>
                   <el-form-item :label="t('settings.expirationDaysOperator')" class="numeric-setting-item">
                     <el-input-number
-                      :model-value="Number(form.account_expiration_days_operator || 0)"
+                      :model-value="numericFieldValue(form.account_expiration_days_operator)"
                       :min="0"
                       class="themed-number-input"
-                      @update:model-value="form.account_expiration_days_operator = $event == null ? '' : String($event)"
+                      @update:model-value="setNumericField(form, 'account_expiration_days_operator', $event)"
                     />
                   </el-form-item>
                   <el-form-item :label="t('settings.expirationDaysAdmin')" class="numeric-setting-item">
                     <el-input-number
-                      :model-value="Number(form.account_expiration_days_admin || 0)"
+                      :model-value="numericFieldValue(form.account_expiration_days_admin)"
                       :min="0"
                       class="themed-number-input"
-                      @update:model-value="form.account_expiration_days_admin = $event == null ? '' : String($event)"
+                      @update:model-value="setNumericField(form, 'account_expiration_days_admin', $event)"
                     />
                   </el-form-item>
                 </div>
@@ -545,26 +545,26 @@
                 <div class="numeric-setting-list">
                   <el-form-item :label="t('settings.lockoutMaxAttempts')" class="numeric-setting-item">
                     <el-input-number
-                      :model-value="Number(form.login_lockout_max_attempts || 0)"
+                      :model-value="numericFieldValue(form.login_lockout_max_attempts)"
                       :min="0"
                       class="themed-number-input"
-                      @update:model-value="form.login_lockout_max_attempts = $event == null ? '' : String($event)"
+                      @update:model-value="setNumericField(form, 'login_lockout_max_attempts', $event)"
                     />
                   </el-form-item>
                   <el-form-item :label="t('settings.lockoutWindowSeconds')" class="numeric-setting-item">
                     <el-input-number
-                      :model-value="Number(form.login_lockout_window_seconds || 0)"
+                      :model-value="numericFieldValue(form.login_lockout_window_seconds)"
                       :min="0"
                       class="themed-number-input"
-                      @update:model-value="form.login_lockout_window_seconds = $event == null ? '' : String($event)"
+                      @update:model-value="setNumericField(form, 'login_lockout_window_seconds', $event)"
                     />
                   </el-form-item>
                   <el-form-item :label="t('settings.lockoutDurationSeconds')" class="numeric-setting-item">
                     <el-input-number
-                      :model-value="Number(form.login_lockout_duration_seconds || 0)"
+                      :model-value="numericFieldValue(form.login_lockout_duration_seconds)"
                       :min="0"
                       class="themed-number-input"
-                      @update:model-value="form.login_lockout_duration_seconds = $event == null ? '' : String($event)"
+                      @update:model-value="setNumericField(form, 'login_lockout_duration_seconds', $event)"
                     />
                   </el-form-item>
                 </div>
@@ -1061,10 +1061,10 @@
             </el-form-item>
             <el-form-item :label="t('settings.lockoutDurationSeconds')">
               <el-input-number
-                :model-value="Number(manualBlockForm.duration_seconds || 0)"
+                :model-value="numericFieldValue(manualBlockForm.duration_seconds)"
                 :min="0"
                 class="themed-number-input themed-number-input--dialog"
-                @update:model-value="manualBlockForm.duration_seconds = $event == null ? '' : String($event)"
+                @update:model-value="setNumericField(manualBlockForm, 'duration_seconds', $event)"
               />
               <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
             </el-form-item>
@@ -1505,6 +1505,17 @@ function sceneTabLabel(sceneId) {
   const scene = sceneById(sceneId)
   if (!scene) return sceneId
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
+}
+
+function numericFieldValue(value) {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return undefined
+  const numeric = Number(trimmed)
+  return Number.isFinite(numeric) ? numeric : undefined
+}
+
+function setNumericField(target, key, value) {
+  target[key] = value == null ? '' : String(value)
 }
 
 function roiTagLabel(scene, tag) {
@@ -2430,7 +2441,7 @@ onMounted(async () => {
 
 .settings-inline-field-row :deep(.el-form-item__label) {
   display: flex;
-  align-items: flex-end; /* Keep labels in multi-column rows aligned before controls */
+  align-items: flex-end; /* Align labels to the bottom for a consistent baseline above controls */
   min-height: 24px;
   padding-bottom: 6px;
 }
