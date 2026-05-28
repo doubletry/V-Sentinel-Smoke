@@ -12,6 +12,7 @@ import ElEmpty from 'element-plus/es/components/empty/index'
 import ElForm, { ElFormItem } from 'element-plus/es/components/form/index'
 import ElIcon from 'element-plus/es/components/icon/index'
 import ElInput from 'element-plus/es/components/input/index'
+import ElInputNumber from 'element-plus/es/components/input-number/index'
 import ElLoading from 'element-plus/es/components/loading/index'
 import ElMenu, { ElMenuItem } from 'element-plus/es/components/menu/index'
 import ElPagination from 'element-plus/es/components/pagination/index'
@@ -76,6 +77,7 @@ const elementPlusComponents = [
   ElHeader,
   ElIcon,
   ElInput,
+  ElInputNumber,
   ElMain,
   ElMenu,
   ElMenuItem,

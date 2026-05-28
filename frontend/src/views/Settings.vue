@@ -498,34 +498,41 @@
                     <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="12" class="settings-compact-fields settings-compact-fields--inline-actions settings-compact-fields--single-line" align="bottom">
-                  <el-col :span="6">
-                    <el-form-item :label="t('settings.expirationDaysUser')">
-                      <el-input v-model="form.account_expiration_days_user" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="6">
-                    <el-form-item :label="t('settings.expirationDaysOperator')">
-                      <el-input v-model="form.account_expiration_days_operator" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="6">
-                    <el-form-item :label="t('settings.expirationDaysAdmin')">
-                      <el-input v-model="form.account_expiration_days_admin" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="6" class="compact-action-col">
-                    <div class="compact-row-actions">
-                      <el-button
-                        type="primary"
-                        :loading="activeSaveSection === 'accountExpiration'"
-                        @click="saveAccountExpirationSettings"
-                      >
-                        {{ t('common.save') }}
-                      </el-button>
-                    </div>
-                  </el-col>
-                </el-row>
+                <div class="numeric-setting-list">
+                  <el-form-item :label="t('settings.expirationDaysUser')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="Number(form.account_expiration_days_user || 0)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="form.account_expiration_days_user = $event == null ? '' : String($event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.expirationDaysOperator')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="Number(form.account_expiration_days_operator || 0)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="form.account_expiration_days_operator = $event == null ? '' : String($event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.expirationDaysAdmin')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="Number(form.account_expiration_days_admin || 0)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="form.account_expiration_days_admin = $event == null ? '' : String($event)"
+                    />
+                  </el-form-item>
+                </div>
+                <div class="settings-action-footer">
+                  <el-button
+                    type="primary"
+                    :loading="activeSaveSection === 'accountExpiration'"
+                    @click="saveAccountExpirationSettings"
+                  >
+                    {{ t('common.save') }}
+                  </el-button>
+                </div>
               </section>
 
               <section v-if="canManageSettings" class="settings-section section-card">
@@ -535,35 +542,42 @@
                     <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
                   </div>
                 </div>
-                <el-row :gutter="12" class="settings-compact-fields settings-compact-fields--inline-actions settings-compact-fields--single-line" align="bottom">
-                  <el-col :span="6">
-                    <el-form-item :label="t('settings.lockoutMaxAttempts')">
-                      <el-input v-model="form.login_lockout_max_attempts" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="6">
-                    <el-form-item :label="t('settings.lockoutWindowSeconds')">
-                      <el-input v-model="form.login_lockout_window_seconds" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="6">
-                    <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                      <el-input v-model="form.login_lockout_duration_seconds" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="6" class="compact-action-col">
-                    <div class="compact-row-actions">
-                      <el-button
-                        type="primary"
-                        :loading="activeSaveSection === 'loginSecurity'"
-                        @click="saveLoginSecuritySettings"
-                      >
-                        {{ t('common.save') }}
-                      </el-button>
-                    </div>
-                  </el-col>
-                </el-row>
+                <div class="numeric-setting-list">
+                  <el-form-item :label="t('settings.lockoutMaxAttempts')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="Number(form.login_lockout_max_attempts || 0)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="form.login_lockout_max_attempts = $event == null ? '' : String($event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutWindowSeconds')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="Number(form.login_lockout_window_seconds || 0)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="form.login_lockout_window_seconds = $event == null ? '' : String($event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutDurationSeconds')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="Number(form.login_lockout_duration_seconds || 0)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="form.login_lockout_duration_seconds = $event == null ? '' : String($event)"
+                    />
+                  </el-form-item>
+                </div>
                 <p class="info-tip info-tip--block">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+                <div class="settings-action-footer">
+                  <el-button
+                    type="primary"
+                    :loading="activeSaveSection === 'loginSecurity'"
+                    @click="saveLoginSecuritySettings"
+                  >
+                    {{ t('common.save') }}
+                  </el-button>
+                </div>
 
                 <el-divider />
 
@@ -572,7 +586,10 @@
                     <h3>{{ t('settings.blockedIps') }}</h3>
                     <p class="info-tip">{{ t('settings.blockedIpsHint') }}</p>
                   </div>
-                  <div>
+                  <div class="section-card__actions">
+                    <el-button type="warning" size="small" @click="manualBlockDialogVisible = true">
+                      {{ t('settings.manualBlockIp') }}
+                    </el-button>
                     <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
                   </div>
                 </div>
@@ -602,32 +619,6 @@
                 </div>
                 <span v-if="!blockedIps.length" class="empty-list-message">{{ t('settings.noBlockedIps') }}</span>
 
-                <el-divider />
-                <h3>{{ t('settings.manualBlockIp') }}</h3>
-                <el-row :gutter="18" class="settings-compact-fields manual-block-fields" align="bottom">
-                  <el-col :xs="24" :sm="12" :md="8" :lg="7">
-                    <el-form-item label="IP">
-                      <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" class="medium-text-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="5">
-                    <el-form-item :label="t('settings.lockoutDurationSeconds')">
-                      <el-input v-model="manualBlockForm.duration_seconds" type="number" min="0" class="short-number-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="7">
-                    <el-form-item :label="t('settings.blockedReason')">
-                      <el-input v-model="manualBlockForm.reason" class="medium-text-input" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :xs="24" :sm="12" :md="8" :lg="5" class="compact-action-col">
-                    <div class="compact-row-actions">
-                      <el-button type="warning" @click="manualBlockIp">
-                        {{ t('settings.manualBlockIp') }}
-                      </el-button>
-                    </div>
-                  </el-col>
-                </el-row>
               </section>
             </div>
           </div>
@@ -1056,6 +1047,40 @@
             </div>
           </template>
         </el-dialog>
+
+        <el-dialog
+          v-model="manualBlockDialogVisible"
+          :title="t('settings.manualBlockIp')"
+          width="min(520px, calc(100vw - 32px))"
+          class="user-management-dialog"
+          destroy-on-close
+        >
+          <el-form label-position="top" class="user-dialog-form" size="large">
+            <el-form-item label="IP" required>
+              <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" @keyup.enter="manualBlockIp" />
+            </el-form-item>
+            <el-form-item :label="t('settings.lockoutDurationSeconds')">
+              <el-input-number
+                :model-value="Number(manualBlockForm.duration_seconds || 0)"
+                :min="0"
+                class="themed-number-input themed-number-input--dialog"
+                @update:model-value="manualBlockForm.duration_seconds = $event == null ? '' : String($event)"
+              />
+              <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+            </el-form-item>
+            <el-form-item :label="t('settings.blockedReason')">
+              <el-input v-model="manualBlockForm.reason" @keyup.enter="manualBlockIp" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="manualBlockDialogVisible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="warning" @click="manualBlockIp">{{ t('settings.manualBlockIp') }}</el-button>
+              </el-space>
+            </div>
+          </template>
+        </el-dialog>
       </el-form>
     </div>
   </div>
@@ -1317,6 +1342,7 @@ const resetPasswordDialog = ref({
   new_password: '',
 })
 const blockedIps = ref([])
+const manualBlockDialogVisible = ref(false)
 const userManagementLoaded = ref(false)
 const userManagementLoadPromise = ref(null)
 const manualBlockForm = ref({
@@ -1832,6 +1858,7 @@ async function manualBlockIp() {
   try {
     await accessApi.blockIp(payload)
     manualBlockForm.value = { ip: '', duration_seconds: '', reason: '' }
+    manualBlockDialogVisible.value = false
     ElMessage.success(t('settings.manualBlockIpSuccess'))
     await reloadBlockedIps()
   } catch (err) {
@@ -2034,6 +2061,10 @@ onMounted(async () => {
   --users-management-table-bg: rgba(9, 15, 30, 0.82);
   --users-management-table-border: rgba(62, 82, 126, 0.65);
   --users-management-cell-color: #d9e6ff;
+  --users-management-control-bg: rgba(9, 15, 30, 0.72);
+  --users-management-control-border: rgba(103, 132, 190, 0.5);
+  --users-management-control-button-bg: rgba(20, 31, 55, 0.94);
+  --users-management-control-button-hover: rgba(64, 158, 255, 0.18);
   --user-identity-name-color: #edf4ff;
   --current-account-tag-border: rgba(124, 194, 255, 0.48);
   --current-account-tag-bg: rgba(64, 158, 255, 0.12);
@@ -2389,16 +2420,23 @@ onMounted(async () => {
 .settings-inline-field-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)); /* Pair related settings on one line */
-  gap: 10px 18px;
-  align-items: end;
+  gap: 14px 20px;
+  align-items: stretch;
 }
 
 .settings-inline-field-row :deep(.el-form-item) {
   margin-bottom: 0;
 }
 
+.settings-inline-field-row :deep(.el-form-item__label) {
+  display: flex;
+  align-items: flex-end; /* Keep labels in multi-column rows aligned before controls */
+  min-height: 24px;
+  padding-bottom: 6px;
+}
+
 .settings-inline-field-row :deep(.el-form-item__content) {
-  max-width: min(100%, 420px);
+  max-width: min(100%, 440px);
 }
 
 .form-grid-span-full {
@@ -2657,8 +2695,76 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.numeric-setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+}
+
+.numeric-setting-item {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 178px;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(103, 132, 190, 0.22);
+  border-radius: 14px;
+  background: rgba(9, 15, 30, 0.34);
+}
+
+.numeric-setting-item :deep(.el-form-item__label) {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  color: #c6d6f4;
+  line-height: 1.35;
+}
+
+.numeric-setting-item :deep(.el-form-item__content) {
+  justify-content: flex-end;
+  width: 178px;
+  line-height: 1;
+}
+
+.themed-number-input {
+  width: 178px;
+  --el-input-number-controls-height: 34px;
+}
+
+.themed-number-input :deep(.el-input__wrapper) {
+  background: var(--users-management-control-bg);
+  box-shadow: 0 0 0 1px var(--users-management-control-border) inset;
+}
+
+.themed-number-input :deep(.el-input__inner) {
+  color: #edf4ff;
+  font-weight: 700;
+}
+
+.themed-number-input :deep(.el-input-number__decrease),
+.themed-number-input :deep(.el-input-number__increase) {
+  border-color: var(--users-management-control-border);
+  background: var(--users-management-control-button-bg);
+  color: #9dd3ff;
+}
+
+.themed-number-input :deep(.el-input-number__decrease:hover),
+.themed-number-input :deep(.el-input-number__increase:hover) {
+  background: var(--users-management-control-button-hover);
+  color: #d8ecff;
+}
+
+.themed-number-input--dialog {
+  width: 100%;
+  max-width: 220px;
+}
+
 .info-tip--block {
-  margin-top: 4px;
+  margin-top: 10px;
 }
 
 .short-number-input {
@@ -2682,7 +2788,11 @@ onMounted(async () => {
 }
 
 .settings-action-footer {
-  padding-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  max-width: 520px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid rgba(103, 132, 190, 0.16); /* Visual separator between form fields and actions */
 }
 
