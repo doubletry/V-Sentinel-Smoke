@@ -1508,6 +1508,9 @@ function sceneTabLabel(sceneId) {
 }
 
 function numericFieldValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined
+  }
   const trimmed = String(value ?? '').trim()
   if (!trimmed) return undefined
   const numeric = Number(trimmed)
@@ -2431,7 +2434,7 @@ onMounted(async () => {
 .settings-inline-field-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)); /* Pair related settings on one line */
-  gap: 14px 20px;
+  gap: 12px 20px;
   align-items: stretch;
 }
 
