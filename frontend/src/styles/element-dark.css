@@ -1,0 +1,106 @@
+/*
+ * Dark-theme alignment for Element Plus form controls.
+ *
+ * The application shell is uniformly dark, but Element Plus inputs, selects,
+ * textareas and date pickers default to a light fill. Rather than hand-writing
+ * structural overrides, we retune Element Plus' own CSS variables so its mature
+ * built-in styling renders consistently on the dark surfaces.
+ *
+ * Scope notes:
+ *  - Control variables are set on the form-control roots only, so unrelated
+ *    surfaces (toasts, message boxes, the light account popover) are untouched.
+ *  - Teleported dropdowns are themed via the dedicated `el-select__popper` and
+ *    `el-picker__popper` classes, never the shared `el-popper` base, so the
+ *    light account popover keeps its own styling.
+ */
+
+:root {
+  --vs-control-bg: rgba(9, 15, 30, 0.72);
+  --vs-control-border: rgba(103, 132, 190, 0.5);
+  --vs-control-border-hover: rgba(124, 194, 255, 0.6);
+  --vs-control-text: #edf4ff;
+  --vs-control-placeholder: #7d8fb3;
+  --vs-popper-bg: #151f33;
+  --vs-popper-border: rgba(103, 132, 190, 0.32);
+  --vs-popper-hover: rgba(64, 158, 255, 0.14);
+}
+
+/* Text inputs, password fields, textareas, selects and date-picker triggers. */
+.el-input,
+.el-textarea,
+.el-select,
+.el-date-editor {
+  --el-input-bg-color: var(--vs-control-bg);
+  --el-fill-color-blank: var(--vs-control-bg);
+  --el-input-border-color: var(--vs-control-border);
+  --el-border-color: var(--vs-control-border);
+  --el-input-hover-border-color: var(--vs-control-border-hover);
+  --el-border-color-hover: var(--vs-control-border-hover);
+  --el-input-focus-border-color: var(--el-color-primary);
+  --el-input-text-color: var(--vs-control-text);
+  --el-text-color-regular: var(--vs-control-text);
+  --el-input-placeholder-color: var(--vs-control-placeholder);
+  --el-text-color-placeholder: var(--vs-control-placeholder);
+  --el-disabled-bg-color: rgba(9, 15, 30, 0.42);
+  --el-disabled-text-color: #6c7f9f;
+  --el-disabled-border-color: rgba(103, 132, 190, 0.28);
+  --el-fill-color-light: var(--vs-popper-hover);
+}
+
+/* Keep the prefix/suffix icons legible against the dark fill. */
+.el-input .el-input__icon,
+.el-input .el-input__prefix,
+.el-input .el-input__suffix,
+.el-select .el-select__caret,
+.el-date-editor .el-input__icon {
+  color: var(--vs-control-placeholder);
+}
+
+/* Select option list (teleported to body). */
+.el-select__popper.el-popper {
+  --el-popper-bg-color-light: var(--vs-popper-bg);
+  --el-bg-color-overlay: var(--vs-popper-bg);
+  --el-fill-color-light: var(--vs-popper-hover);
+  --el-fill-color: var(--vs-popper-hover);
+  --el-text-color-regular: #d4e2ff;
+  --el-text-color-primary: var(--vs-control-text);
+  --el-text-color-secondary: var(--vs-control-placeholder);
+  --el-border-color-light: var(--vs-popper-border);
+  --el-border-color: var(--vs-popper-border);
+  background: var(--vs-popper-bg);
+  border-color: var(--vs-popper-border);
+}
+
+.el-select__popper.el-popper .el-popper__arrow::before {
+  background: var(--vs-popper-bg) !important;
+  border-color: var(--vs-popper-border) !important;
+}
+
+/* Date / time picker panel (teleported to body). */
+.el-picker__popper.el-popper {
+  --el-popper-bg-color-light: var(--vs-popper-bg);
+  --el-bg-color-overlay: var(--vs-popper-bg);
+  --el-datepicker-bg-color: var(--vs-popper-bg);
+  --el-fill-color-blank: var(--vs-control-bg);
+  --el-fill-color-light: var(--vs-popper-hover);
+  --el-text-color-regular: #d4e2ff;
+  --el-text-color-primary: var(--vs-control-text);
+  --el-text-color-secondary: var(--vs-control-placeholder);
+  --el-text-color-placeholder: var(--vs-control-placeholder);
+  --el-border-color-light: var(--vs-popper-border);
+  --el-border-color-lighter: var(--vs-popper-border);
+  --el-border-color-extra-light: rgba(103, 132, 190, 0.2);
+  --el-datepicker-inrange-bg-color: rgba(64, 158, 255, 0.16);
+  background: var(--vs-popper-bg);
+  border-color: var(--vs-popper-border);
+}
+
+.el-picker__popper.el-popper .el-popper__arrow::before {
+  background: var(--vs-popper-bg) !important;
+  border-color: var(--vs-popper-border) !important;
+}
+
+.el-picker-panel__icon-btn,
+.el-date-picker__header-label {
+  color: #d4e2ff;
+}
