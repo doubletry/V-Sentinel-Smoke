@@ -7,6 +7,16 @@ const api = axios.create({
   timeout: 10000,
 })
 
+function requestPathname(url) {
+  const value = typeof url === 'string' ? url : ''
+  if (!value) return ''
+  try {
+    return new URL(value, 'http://localhost').pathname
+  } catch (_) {
+    return value.split('?')[0]
+  }
+}
+
 // Request interceptor
 api.interceptors.request.use(
   (cfg) => {
@@ -30,8 +40,8 @@ api.interceptors.response.use(
       typeof detail === 'string'
         ? detail
         : detail?.message || error.message || 'Request failed'
-    const url = error.config?.url || ''
-    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/bootstrap')
+    const path = requestPathname(error.config?.url)
+    const isAuthEndpoint = path === '/api/auth/login' || path === '/api/auth/bootstrap'
     const shouldExpireSession =
       typeof detail !== 'string' ||
       detail === 'Account banned' ||
