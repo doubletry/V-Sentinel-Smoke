@@ -24,10 +24,10 @@
             :placeholder="t('auditLogs.operationTypePlaceholder')"
           >
             <el-option
-              v-for="item in operationTypes"
-              :key="item"
-              :label="item"
-              :value="item"
+              v-for="item in localizedOperationTypes"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
             />
           </el-select>
           <el-select
@@ -68,22 +68,26 @@
         class="logs-table"
         :empty-text="t('auditLogs.noLogs')"
       >
-        <el-table-column :label="t('auditLogs.logTime')" width="190">
+        <el-table-column :label="t('auditLogs.logTime')" width="184" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDateTimeWithTimezone(scope.row.created_at, appSettingsStore.timeZone) }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('auditLogs.account')" min-width="150">
+        <el-table-column :label="t('auditLogs.account')" min-width="120" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.username || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('auditLogs.role')" width="110">
+        <el-table-column :label="t('auditLogs.role')" width="96" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.role || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('auditLogs.operationType')" min-width="220" prop="operation_type" />
+        <el-table-column :label="t('auditLogs.operationType')" min-width="160" show-overflow-tooltip>
+          <template #default="scope">
+            {{ localizeOperationType(scope.row.operation_type) }}
+          </template>
+        </el-table-column>
         <el-table-column :label="t('auditLogs.result')" width="110">
           <template #default="scope">
             <el-tag
@@ -95,17 +99,17 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('auditLogs.resource')" min-width="180">
+        <el-table-column :label="t('auditLogs.resource')" min-width="132" show-overflow-tooltip>
           <template #default="scope">
             {{ formatResource(scope.row) }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('auditLogs.ip')" width="150">
+        <el-table-column :label="t('auditLogs.ip')" width="132" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.ip || '-' }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('auditLogs.detail')" min-width="260">
+        <el-table-column :label="t('auditLogs.detail')" min-width="160" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.detail || '-' }}
           </template>
@@ -129,12 +133,13 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { accessApi } from '../api/index.js'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import { buildAuditOperationOptions, localizeAuditOperationType } from '../utils/auditLogPresentation.js'
 import { formatDateTimeWithTimezone } from '../utils/time.js'
 
 defineProps({
@@ -153,12 +158,17 @@ const logPage = ref(1)
 const logPageSize = ref(DEFAULT_PAGE_SIZE)
 const logPageSizeOptions = PAGE_SIZE_OPTIONS
 const operationTypes = ref([])
+const localizedOperationTypes = computed(() => buildAuditOperationOptions(t, operationTypes.value))
 const filters = reactive({
   username: '',
   operationType: '',
   result: '',
   timeRange: [],
 })
+
+function localizeOperationType(value) {
+  return localizeAuditOperationType(t, value)
+}
 
 function toIso(value) {
   if (!value) return ''
@@ -239,18 +249,32 @@ onMounted(() => {
 
 <style scoped>
 .audit-logs-page {
+  --audit-page-surface: rgba(9, 17, 34, 0.9);
+  --audit-page-border: rgba(103, 132, 190, 0.24);
+  --audit-table-bg: rgba(10, 18, 33, 0.92);
+  --audit-table-border: rgba(103, 132, 190, 0.34);
+  --audit-table-header-bg: rgba(18, 29, 54, 0.96);
+  --audit-table-hover-bg: rgba(35, 72, 132, 0.24);
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #0d0d1a;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--audit-page-border);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(53, 102, 196, 0.18), transparent 36%),
+    linear-gradient(180deg, rgba(14, 24, 45, 0.96), rgba(8, 14, 28, 0.98));
+  box-shadow: 0 16px 40px rgba(3, 9, 22, 0.2);
 }
 
 .audit-logs-page--embedded {
   min-height: 620px;
-  border: 1px solid #30364d;
-  border-radius: 16px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.02);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .page-header {
@@ -258,9 +282,7 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
-  background: #1a1a2e;
-  border-bottom: 1px solid #333;
+  padding: 18px 20px 0;
   flex-shrink: 0;
 }
 
@@ -269,8 +291,9 @@ onMounted(() => {
 }
 
 .header-left h2 {
+  margin: 0;
   color: #dce7ff;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.2;
 }
@@ -278,40 +301,103 @@ onMounted(() => {
 .header-left p {
   margin-top: 4px;
   color: #8ea0c8;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.header-right {
+  min-width: 0;
 }
 
 .table-wrap {
   flex: 1;
   min-height: 0;
-  padding: 12px;
+  padding: 0 20px;
 }
 
 .logs-table {
+  --el-table-bg-color: var(--audit-table-bg);
+  --el-table-tr-bg-color: var(--audit-table-bg);
+  --el-table-header-bg-color: var(--audit-table-header-bg);
+  --el-table-row-hover-bg-color: var(--audit-table-hover-bg);
+  --el-table-border-color: var(--audit-table-border);
+  --el-table-text-color: #d9e6ff;
+  --el-table-header-text-color: #9fb8e8;
   width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--audit-table-border);
+  border-radius: 16px;
+  background: var(--audit-table-bg);
+  box-shadow: 0 12px 30px rgba(3, 9, 22, 0.16);
 }
 
 .logs-pagination {
   display: flex;
   justify-content: flex-end;
-  padding: 8px 12px 12px;
-  border-top: 1px solid #26314d;
-  background: #131a2e;
+  padding: 0 20px 20px;
   flex-shrink: 0;
 }
 
+:deep(.logs-table .el-table__inner-wrapper::before),
+:deep(.logs-table .el-table__border-left-patch) {
+  background-color: var(--audit-table-border);
+}
+
 :deep(.logs-table .el-table__cell) {
-  padding-top: 6px;
-  padding-bottom: 6px;
+  border-bottom-color: rgba(62, 82, 126, 0.48);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+:deep(.logs-table .cell) {
+  color: #d9e6ff;
+  line-height: 1.5;
+}
+
+:deep(.logs-table .el-table__header-wrapper th) {
+  font-weight: 700;
+}
+
+:deep(.logs-table .el-table__empty-block) {
+  background: var(--audit-table-bg);
+}
+
+:deep(.logs-table .el-tag) {
+  border-color: transparent;
 }
 
 @media (max-width: 1200px) {
   .page-header {
     flex-direction: column;
+    padding-top: 20px;
+  }
+
+  .table-wrap,
+  .logs-pagination {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
   .logs-pagination {
     justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .audit-logs-page {
+    padding: 12px;
+    gap: 10px;
+    border-radius: 16px;
+  }
+
+  .page-header {
+    padding: 16px 16px 0;
+  }
+
+  .table-wrap,
+  .logs-pagination {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }
 </style>

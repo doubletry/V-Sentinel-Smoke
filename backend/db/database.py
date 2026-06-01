@@ -2000,8 +2000,8 @@ async def list_audit_logs(
     返回带组合筛选的分页审计日志。"""
     safe_page = max(int(page), 1)
     safe_size = max(int(page_size), 1)
-    where: list[str] = []
-    params: list[object] = []
+    where: list[str] = ["operation_type != ?"]
+    params: list[object] = ["auth.logout"]
 
     username_text = str(username or "").strip()
     if username_text:
@@ -2041,7 +2041,8 @@ async def list_audit_logs(
 
         async with db.execute(
             "SELECT DISTINCT operation_type FROM audit_logs "
-            "WHERE operation_type != '' ORDER BY operation_type ASC"
+            "WHERE operation_type != '' AND operation_type != ? ORDER BY operation_type ASC",
+            ("auth.logout",),
         ) as cursor:
             operation_rows = await cursor.fetchall()
 

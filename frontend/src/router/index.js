@@ -78,7 +78,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('v-sentinel:auth-expired', () => {
     try {
       const authStore = useAuthStore(pinia)
-      authStore.logout({ remote: false })
+      authStore.logout()
     } catch (_) { /* ignore */ }
     if (router.currentRoute.value.path !== '/auth') {
       router.push({ path: '/auth', query: { mode: 'login' } })

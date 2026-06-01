@@ -153,13 +153,6 @@ async def me(user: CurrentUser = Depends(current_user)) -> CurrentUser:
     return user
 
 
-@router.post("/logout")
-async def logout(_user: CurrentUser = Depends(current_user)) -> dict[str, str]:
-    """Record an active logout event for the current account.
-    为当前账号记录一次主动退出事件。"""
-    return {"status": "SUCCESS"}
-
-
 @router.post("/password")
 async def change_password(
     data: AuthPasswordChangeRequest,

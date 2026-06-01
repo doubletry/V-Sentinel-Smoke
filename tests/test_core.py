@@ -418,6 +418,7 @@ class TestCoreBaseVideoProcessorPipeline:
                     source_id="s1",
                     source_name="cam",
                     rtsp_url="rtsp://localhost:8554/cam1",
+                    push_result_stream=False,
                     app_settings={"mediamtx_rtsp_addr": "rtsp://localhost:8554"},
                 )
                 self.started_two = asyncio.Event()

@@ -14,7 +14,6 @@ AUDIT_OPERATION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/access/blocked-ips"): ("access.block_ip", "access"),
     ("DELETE", "/api/access/blocked-ips/{ip}"): ("access.unblock_ip", "access"),
     ("POST", "/api/auth/login"): ("auth.login", "auth"),
-    ("POST", "/api/auth/logout"): ("auth.logout", "auth"),
     ("POST", "/api/auth/password"): ("auth.change_password", "auth"),
     ("POST", "/api/auth/register"): ("auth.register", "auth"),
     ("POST", "/api/messages/batch-delete"): ("messages.batch_delete", "messages"),

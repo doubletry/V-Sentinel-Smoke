@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 
 from backend.auth.security import create_access_token
+from backend.db import database as db
 
 
 class TestAuditLogs:
@@ -37,11 +38,19 @@ class TestAuditLogs:
         )
         assert stop_resp.status_code == 200
 
-        logout_resp = await async_client.post(
-            "/api/auth/logout",
-            headers=operator_headers,
+        await db.create_audit_log(
+            username="ops-audit",
+            role="operator",
+            ip="127.0.0.1",
+            operation_type="auth.logout",
+            resource_type="auth",
+            resource_id="ops-audit",
+            method="POST",
+            path="/api/auth/logout",
+            result="SUCCESS",
+            status_code=200,
+            detail="legacy logout entry",
         )
-        assert logout_resp.status_code == 200
 
         end_time = (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat()
 
@@ -50,7 +59,7 @@ class TestAuditLogs:
             headers=operator_headers,
             params={
                 "username": "ops-audit",
-                "operation_type": "auth.logout",
+                "operation_type": "processor.stop",
                 "result": "SUCCESS",
                 "start_time": start_time,
                 "end_time": end_time,
@@ -59,10 +68,11 @@ class TestAuditLogs:
         assert success_resp.status_code == 200
         success_data = success_resp.json()
         assert success_data["operation_types"]
-        assert any(item == "auth.logout" for item in success_data["operation_types"])
+        assert "processor.stop" in success_data["operation_types"]
+        assert "auth.logout" not in success_data["operation_types"]
         assert len(success_data["items"]) == 1
         assert success_data["items"][0]["username"] == "ops-audit"
-        assert success_data["items"][0]["operation_type"] == "auth.logout"
+        assert success_data["items"][0]["operation_type"] == "processor.stop"
         assert success_data["items"][0]["result"] == "SUCCESS"
 
         failure_resp = await async_client.get(

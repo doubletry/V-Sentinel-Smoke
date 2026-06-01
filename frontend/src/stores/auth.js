@@ -42,7 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = await authApi.me()
       return user.value
     } catch (_) {
-      await logout({ remote: false })
+      await logout()
       return null
     }
   }
@@ -138,15 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.includes(value) || permissions.value.includes(`${namespace}:*`)
   }
 
-  async function logout(options = {}) {
-    const remote = options.remote !== false
-    if (remote && token.value) {
-      try {
-        await authApi.logout()
-      } catch (_) {
-        // Keep local sign-out behavior even if the logout request fails.
-      }
-    }
+  async function logout() {
     persistToken('')
     user.value = null
   }
