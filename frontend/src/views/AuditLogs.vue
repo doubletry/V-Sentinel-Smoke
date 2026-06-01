@@ -80,7 +80,7 @@
         </el-table-column>
         <el-table-column :label="t('auditLogs.role')" width="96" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.role || '-' }}
+              {{ localizeRole(scope.row) }}
           </template>
         </el-table-column>
         <el-table-column :label="t('auditLogs.operationType')" min-width="160" show-overflow-tooltip>
@@ -139,7 +139,12 @@ import ElMessage from 'element-plus/es/components/message/index'
 import { accessApi } from '../api/index.js'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
-import { buildAuditOperationOptions, localizeAuditOperationType } from '../utils/auditLogPresentation.js'
+import {
+  buildAuditOperationOptions,
+  localizeAuditOperationType,
+  localizeAuditResource,
+  localizeAuditRole,
+} from '../utils/auditLogPresentation.js'
 import { formatDateTimeWithTimezone } from '../utils/time.js'
 
 defineProps({
@@ -168,6 +173,10 @@ const filters = reactive({
 
 function localizeOperationType(value) {
   return localizeAuditOperationType(t, value)
+}
+
+function localizeRole(row) {
+  return localizeAuditRole(t, row?.role, row?.operation_type)
 }
 
 function toIso(value) {
@@ -206,10 +215,7 @@ function buildParams(page = 1) {
 }
 
 function formatResource(row) {
-  const type = String(row.resource_type || '').trim()
-  const id = String(row.resource_id || '').trim()
-  if (type && id) return `${type}:${id}`
-  return type || id || '-'
+  return localizeAuditResource(t, row)
 }
 
 async function loadLogs(page = 1) {

@@ -14,6 +14,7 @@ class TestAuthBootstrapAndUsers:
 
         register_resp = await async_client.post(
             "/api/auth/register",
+            headers={"Authorization": ""},
             json={"username": "root", "password": "root-secret"},
         )
         assert register_resp.status_code == 201
@@ -32,6 +33,18 @@ class TestAuthBootstrapAndUsers:
         assert me_resp.json()["username"] == "root"
         assert me_resp.json()["role"] == "admin"
         assert "users:*" in me_resp.json()["permissions"]
+
+        audit_resp = await async_client.get(
+            "/api/access/audit-logs",
+            params={"username": "root", "operation_type": "auth.register"},
+            headers={"Authorization": f"Bearer {payload['access_token']}"},
+        )
+        assert audit_resp.status_code == 200
+        audit_items = audit_resp.json()["items"]
+        assert len(audit_items) == 1
+        assert audit_items[0]["role"] == "admin"
+        assert audit_items[0]["resource_type"] == "auth"
+        assert audit_items[0]["resource_id"] == "root"
 
     async def test_second_public_registration_is_rejected(self, async_client: AsyncClient):
         first = await async_client.post(

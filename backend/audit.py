@@ -173,7 +173,11 @@ def _exception_detail(exc: Exception) -> str:
     return exc.__class__.__name__
 
 
-async def _resolve_actor(request: Request, payload: dict[str, object]) -> tuple[str, str]:
+async def _resolve_actor(
+    request: Request,
+    payload: dict[str, object],
+    operation_type: str,
+) -> tuple[str, str]:
     authorization = request.headers.get("authorization")
     if authorization:
         try:
@@ -185,10 +189,11 @@ async def _resolve_actor(request: Request, payload: dict[str, object]) -> tuple[
                 return str(token_payload.get("sub") or ""), str(token_payload.get("role") or "")
             except Exception:
                 pass
-    return (
-        str(payload.get("username") or "").strip(),
-        str(payload.get("role") or "").strip().lower(),
-    )
+    username = str(payload.get("username") or "").strip()
+    role = str(payload.get("role") or "").strip().lower()
+    if not role and operation_type == "auth.register":
+        role = "admin"
+    return username, role
 
 
 async def write_audit_log(
@@ -212,7 +217,7 @@ async def write_audit_log(
         return
 
     body_payload = payload or {}
-    username, role = await _resolve_actor(request, body_payload)
+    username, role = await _resolve_actor(request, body_payload, operation_type)
     settings_map = await db.get_all_settings()
     ip = _client_ip(request, _truthy(settings_map.get("login_lockout_trust_proxy")))
     response_detail = _extract_response_detail(response) if response is not None else ""
