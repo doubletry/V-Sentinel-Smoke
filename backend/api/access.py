@@ -19,14 +19,14 @@ from backend.models.schemas import (
 router = APIRouter(prefix="/api/access", tags=["access"])
 
 
-def _normalize_datetime_query(value: str | None) -> str | None:
+def _normalize_datetime_query(value: str | None, field_name: str) -> str | None:
     text = str(value or "").strip()
     if not text:
         return None
     try:
         dt = datetime.fromisoformat(text)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid datetime filter") from exc
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name} filter") from exc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat()
@@ -58,8 +58,8 @@ async def get_audit_logs(
         username=username,
         operation_type=operation_type,
         result=result,
-        start_time=_normalize_datetime_query(start_time),
-        end_time=_normalize_datetime_query(end_time),
+        start_time=_normalize_datetime_query(start_time, "start_time"),
+        end_time=_normalize_datetime_query(end_time, "end_time"),
     )
     return PaginatedAuditLogsResponse(
         items=[AuditLogEntry(**item) for item in data["items"]],

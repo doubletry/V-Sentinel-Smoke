@@ -170,6 +170,10 @@ def _extract_response_detail(response: Response) -> str:
     return ""
 
 
+def _exception_detail(exc: Exception) -> str:
+    return exc.__class__.__name__
+
+
 async def _resolve_actor(request: Request, payload: dict[str, object]) -> tuple[str, str]:
     authorization = request.headers.get("authorization")
     if authorization:
@@ -202,7 +206,9 @@ async def write_audit_log(
         (method, route_path),
         _fallback_operation(method, route_path),
     )
-    should_audit = (method, route_path) in AUDIT_OPERATION_MAP or method in {"POST", "PUT", "PATCH", "DELETE"}
+    should_audit = request.url.path.startswith("/api/") and (
+        (method, route_path) in AUDIT_OPERATION_MAP or method in {"POST", "PUT", "PATCH", "DELETE"}
+    )
     if not should_audit:
         return
 
@@ -244,7 +250,7 @@ async def audit_request(request: Request, call_next: Callable[[Request], Awaitab
             working_request,
             status_code=500,
             payload=payload,
-            detail=str(exc),
+            detail=_exception_detail(exc),
         )
         raise
 
