@@ -26,7 +26,7 @@ def _normalize_datetime_query(value: str | None, field_name: str) -> str | None:
     try:
         dt = datetime.fromisoformat(text)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name} filter") from exc
+        raise HTTPException(status_code=400, detail=f"Invalid ISO datetime format for {field_name}") from exc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat()
