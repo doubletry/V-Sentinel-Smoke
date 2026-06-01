@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/access", tags=["access"])
 
 
 def _normalize_datetime_query(value: str | None, field_name: str) -> str | None:
+    """Normalize query datetimes to UTC ISO strings; naive values are treated as UTC."""
     text = str(value or "").strip()
     if not text:
         return None

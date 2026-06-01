@@ -164,7 +164,7 @@ function toIso(value) {
   if (!value) return ''
   if (value instanceof Date) return value.toISOString()
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
 function buildParams(page = 1) {
@@ -185,6 +185,10 @@ function buildParams(page = 1) {
     const [start, end] = filters.timeRange
     const startTime = toIso(start)
     const endTime = toIso(end)
+    if (startTime === null || endTime === null) {
+      ElMessage.warning(t('auditLogs.invalidTimeRange'))
+      return null
+    }
     if (startTime) params.start_time = startTime
     if (endTime) params.end_time = endTime
   }
@@ -202,7 +206,9 @@ async function loadLogs(page = 1) {
   logPage.value = page
   logsLoading.value = true
   try {
-    const data = await accessApi.auditLogs(buildParams(page))
+    const params = buildParams(page)
+    if (!params) return
+    const data = await accessApi.auditLogs(params)
     logItems.value = data.items || []
     logTotal.value = Number(data.total || 0)
     operationTypes.value = data.operation_types || []

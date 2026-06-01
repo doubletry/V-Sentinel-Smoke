@@ -250,6 +250,7 @@ export default {
     endTime: 'End time',
     rangeSeparator: 'to',
     failedLoad: 'Failed to load audit logs: {message}',
+    invalidTimeRange: 'Invalid time range format. Please choose the range again.',
   },
   management: {
     title: 'Management Center',

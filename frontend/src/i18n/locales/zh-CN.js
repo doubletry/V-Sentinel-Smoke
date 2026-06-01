@@ -250,6 +250,7 @@ export default {
     endTime: '结束时间',
     rangeSeparator: '至',
     failedLoad: '加载审计日志失败：{message}',
+    invalidTimeRange: '时间范围格式无效，请重新选择。',
   },
   management: {
     title: '管理中心',
