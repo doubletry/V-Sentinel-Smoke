@@ -5,7 +5,8 @@ from collections.abc import Callable
 from fastapi import Header, HTTPException
 
 from backend.auth.roles import ROLE_PERMISSIONS
-from backend.auth.security import verify_access_token
+from backend.auth.security import _is_account_expired, verify_access_token
+from backend.db import database as db
 from backend.models.schemas import CurrentUser
 
 
@@ -23,12 +24,32 @@ def _has_permission(role: str, permission: str) -> bool:
     return permission in permissions or f"{namespace}:*" in permissions
 
 
+async def _resolve_token_payload(authorization: str | None) -> dict:
+    """Verify token + recheck DB-backed account state (ban / expiration).
+    校验 Bearer token 并复查数据库中的账号状态（封禁/过期）。"""
+    payload = verify_access_token(_extract_bearer_token(authorization))
+    username = str(payload.get("sub") or "")
+    if username:
+        record = await db.get_user_auth_record(username)
+        if record is not None:
+            _username, _password_hash, stored_role, is_banned, expires_at = record
+            if is_banned:
+                raise HTTPException(status_code=401, detail="Account banned")
+            if _is_account_expired(expires_at):
+                raise HTTPException(status_code=401, detail="Account expired")
+            payload["role"] = stored_role
+            payload["expires_at"] = expires_at
+        elif payload.get("registered_user") is True:
+            raise HTTPException(status_code=401, detail="Account not found")
+    return payload
+
+
 def require_permission(permission: str) -> Callable[[str | None], str]:
     """Return a FastAPI dependency requiring a role permission.
     返回要求角色权限的 FastAPI 依赖。"""
 
     async def dependency(authorization: str | None = Header(default=None, alias="Authorization")) -> str:
-        payload = verify_access_token(_extract_bearer_token(authorization))
+        payload = await _resolve_token_payload(authorization)
         role = str(payload["role"])
         if not _has_permission(role, permission):
             raise HTTPException(status_code=403, detail="Insufficient role permission")
@@ -40,10 +61,13 @@ def require_permission(permission: str) -> Callable[[str | None], str]:
 async def current_user(authorization: str | None = Header(default=None, alias="Authorization")) -> CurrentUser:
     """Resolve the current authenticated user from a Bearer token.
     从 Bearer token 解析当前已认证用户。"""
-    payload = verify_access_token(_extract_bearer_token(authorization))
+    payload = await _resolve_token_payload(authorization)
     role = str(payload["role"])
+    expires_at = payload.get("expires_at")
     return CurrentUser(
         username=str(payload.get("sub") or ""),
         role=role,
         permissions=list(ROLE_PERMISSIONS.get(role, [])),
+        expires_at=expires_at if expires_at else None,
+        expired=_is_account_expired(expires_at) if expires_at else False,
     )

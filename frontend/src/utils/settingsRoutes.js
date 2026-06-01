@@ -24,6 +24,22 @@ export function getDefaultSettingsPath(canManageSettings, canManageUsers) {
   return getDefaultManagementPath(canManageSettings, canManageUsers)
 }
 
+export function defaultLandingFor(role) {
+  // The `user` role is restricted to viewing alarm messages only.
+  // `user` 角色仅允许查看告警消息。
+  if (String(role || '').toLowerCase() === 'user') return '/messages'
+  return '/'
+}
+
+export function userRoleRedirect(role, toPath) {
+  // Returns the path the router should redirect to when a `user`-role
+  // account navigates to a restricted route, or null if no redirect is needed.
+  // 当 `user` 角色访问受限路由时返回重定向目标，无需重定向则返回 null。
+  if (String(role || '').toLowerCase() !== 'user') return null
+  if (toPath === '/messages' || toPath === '/auth') return null
+  return '/messages'
+}
+
 export function legacySettingsSectionToManagement(section) {
   if (section === 'platform') return 'site'
   if (section === 'plugin') return 'plugins'

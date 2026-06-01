@@ -17,6 +17,7 @@ from loguru import logger
 from backend.config import DEFAULT_APP_SETTINGS, settings
 from backend.models.schemas import ROI, ROICreate, UserAccount, VideoSource, VideoSourceCreate, VideoSourceUpdate
 from backend.models.schemas import (
+    BlockedIp,
     NotificationPolicy,
     NotificationPolicyCreate,
     NotificationPolicyUpdate,
@@ -155,7 +156,33 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('user', 'operator', 'admin')),
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    is_banned INTEGER NOT NULL DEFAULT 0,
+    banned_at TEXT,
+    expires_at TEXT
+);
+"""
+
+CREATE_LOGIN_FAILURES_TABLE = """
+CREATE TABLE IF NOT EXISTS login_failures (
+    ip TEXT NOT NULL,
+    username TEXT NOT NULL DEFAULT '',
+    attempted_at TEXT NOT NULL
+);
+"""
+
+CREATE_LOGIN_FAILURES_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_login_failures_ip_time
+ON login_failures (ip, attempted_at);
+"""
+
+CREATE_BLOCKED_IPS_TABLE = """
+CREATE TABLE IF NOT EXISTS blocked_ips (
+    ip TEXT PRIMARY KEY,
+    blocked_at TEXT NOT NULL,
+    blocked_until TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    blocked_by TEXT
 );
 """
 
@@ -274,6 +301,12 @@ async def init_db() -> None:
         await db.execute(CREATE_NOTIFICATION_TEMPLATES_TABLE)
         await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
         await db.execute(CREATE_USERS_TABLE)
+        await db.execute(CREATE_LOGIN_FAILURES_TABLE)
+        await db.execute(CREATE_LOGIN_FAILURES_INDEX)
+        await db.execute(CREATE_BLOCKED_IPS_TABLE)
+        await _ensure_column_exists(db, "users", "is_banned", "INTEGER NOT NULL DEFAULT 0")
+        await _ensure_column_exists(db, "users", "banned_at", "TEXT")
+        await _ensure_column_exists(db, "users", "expires_at", "TEXT")
         await _ensure_column_exists(db, "video_sources", "route_path", "TEXT NOT NULL DEFAULT ''")
         await _ensure_column_exists(db, "video_sources", "source_remark", "TEXT NOT NULL DEFAULT ''")
         await _ensure_column_exists(db, "video_sources", "push_result_stream", "INTEGER NOT NULL DEFAULT 1")
@@ -1622,7 +1655,28 @@ async def update_notification_policy(
 
 
 def _row_to_user_account(row: tuple) -> UserAccount:
-    return UserAccount(username=row[0], role=row[1], created_at=row[2])
+    expires_at = row[5] if len(row) > 5 else None
+    return UserAccount(
+        username=row[0],
+        role=row[1],
+        created_at=row[2],
+        is_banned=bool(row[3]) if len(row) > 3 and row[3] is not None else False,
+        banned_at=row[4] if len(row) > 4 else None,
+        expires_at=expires_at,
+        expired=_is_expired_iso(expires_at),
+    )
+
+
+def _is_expired_iso(value: str | None) -> bool:
+    if not value:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except ValueError:
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt < datetime.now(timezone.utc)
 
 
 async def count_users() -> int:
@@ -1634,42 +1688,95 @@ async def count_users() -> int:
     return int(row[0] if row else 0)
 
 
+async def count_users_by_role(role: str) -> int:
+    """Return the number of registered accounts with a given role.
+    返回指定角色已注册账号的数量。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT COUNT(*) FROM users WHERE role = ?",
+            (str(role or "").strip().lower(),),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return int(row[0] if row else 0)
+
+
 async def list_users() -> list[UserAccount]:
     """List registered accounts ordered by creation time.
     按创建时间列出已注册账号。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT username, role, created_at FROM users ORDER BY created_at, username"
+            "SELECT username, role, created_at, is_banned, banned_at, expires_at "
+            "FROM users ORDER BY created_at, username"
         ) as cursor:
             rows = await cursor.fetchall()
     return [_row_to_user_account(row) for row in rows]
 
 
-async def get_user_auth_record(username: str) -> tuple[str, str, str] | None:
-    """Return ``(username, password_hash, role)`` for authentication.
-    返回认证所需的 ``(username, password_hash, role)``。"""
+async def get_user_account(username: str) -> UserAccount | None:
+    """Return a single user account record by username (without auth fields).
+    根据用户名返回单个用户账号（不含认证字段）。"""
     normalized_username = str(username or "").strip()
     async with _db_session() as db:
         async with db.execute(
-            "SELECT username, password_hash, role FROM users WHERE username = ?",
+            "SELECT username, role, created_at, is_banned, banned_at, expires_at "
+            "FROM users WHERE username = ?",
             (normalized_username,),
         ) as cursor:
             row = await cursor.fetchone()
-    return (str(row[0]), str(row[1]), str(row[2])) if row else None
+    return _row_to_user_account(row) if row else None
 
 
-async def create_user_account(*, username: str, role: str, password_hash: str) -> UserAccount:
+async def get_user_auth_record(
+    username: str,
+) -> tuple[str, str, str, bool, str | None] | None:
+    """Return ``(username, password_hash, role, is_banned, expires_at)`` for authentication.
+    返回认证所需的 ``(username, password_hash, role, is_banned, expires_at)``。"""
+    normalized_username = str(username or "").strip()
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT username, password_hash, role, is_banned, expires_at "
+            "FROM users WHERE username = ?",
+            (normalized_username,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    if row is None:
+        return None
+    return (
+        str(row[0]),
+        str(row[1]),
+        str(row[2]),
+        bool(row[3]) if row[3] is not None else False,
+        (str(row[4]) if row[4] is not None else None),
+    )
+
+
+async def create_user_account(
+    *,
+    username: str,
+    role: str,
+    password_hash: str,
+    expires_at: str | None = None,
+) -> UserAccount:
     """Persist a new user account with a precomputed password hash.
     使用预先计算的密码哈希持久化新用户账号。"""
     normalized_username = str(username or "").strip()
     created_at = _now_iso()
     async with _db_session() as db:
         await db.execute(
-            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
-            (normalized_username, password_hash, role, created_at),
+            "INSERT INTO users (username, password_hash, role, created_at, "
+            "is_banned, banned_at, expires_at) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+            (normalized_username, password_hash, role, created_at, expires_at),
         )
         await db.commit()
-    return UserAccount(username=normalized_username, role=role, created_at=created_at)
+    return UserAccount(
+        username=normalized_username,
+        role=role,
+        created_at=created_at,
+        is_banned=False,
+        banned_at=None,
+        expires_at=expires_at,
+        expired=_is_expired_iso(expires_at),
+    )
 
 
 async def create_first_user_account(*, username: str, password_hash: str) -> UserAccount:
@@ -1683,11 +1790,20 @@ async def create_first_user_account(*, username: str, password_hash: str) -> Use
         if int(row[0] if row else 0) > 0:
             raise ValueError("Public registration is closed")
         await db.execute(
-            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (username, password_hash, role, created_at, "
+            "is_banned, banned_at, expires_at) VALUES (?, ?, ?, ?, 0, NULL, NULL)",
             (normalized_username, password_hash, "admin", created_at),
         )
         await db.commit()
-    return UserAccount(username=normalized_username, role="admin", created_at=created_at)
+    return UserAccount(
+        username=normalized_username,
+        role="admin",
+        created_at=created_at,
+        is_banned=False,
+        banned_at=None,
+        expires_at=None,
+        expired=False,
+    )
 
 
 async def update_user_password_hash(*, username: str, password_hash: str) -> bool:
@@ -1701,6 +1817,227 @@ async def update_user_password_hash(*, username: str, password_hash: str) -> boo
         )
         await db.commit()
     return int(cursor.rowcount or 0) > 0
+
+
+async def admin_update_user_password_hash(*, username: str, password_hash: str) -> bool:
+    """Admin force-reset of a user's password hash.
+    管理员强制重置用户密码哈希。"""
+    return await update_user_password_hash(username=username, password_hash=password_hash)
+
+
+async def delete_user_account(username: str) -> bool:
+    """Delete a user account.
+    删除用户账号。"""
+    normalized_username = str(username or "").strip()
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "DELETE FROM users WHERE username = ?",
+            (normalized_username,),
+        )
+        await db.commit()
+    return int(cursor.rowcount or 0) > 0
+
+
+async def set_user_banned(*, username: str, banned: bool) -> bool:
+    """Ban or unban a user account.
+    封禁或解封用户账号。"""
+    normalized_username = str(username or "").strip()
+    banned_at = _now_iso() if banned else None
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE users SET is_banned = ?, banned_at = ? WHERE username = ?",
+            (1 if banned else 0, banned_at, normalized_username),
+        )
+        await db.commit()
+    return int(cursor.rowcount or 0) > 0
+
+
+async def update_user_role(*, username: str, role: str) -> bool:
+    """Update a user's role.
+    更新用户角色。"""
+    normalized_username = str(username or "").strip()
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE users SET role = ? WHERE username = ?",
+            (str(role or "").strip().lower(), normalized_username),
+        )
+        await db.commit()
+    return int(cursor.rowcount or 0) > 0
+
+
+async def update_user_expires_at(*, username: str, expires_at: str | None) -> bool:
+    """Update a user's expiration timestamp.
+    更新用户的有效期。"""
+    normalized_username = str(username or "").strip()
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "UPDATE users SET expires_at = ? WHERE username = ?",
+            (expires_at, normalized_username),
+        )
+        await db.commit()
+    return int(cursor.rowcount or 0) > 0
+
+
+# ── Anti-brute-force login helpers / 登录暴力破解防护辅助方法 ──────────────────
+
+
+def _row_to_blocked_ip(row: tuple) -> BlockedIp:
+    return BlockedIp(
+        ip=str(row[0]),
+        blocked_at=str(row[1]),
+        blocked_until=(str(row[2]) if row[2] is not None else None),
+        reason=str(row[3] or ""),
+        blocked_by=(str(row[4]) if row[4] is not None else None),
+    )
+
+
+async def record_login_failure(ip: str, username: str = "") -> None:
+    """Record a failed login attempt for an IP/username pair.
+    记录某 IP/用户名组合的登录失败尝试。"""
+    normalized_ip = str(ip or "").strip()
+    if not normalized_ip:
+        return
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO login_failures (ip, username, attempted_at) VALUES (?, ?, ?)",
+            (normalized_ip, str(username or "").strip(), _now_iso()),
+        )
+        await db.commit()
+
+
+async def count_recent_failures(ip: str, window_seconds: int) -> int:
+    """Count recent login failures for an IP within a sliding window.
+    统计某 IP 在滑动窗口内的近期登录失败次数。"""
+    normalized_ip = str(ip or "").strip()
+    if not normalized_ip or window_seconds <= 0:
+        return 0
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=int(window_seconds))).isoformat()
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT COUNT(*) FROM login_failures WHERE ip = ? AND attempted_at >= ?",
+            (normalized_ip, cutoff),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return int(row[0] if row else 0)
+
+
+async def clear_login_failures(ip: str) -> None:
+    """Clear failure records for an IP (typically after a successful login).
+    清除某 IP 的失败记录（通常在登录成功后调用）。"""
+    normalized_ip = str(ip or "").strip()
+    if not normalized_ip:
+        return
+    async with _db_session() as db:
+        await db.execute("DELETE FROM login_failures WHERE ip = ?", (normalized_ip,))
+        await db.commit()
+
+
+async def block_ip(
+    *,
+    ip: str,
+    duration_seconds: int | None,
+    reason: str = "",
+    blocked_by: str | None = None,
+) -> BlockedIp | None:
+    """Block an IP with optional auto-expiry duration.
+    封锁某 IP，可选自动到期时长。"""
+    normalized_ip = str(ip or "").strip()
+    if not normalized_ip:
+        return None
+    now = datetime.now(timezone.utc)
+    if duration_seconds is not None and int(duration_seconds) > 0:
+        blocked_until = (now + timedelta(seconds=int(duration_seconds))).isoformat()
+    else:
+        blocked_until = None
+    blocked_at = now.isoformat()
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO blocked_ips (ip, blocked_at, blocked_until, reason, blocked_by) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(ip) DO UPDATE SET "
+            "blocked_at = excluded.blocked_at, "
+            "blocked_until = excluded.blocked_until, "
+            "reason = excluded.reason, "
+            "blocked_by = excluded.blocked_by",
+            (normalized_ip, blocked_at, blocked_until, str(reason or ""), blocked_by),
+        )
+        await db.commit()
+    return BlockedIp(
+        ip=normalized_ip,
+        blocked_at=blocked_at,
+        blocked_until=blocked_until,
+        reason=str(reason or ""),
+        blocked_by=blocked_by,
+    )
+
+
+async def unblock_ip(ip: str) -> bool:
+    """Manually unblock an IP and clear its failure counter.
+    手动解除 IP 封锁并清除失败计数。"""
+    normalized_ip = str(ip or "").strip()
+    if not normalized_ip:
+        return False
+    async with _db_session() as db:
+        cursor = await db.execute(
+            "DELETE FROM blocked_ips WHERE ip = ?",
+            (normalized_ip,),
+        )
+        await db.execute("DELETE FROM login_failures WHERE ip = ?", (normalized_ip,))
+        await db.commit()
+    return int(cursor.rowcount or 0) > 0
+
+
+async def list_blocked_ips() -> list[BlockedIp]:
+    """List currently blocked IPs (excluding auto-expired entries).
+    列出当前被封锁的 IP（不含已自动到期的条目）。"""
+    now_iso = _now_iso()
+    async with _db_session() as db:
+        # Auto-purge expired blocks for tidiness.
+        await db.execute(
+            "DELETE FROM blocked_ips WHERE blocked_until IS NOT NULL AND blocked_until < ?",
+            (now_iso,),
+        )
+        await db.commit()
+        async with db.execute(
+            "SELECT ip, blocked_at, blocked_until, reason, blocked_by "
+            "FROM blocked_ips ORDER BY blocked_at DESC, ip"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [_row_to_blocked_ip(row) for row in rows]
+
+
+async def is_ip_blocked(ip: str) -> tuple[bool, str | None]:
+    """Return ``(is_blocked, blocked_until_iso)`` for an IP.
+    返回某 IP 的 ``(is_blocked, blocked_until_iso)``。"""
+    normalized_ip = str(ip or "").strip()
+    if not normalized_ip:
+        return False, None
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT blocked_until FROM blocked_ips WHERE ip = ?",
+            (normalized_ip,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return False, None
+        blocked_until = row[0]
+        if blocked_until is not None:
+            try:
+                until_dt = datetime.fromisoformat(str(blocked_until))
+            except ValueError:
+                until_dt = None
+            if until_dt is not None:
+                if until_dt.tzinfo is None:
+                    until_dt = until_dt.replace(tzinfo=timezone.utc)
+                if until_dt < datetime.now(timezone.utc):
+                    # Auto-expired; clean up and treat as not blocked.
+                    await db.execute(
+                        "DELETE FROM blocked_ips WHERE ip = ?",
+                        (normalized_ip,),
+                    )
+                    await db.commit()
+                    return False, None
+    return True, (str(blocked_until) if blocked_until is not None else None)
 
 
 async def get_all_settings() -> dict[str, str]:

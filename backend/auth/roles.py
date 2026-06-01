@@ -5,8 +5,6 @@ from backend.models.schemas import RoleInfo
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     "user": [
-        "sources:read",
-        "video:watch",
         "messages:read",
     ],
     "operator": [

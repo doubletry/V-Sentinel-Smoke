@@ -255,7 +255,9 @@ class TestRbacFoundation:
         assert resp.status_code == 200
         roles = {item["role"]: item for item in resp.json()}
         assert set(roles) == {"user", "operator", "admin"}
-        assert "video:watch" in roles["user"]["permissions"]
+        assert "messages:read" in roles["user"]["permissions"]
+        assert "video:watch" not in roles["user"]["permissions"]
+        assert "video:watch" in roles["operator"]["permissions"]
         assert "sources:operate" in roles["operator"]["permissions"]
         assert "users:*" in roles["admin"]["permissions"]
 
@@ -307,6 +309,8 @@ class TestRbacFoundation:
                 "messages:read",
                 "messages:annotate",
             ],
+            "expires_at": None,
+            "expired": False,
         }
 
     async def test_mutation_requires_bearer_token(self, async_client: AsyncClient):

@@ -198,7 +198,17 @@ DB_PATH=./v_sentinel.db
 - 新增 `/api/scenes` 暴露场景元数据，后续前端可按场景动态渲染普通配置与专家模式配置。
 - 新增 `/api/video-gateways` 管理视频网关。默认网关为 MediaMTX，RTSP 后端拉流和 WebRTC 前端播放共享同一套账号密码。
 - 新增 `/api/notifications/*` 管理通知服务、模板和策略。首批预留 `email` 与 `webhook` 两种通知方式；运行时事件通知已通过通知调度器投递，邮件通知直接使用 SMTP。
-- 新增 `/api/access/roles` 暴露三级权限模型：用户、操作员、管理员。
+- 新增 `/api/access/roles` 暴露三级权限模型：用户、操作员、管理员。`user` 角色现在仅保留 `messages:read` 权限，仅可访问 `/messages` 告警消息页面，前端路由会自动将其重定向到该页面。
+- 账号管理（`Settings → 用户管理`，需要管理员权限）支持：
+  - 创建账号时可在“登录有效期”选择具体到期时间；留空则按角色默认有效期计算。
+  - 每个账号支持「封禁/解封」「重置密码」「删除」操作；不能删除自己或最后一个管理员，不能封禁自己或最后一个未被封禁的管理员。
+  - 「默认登录有效期」三个设置项（`account_expiration_days_user/operator/admin`）控制新建账号的默认有效期，单位为天。`0` 或留空表示永不过期。
+  - 账号被封禁或过期后，已签发的 Bearer token 在下一次请求时即被拒绝（`401 Account banned` / `401 Account expired`），无需等待 token 自然过期。
+- 登录安全（`Settings → 用户管理 → 登录安全`，需要管理员权限）：
+  - 配置项 `login_lockout_max_attempts`、`login_lockout_window_seconds`、`login_lockout_duration_seconds` 控制 IP 级登录暴力破解防护。
+  - 当某 IP 在 `window_seconds` 内连续失败次数达到 `max_attempts`，该 IP 会被封锁；`duration_seconds` 为 0 或留空表示需要管理员手动解除。
+  - `/api/access/blocked-ips` 提供列出、解除、手动封锁 IP 的能力，前端在“被封锁 IP 列表”里提供「解除封锁」按钮和“手动封锁 IP”表单。
+  - 登录失败请求返回 `401`；触发封锁或访问已封锁 IP 时返回 `403`，并在响应 `detail` 中包含 `code=IP_BLOCKED` 与 `blocked_until` 字段，前端会展示中英文友好提示。
 - 设置页面增加“专家模式”，默认隐藏烟火高级阈值与线程池等低频配置，降低普通用户配置成本。
 - 管理和操作类接口已接入角色权限校验；客户端需要通过 `/api/auth/login` 获取 HMAC 签名 Bearer token。生产部署必须配置 `V_SENTINEL_AUTH_SECRET` 以及三类角色密码环境变量。
 

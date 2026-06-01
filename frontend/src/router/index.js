@@ -3,8 +3,10 @@ import pinia from '../stores/pinia.js'
 import { useAuthStore } from '../stores/auth.js'
 import {
   canViewProcessingLogs,
+  defaultLandingFor,
   getDefaultManagementPath,
   legacySettingsSectionToManagement,
+  userRoleRedirect,
 } from '../utils/settingsRoutes.js'
 
 const VideoWall = () => import('../views/VideoWall.vue')
@@ -70,6 +72,20 @@ const router = createRouter({
   routes,
 })
 
+// Listen for the API interceptor's auth-expired signal and redirect to /auth.
+// 监听 API 拦截器的认证过期事件，跳转到 /auth。
+if (typeof window !== 'undefined') {
+  window.addEventListener('v-sentinel:auth-expired', () => {
+    try {
+      const authStore = useAuthStore(pinia)
+      authStore.logout()
+    } catch (_) { /* ignore */ }
+    if (router.currentRoute.value.path !== '/auth') {
+      router.push({ path: '/auth', query: { mode: 'login' } })
+    }
+  })
+}
+
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia)
 
@@ -78,8 +94,13 @@ router.beforeEach(async (to) => {
   if (to.path === '/auth') {
     await authStore.ensureRestored()
     if (authStore.isAuthenticated) {
-      const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : '/'
-      return redirect && redirect !== '/auth' ? redirect : '/'
+      const landing = defaultLandingFor(authStore.role)
+      const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : landing
+      // Don't allow a `user` to be sent anywhere except /messages or /auth.
+      if (authStore.role === 'user') {
+        return landing
+      }
+      return redirect && redirect !== '/auth' ? redirect : landing
     }
 
     if (authStore.isBootstrapRegistrationOpen) {
@@ -105,6 +126,12 @@ router.beforeEach(async (to) => {
 
   await authStore.ensureRestored()
   if (authStore.isAuthenticated) {
+    // Restrict the `user` role to the messages page.
+    // 将 `user` 角色限制为只能访问消息页面。
+    const userRedirect = userRoleRedirect(authStore.role, to.path)
+    if (userRedirect) {
+      return { path: userRedirect, replace: true }
+    }
     if (to.path === '/management') {
       const canViewLogs = canViewProcessingLogs(
         authStore.hasPermission('sources:operate'),

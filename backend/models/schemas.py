@@ -317,6 +317,8 @@ class CurrentUser(BaseModel):
     username: str
     role: UserRole
     permissions: list[str] = []
+    expires_at: str | None = None
+    expired: bool = False
 
 
 class AuthBootstrapStatus(BaseModel):
@@ -334,6 +336,24 @@ class UserAccountCreate(BaseModel):
     username: str
     password: str
     role: UserRole
+    expires_at: str | None = None
+
+
+class UserAccountUpdate(BaseModel):
+    """Admin-only partial update for a user account.
+    管理员对用户账号的局部更新。"""
+
+    role: UserRole | None = None
+    is_banned: bool | None = None
+    expires_at: str | None = None
+    clear_expires_at: bool = False
+
+
+class AdminPasswordResetRequest(BaseModel):
+    """Admin force-reset password payload.
+    管理员强制重置密码的载荷。"""
+
+    new_password: str
 
 
 class UserAccount(BaseModel):
@@ -343,6 +363,30 @@ class UserAccount(BaseModel):
     username: str
     role: UserRole
     created_at: str
+    is_banned: bool = False
+    banned_at: str | None = None
+    expires_at: str | None = None
+    expired: bool = False
+
+
+class BlockedIp(BaseModel):
+    """Blocked client IP record for brute-force protection.
+    暴力破解防护的被封锁客户端 IP 记录。"""
+
+    ip: str
+    blocked_at: str
+    blocked_until: str | None = None
+    reason: str = ""
+    blocked_by: str | None = None
+
+
+class BlockIpRequest(BaseModel):
+    """Admin manual block-IP payload.
+    管理员手动封锁 IP 的载荷。"""
+
+    ip: str
+    duration_seconds: int | None = None
+    reason: str = ""
 
 
 class ProcessorStartRequest(BaseModel):
@@ -488,6 +532,17 @@ class AppSettingsUpdate(BaseModel):
     max_pull_workers: str | None = None
     max_push_workers: str | None = None
     max_cpu_workers: str | None = None
+
+    # Account expiration defaults / 账号有效期默认值
+    account_expiration_days_user: str | None = None
+    account_expiration_days_operator: str | None = None
+    account_expiration_days_admin: str | None = None
+
+    # Login lockout settings / 登录暴力破解防护设置
+    login_lockout_max_attempts: str | None = None
+    login_lockout_window_seconds: str | None = None
+    login_lockout_duration_seconds: str | None = None
+    login_lockout_trust_proxy: str | None = None
 
 
 class EmailTestRequest(BaseModel):

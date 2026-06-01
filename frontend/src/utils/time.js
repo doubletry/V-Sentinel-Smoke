@@ -33,3 +33,27 @@ export function formatDateTimeWithTimezone(timestamp, timezone) {
     hour12: false,
   })
 }
+
+export function formatSortableDateTimeWithTimezone(timestamp, timezone) {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return String(timestamp)
+
+  try {
+    // en-CA yields the sortable numeric date parts we need: YYYY-MM-DD.
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone || 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(date)
+    const partsByType = Object.fromEntries(parts.map((item) => [item.type, item.value]))
+    return `${partsByType.year}-${partsByType.month}-${partsByType.day} ${partsByType.hour}:${partsByType.minute}:${partsByType.second}`
+  } catch (_) {
+    return date.toLocaleString()
+  }
+}

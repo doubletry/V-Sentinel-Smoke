@@ -116,6 +116,21 @@ export const useAuthStore = defineStore('auth', () => {
     return created
   }
 
+  async function updateUser(username, payload) {
+    const updated = await usersApi.update(username, payload)
+    await fetchUsers()
+    return updated
+  }
+
+  async function deleteUser(username) {
+    await usersApi.remove(username)
+    await fetchUsers()
+  }
+
+  async function adminResetPassword(username, newPassword) {
+    return usersApi.resetPassword(username, newPassword)
+  }
+
   function hasPermission(permission) {
     const value = String(permission || '')
     if (!value) return false
@@ -148,6 +163,9 @@ export const useAuthStore = defineStore('auth', () => {
     fetchBootstrap,
     fetchUsers,
     createUser,
+    updateUser,
+    deleteUser,
+    adminResetPassword,
     hasPermission,
     logout,
   }

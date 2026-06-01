@@ -7,6 +7,16 @@ const api = axios.create({
   timeout: 10000,
 })
 
+function requestPathname(url) {
+  const value = typeof url === 'string' ? url : ''
+  if (!value) return ''
+  try {
+    return new URL(value, 'http://localhost').pathname
+  } catch (_) {
+    return value.split('?')[0]
+  }
+}
+
 // Request interceptor
 api.interceptors.request.use(
   (cfg) => {
@@ -24,8 +34,39 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const msg = error.response?.data?.detail || error.message || 'Request failed'
-    return Promise.reject(new Error(msg))
+    const status = error.response?.status
+    const detail = error.response?.data?.detail
+    const detailText =
+      typeof detail === 'string'
+        ? detail
+        : detail?.message || error.message || 'Request failed'
+    const path = requestPathname(error.config?.url)
+    const isAuthEndpoint = path === '/api/auth/login' || path === '/api/auth/bootstrap'
+    const shouldExpireSession =
+      typeof detail !== 'string' ||
+      detail === 'Account banned' ||
+      detail === 'Account expired' ||
+      detail === 'Invalid token' ||
+      detail === 'Invalid token payload' ||
+      detail === 'Invalid token role' ||
+      detail === 'Invalid token signature' ||
+      detail === 'Missing bearer token' ||
+      detail === 'Token expired'
+    if (status === 401 && !isAuthEndpoint && shouldExpireSession && typeof window !== 'undefined') {
+      try {
+        window.localStorage?.removeItem(AUTH_TOKEN_STORAGE_KEY)
+      } catch (_) { /* ignore */ }
+      // Notify listeners (router/auth store) so they can redirect.
+      try {
+        window.dispatchEvent(new CustomEvent('v-sentinel:auth-expired', {
+          detail: { reason: typeof detail === 'string' ? detail : detail?.code || 'unauthorized' },
+        }))
+      } catch (_) { /* ignore */ }
+    }
+    const err = new Error(detailText)
+    err.status = status
+    err.detail = detail
+    return Promise.reject(err)
   }
 )
 
@@ -85,6 +126,19 @@ export const authApi = {
 export const usersApi = {
   list: () => api.get('/api/users'),
   create: (data) => api.post('/api/users', data),
+  update: (username, data) => api.patch(`/api/users/${encodeURIComponent(username)}`, data),
+  remove: (username) => api.delete(`/api/users/${encodeURIComponent(username)}`),
+  resetPassword: (username, newPassword) => api.post(
+    `/api/users/${encodeURIComponent(username)}/password`,
+    { new_password: newPassword },
+  ),
+}
+
+export const accessApi = {
+  roles: () => api.get('/api/access/roles'),
+  listBlockedIps: () => api.get('/api/access/blocked-ips'),
+  unblockIp: (ip) => api.delete(`/api/access/blocked-ips/${encodeURIComponent(ip)}`),
+  blockIp: (data) => api.post('/api/access/blocked-ips', data),
 }
 
 export const scenesApi = {

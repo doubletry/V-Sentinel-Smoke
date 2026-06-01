@@ -127,15 +127,17 @@
                       />
                     </el-select>
                   </el-form-item>
-                  <el-form-item :label="t('settings.siteTitle')">
-                    <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.siteDescription')">
-                    <el-input
-                      v-model="form.site_description"
-                      :placeholder="t('settings.siteDescription')"
-                    />
-                  </el-form-item>
+                  <div class="settings-inline-field-row form-grid-span-full">
+                    <el-form-item :label="t('settings.siteTitle')">
+                      <el-input v-model="form.site_title" :placeholder="t('settings.siteTitle')" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.siteDescription')">
+                      <el-input
+                        v-model="form.site_description"
+                        :placeholder="t('settings.siteDescription')"
+                      />
+                    </el-form-item>
+                  </div>
                   <el-form-item :label="t('settings.activePlugin')" class="form-grid-span-full">
                     <div class="field-stack">
                       <el-select v-model="form.active_plugin_id" style="width: 100%">
@@ -164,7 +166,13 @@
                         <el-button>{{ t('settings.uploadSiteIcon') }}</el-button>
                       </el-upload>
                       <el-button @click="resetSiteIcon">{{ t('settings.resetSiteIcon') }}</el-button>
-                      <el-input v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
+                      <el-tag v-if="isEmbeddedFavicon" type="success" effect="plain" class="site-icon-uploaded-tag">
+                        {{ t('settings.siteIconUploaded') }}
+                      </el-tag>
+                      <el-input v-else v-model="form.favicon_url" placeholder="/favicon.ico" class="icon-path-input" />
+                      <p class="form-hint icon-upload-hint">
+                        {{ isEmbeddedFavicon ? t('settings.siteIconUploadedHint') : t('settings.faviconUrlHint') }}
+                      </p>
                     </div>
                   </el-form-item>
                 </div>
@@ -202,17 +210,19 @@
                   <el-form-item :label="t('settings.webrtcAddress')">
                     <el-input v-model="form.mediamtx_webrtc_addr" placeholder="http://localhost:8889" />
                   </el-form-item>
-                  <el-form-item :label="t('settings.mediamtxUsername')">
-                    <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
-                  </el-form-item>
-                  <el-form-item :label="t('settings.mediamtxPassword')">
-                    <el-input
-                      v-model="form.mediamtx_password"
-                      type="password"
-                      show-password
-                      placeholder="stream-pass"
-                    />
-                  </el-form-item>
+                  <div class="settings-inline-field-row form-grid-span-full">
+                    <el-form-item :label="t('settings.mediamtxUsername')">
+                      <el-input v-model="form.mediamtx_username" placeholder="stream-user" />
+                    </el-form-item>
+                    <el-form-item :label="t('settings.mediamtxPassword')">
+                      <el-input
+                        v-model="form.mediamtx_password"
+                        type="password"
+                        show-password
+                        placeholder="stream-pass"
+                      />
+                    </el-form-item>
+                  </div>
                 </div>
               </section>
             </el-tab-pane>
@@ -367,50 +377,250 @@
         </section>
 
             <section v-else-if="isUsersPage" class="settings-page-panel">
-          <div class="settings-split-grid">
-            <section class="settings-section section-card">
+          <div class="users-management-layout">
+            <section class="settings-section section-card users-management-main">
               <div class="section-card__head">
                 <div>
                   <h2>{{ t('settings.accountList') }}</h2>
                   <p class="info-tip">{{ t('settings.userManagementHint') }}</p>
                 </div>
-              </div>
-              <div class="user-list">
-                <div v-for="item in authStore.users" :key="item.username" class="user-list-item">
-                  <span>{{ item.username }}</span>
-                  <el-tag size="small" effect="dark">{{ t(`auth.roles.${item.role}`) }}</el-tag>
-                  <span class="user-created-at">{{ formatCreatedAt(item.created_at) }}</span>
+                <div class="section-card__actions">
+                  <el-space :size="10" wrap alignment="center">
+                    <el-button
+                      type="primary"
+                      size="large"
+                      :aria-label="t('settings.createUser')"
+                      @click="createUserDialogVisible = true"
+                    >
+                      {{ t('settings.createUser') }}
+                    </el-button>
+                  </el-space>
                 </div>
-                <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
               </div>
+              <div class="user-management-table-shell">
+                <el-table :data="authStore.users" class="user-table user-management-table" empty-text=" " size="default">
+                  <el-table-column prop="username" :label="t('settings.username')" :min-width="USER_MANAGEMENT_USERNAME_MIN_WIDTH">
+                    <template #default="{ row }">
+                      <span class="user-identity">
+                        <span class="user-identity__name" :title="row.username">{{ row.username }}</span>
+                        <el-tag v-if="row.username === authStore.user?.username" class="current-account-tag" size="small" type="info" effect="plain">
+                          {{ t('settings.currentAccountTag') }}
+                        </el-tag>
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.userRole')" width="96">
+                    <template #default="{ row }">
+                      <el-tag size="small" effect="dark">{{ t(`auth.roles.${row.role}`) }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.userStatus')" width="96">
+                    <template #default="{ row }">
+                      <el-tag v-if="row.is_banned" size="small" type="danger" effect="dark">
+                        {{ t('settings.statusBanned') }}
+                      </el-tag>
+                      <el-tag v-else-if="row.expired" size="small" type="warning" effect="dark">
+                        {{ t('settings.statusExpired') }}
+                      </el-tag>
+                      <el-tag v-else size="small" type="success" effect="plain">
+                        {{ t('settings.statusActive') }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.userExpiresAt')" width="170">
+                    <template #default="{ row }">
+                      <span v-if="row.expires_at">{{ formatCreatedAt(row.expires_at) }}</span>
+                      <span v-else class="user-created-at">{{ t('settings.userNeverExpires') }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('settings.createdAt')" width="160">
+                    <template #default="{ row }">
+                      <span class="user-created-at">{{ formatCreatedAt(row.created_at) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="t('common.actions')" width="180" align="right">
+                    <template #default="{ row }">
+                      <el-space :size="4" alignment="center" class="user-action-space">
+                        <el-tooltip :content="t('common.edit')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            :icon="Edit"
+                            :aria-label="t('common.edit')"
+                            @click="openEditUser(row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip :content="t('settings.resetPassword')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            type="warning"
+                            :icon="Key"
+                            :aria-label="t('settings.resetPassword')"
+                            @click="openResetPassword(row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip :content="row.is_banned ? t('settings.unbanUser') : t('settings.banUser')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            :type="row.is_banned ? 'success' : 'warning'"
+                            :icon="row.is_banned ? Unlock : Lock"
+                            :disabled="!canToggleBan(row)"
+                            :aria-label="row.is_banned ? t('settings.unbanUser') : t('settings.banUser')"
+                            @click="toggleUserBan(row)"
+                          />
+                        </el-tooltip>
+                        <el-tooltip :content="t('common.delete')" placement="top">
+                          <el-button
+                            size="small"
+                            circle
+                            type="danger"
+                            :icon="Delete"
+                            :disabled="!canDeleteUser(row)"
+                            :aria-label="t('common.delete')"
+                            @click="deleteUserAccount(row)"
+                          />
+                        </el-tooltip>
+                      </el-space>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              <span v-if="!authStore.users.length" class="empty-list-message">{{ t('settings.noUsers') }}</span>
             </section>
 
-            <section class="settings-section section-card">
-              <div class="section-card__head">
-                <div>
-                  <h2>{{ t('settings.createUser') }}</h2>
-                  <p class="info-tip">{{ t('settings.temporaryPasswordHint') }}</p>
+            <div class="users-management-side">
+              <section v-if="canManageSettings" class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.accountExpirationDefaults') }}</h2>
+                    <p class="info-tip">{{ t('settings.accountExpirationDefaultsHint') }}</p>
+                  </div>
                 </div>
-              </div>
-              <el-form-item :label="t('settings.username')">
-                <el-input v-model="userForm.username" autocomplete="username" />
-              </el-form-item>
-              <el-form-item :label="t('settings.userRole')">
-                <el-select v-model="userForm.role" style="width: 100%">
-                  <el-option value="user" :label="t('auth.roles.user')" />
-                  <el-option value="operator" :label="t('auth.roles.operator')" />
-                  <el-option value="admin" :label="t('auth.roles.admin')" />
-                </el-select>
-              </el-form-item>
-              <el-form-item :label="t('settings.temporaryPassword')">
-                <el-input v-model="userForm.password" type="password" show-password autocomplete="new-password" />
-              </el-form-item>
-              <div class="section-card__actions single-action">
-                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
-                  {{ t('settings.createUser') }}
-                </el-button>
-              </div>
-            </section>
+                <div class="numeric-setting-list">
+                  <el-form-item :label="t('settings.expirationDaysUser')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="numericFieldValue(form.account_expiration_days_user)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="setNumericField(form, 'account_expiration_days_user', $event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.expirationDaysOperator')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="numericFieldValue(form.account_expiration_days_operator)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="setNumericField(form, 'account_expiration_days_operator', $event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.expirationDaysAdmin')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="numericFieldValue(form.account_expiration_days_admin)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="setNumericField(form, 'account_expiration_days_admin', $event)"
+                    />
+                  </el-form-item>
+                </div>
+                <div class="settings-action-footer">
+                  <el-button
+                    type="primary"
+                    :loading="activeSaveSection === 'accountExpiration'"
+                    @click="saveAccountExpirationSettings"
+                  >
+                    {{ t('common.save') }}
+                  </el-button>
+                </div>
+              </section>
+
+              <section v-if="canManageSettings" class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.loginSecurity') }}</h2>
+                    <p class="info-tip">{{ t('settings.loginSecurityHint') }}</p>
+                  </div>
+                </div>
+                <div class="numeric-setting-list">
+                  <el-form-item :label="t('settings.lockoutMaxAttempts')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="numericFieldValue(form.login_lockout_max_attempts)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="setNumericField(form, 'login_lockout_max_attempts', $event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutWindowSeconds')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="numericFieldValue(form.login_lockout_window_seconds)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="setNumericField(form, 'login_lockout_window_seconds', $event)"
+                    />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.lockoutDurationSeconds')" class="numeric-setting-item">
+                    <el-input-number
+                      :model-value="numericFieldValue(form.login_lockout_duration_seconds)"
+                      :min="0"
+                      class="themed-number-input"
+                      @update:model-value="setNumericField(form, 'login_lockout_duration_seconds', $event)"
+                    />
+                  </el-form-item>
+                </div>
+                <p class="info-tip info-tip--block">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+                <div class="settings-action-footer">
+                  <el-button
+                    type="primary"
+                    :loading="activeSaveSection === 'loginSecurity'"
+                    @click="saveLoginSecuritySettings"
+                  >
+                    {{ t('common.save') }}
+                  </el-button>
+                </div>
+
+                <el-divider />
+
+                <div class="section-card__head">
+                  <div>
+                    <h3>{{ t('settings.blockedIps') }}</h3>
+                    <p class="info-tip">{{ t('settings.blockedIpsHint') }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button type="warning" size="small" @click="manualBlockDialogVisible = true">
+                      {{ t('settings.manualBlockIp') }}
+                    </el-button>
+                    <el-button size="small" @click="reloadBlockedIps">{{ t('common.refresh') }}</el-button>
+                  </div>
+                </div>
+                <div class="user-management-table-shell">
+                  <el-table :data="blockedIps" class="user-management-table" empty-text=" " size="default">
+                    <el-table-column prop="ip" label="IP" />
+                    <el-table-column :label="t('settings.blockedAt')">
+                      <template #default="{ row }">
+                        <span>{{ formatCreatedAt(row.blocked_at) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="t('settings.blockedUntil')">
+                      <template #default="{ row }">
+                        <span v-if="row.blocked_until">{{ formatCreatedAt(row.blocked_until) }}</span>
+                        <span v-else>{{ t('settings.blockedUntilManual') }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="reason" :label="t('settings.blockedReason')" />
+                    <el-table-column :label="t('common.actions')" width="140" align="right">
+                      <template #default="{ row }">
+                        <el-button size="small" type="success" @click="unblockIp(row)">
+                          {{ t('settings.unblockIp') }}
+                        </el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+                <span v-if="!blockedIps.length" class="empty-list-message">{{ t('settings.noBlockedIps') }}</span>
+
+              </section>
+            </div>
           </div>
         </section>
 
@@ -696,6 +906,181 @@
             </el-tabs>
           </template>
         </el-dialog>
+
+        <el-dialog
+          v-model="createUserDialogVisible"
+          :title="t('settings.createUser')"
+          width="min(520px, calc(100vw - 32px))"
+          class="user-management-dialog"
+          destroy-on-close
+        >
+          <el-form label-position="top" class="user-dialog-form" size="large">
+            <p class="plugin-dialog-hint">{{ t('settings.temporaryPasswordHint') }}</p>
+            <el-row :gutter="16" class="dialog-compact-grid">
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.username')" required>
+                  <el-input
+                    v-model="userForm.username"
+                    autocomplete="username"
+                    aria-required="true"
+                    @keyup.enter="createUserAccount"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userRole')">
+                  <el-select v-model="userForm.role" class="dialog-compact-control">
+                    <el-option value="user" :label="t('auth.roles.user')" />
+                    <el-option value="operator" :label="t('auth.roles.operator')" />
+                    <el-option value="admin" :label="t('auth.roles.admin')" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.temporaryPassword')" required>
+                  <el-input
+                    v-model="userForm.password"
+                    type="password"
+                    show-password
+                    autocomplete="new-password"
+                    aria-required="true"
+                    @keyup.enter="createUserAccount"
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userExpiresAt')">
+                  <el-date-picker
+                    v-model="userForm.expires_at"
+                    type="datetime"
+                    class="dialog-compact-control"
+                    :placeholder="t('settings.userExpiresAtPlaceholder')"
+                    format="YYYY-MM-DD HH:mm"
+                    value-format="YYYY-MM-DDTHH:mm:ssZ"
+                  />
+                  <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+          <template #footer>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="createUserDialogVisible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="primary" :loading="creatingUser" @click="createUserAccount">
+                  {{ t('settings.createUser') }}
+                </el-button>
+              </el-space>
+            </div>
+          </template>
+        </el-dialog>
+
+        <el-dialog
+          v-model="editUserDialog.visible"
+          :title="t('settings.editUserTitle', { username: editUserDialog.username })"
+          width="min(520px, calc(100vw - 32px))"
+          class="user-management-dialog"
+          destroy-on-close
+        >
+          <el-form label-position="top" class="user-dialog-form" size="large">
+            <el-row :gutter="16" class="dialog-compact-grid">
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userRole')">
+                  <el-select v-model="editUserDialog.role" class="dialog-compact-control">
+                    <el-option value="user" :label="t('auth.roles.user')" />
+                    <el-option value="operator" :label="t('auth.roles.operator')" />
+                    <el-option value="admin" :label="t('auth.roles.admin')" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="12">
+                <el-form-item :label="t('settings.userExpiresAt')">
+                  <el-date-picker
+                    v-model="editUserDialog.expires_at"
+                    type="datetime"
+                    class="dialog-compact-control"
+                    :placeholder="t('settings.userExpiresAtPlaceholder')"
+                    format="YYYY-MM-DD HH:mm"
+                    value-format="YYYY-MM-DDTHH:mm:ssZ"
+                    clearable
+                  />
+                  <p class="info-tip">{{ t('settings.userExpiresAtHint') }}</p>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+          <template #footer>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="editUserDialog.visible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="primary" @click="submitEditUser">{{ t('common.save') }}</el-button>
+              </el-space>
+            </div>
+          </template>
+        </el-dialog>
+
+        <el-dialog
+          v-model="resetPasswordDialog.visible"
+          :title="t('settings.resetPasswordTitle', { username: resetPasswordDialog.username })"
+          width="min(520px, calc(100vw - 32px))"
+          class="user-management-dialog"
+          destroy-on-close
+        >
+          <el-form label-position="top" class="user-dialog-form" size="large">
+            <el-form-item :label="t('auth.newPassword')" required>
+              <el-input
+                v-model="resetPasswordDialog.new_password"
+                type="password"
+                show-password
+                autocomplete="new-password"
+                class="dialog-password-input"
+                @keyup.enter="submitResetPassword"
+              />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="resetPasswordDialog.visible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="primary" @click="submitResetPassword">{{ t('settings.resetPassword') }}</el-button>
+              </el-space>
+            </div>
+          </template>
+        </el-dialog>
+
+        <el-dialog
+          v-model="manualBlockDialogVisible"
+          :title="t('settings.manualBlockIp')"
+          width="min(520px, calc(100vw - 32px))"
+          class="user-management-dialog"
+          destroy-on-close
+        >
+          <el-form label-position="top" class="user-dialog-form" size="large">
+            <el-form-item label="IP" required>
+              <el-input v-model="manualBlockForm.ip" placeholder="e.g. 192.168.1.42" @keyup.enter="manualBlockIp" />
+            </el-form-item>
+            <el-form-item :label="t('settings.lockoutDurationSeconds')">
+              <el-input-number
+                :model-value="numericFieldValue(manualBlockForm.duration_seconds)"
+                :min="0"
+                class="themed-number-input themed-number-input--dialog"
+                @update:model-value="setNumericField(manualBlockForm, 'duration_seconds', $event)"
+              />
+              <p class="info-tip">{{ t('settings.lockoutDurationSecondsHint') }}</p>
+            </el-form-item>
+            <el-form-item :label="t('settings.blockedReason')">
+              <el-input v-model="manualBlockForm.reason" @keyup.enter="manualBlockIp" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <div class="user-dialog-footer">
+              <el-space :size="10" wrap alignment="center">
+                <el-button @click="manualBlockDialogVisible = false">{{ t('common.cancel') }}</el-button>
+                <el-button type="warning" @click="manualBlockIp">{{ t('settings.manualBlockIp') }}</el-button>
+              </el-space>
+            </div>
+          </template>
+        </el-dialog>
       </el-form>
     </div>
   </div>
@@ -704,24 +1089,26 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Crop, Document, Monitor, Setting, User } from '@element-plus/icons-vue'
+import { Bell, Crop, Delete, Document, Edit, Key, Lock, Monitor, Setting, Unlock, User } from '@element-plus/icons-vue'
 import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
 import { localeOptions } from '../i18n/index.js'
-import { scenesApi, settingsApi } from '../api/index.js'
+import { accessApi, scenesApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
-import { formatTimeWithTimezone } from '../utils/time.js'
+import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
 import ProcessingLogs from './ProcessingLogs.vue'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+const USER_MANAGEMENT_USERNAME_MIN_WIDTH = 180
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
 const sourceStore = useSourceStore()
@@ -940,6 +1327,28 @@ const userForm = ref({
   username: '',
   password: '',
   role: 'operator',
+  expires_at: '',
+})
+const createUserDialogVisible = ref(false)
+const editUserDialog = ref({
+  visible: false,
+  username: '',
+  role: 'operator',
+  expires_at: '',
+})
+const resetPasswordDialog = ref({
+  visible: false,
+  username: '',
+  new_password: '',
+})
+const blockedIps = ref([])
+const manualBlockDialogVisible = ref(false)
+const userManagementLoaded = ref(false)
+const userManagementLoadPromise = ref(null)
+const manualBlockForm = ref({
+  ip: '',
+  duration_seconds: '',
+  reason: '',
 })
 const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
 const canViewLogs = computed(() => canViewProcessingLogs(
@@ -1021,6 +1430,12 @@ const form = ref({
   max_pull_workers: '',
   max_push_workers: '',
   max_cpu_workers: '',
+  account_expiration_days_user: '0',
+  account_expiration_days_operator: '0',
+  account_expiration_days_admin: '0',
+  login_lockout_max_attempts: '5',
+  login_lockout_window_seconds: '300',
+  login_lockout_duration_seconds: '900',
 })
 const firstAllowedSectionKey = computed(() => {
   return getDefaultManagementSection(canManageSettings.value, authStore.canManageUsers, canViewLogs.value)
@@ -1043,6 +1458,7 @@ const isNotificationsPage = computed(() => currentSettingsPage.value === 'notifi
 const isUsersPage = computed(() => currentSettingsPage.value === 'users')
 const isLogsPage = computed(() => currentSettingsPage.value === 'logs')
 const isPluginPage = computed(() => currentSettingsPage.value === 'plugins')
+const isEmbeddedFavicon = computed(() => String(form.value.favicon_url || '').startsWith('data:'))
 const settingsNavItems = computed(() => {
   const items = []
   if (canManageSettings.value) {
@@ -1091,12 +1507,26 @@ function sceneTabLabel(sceneId) {
   return locale.value === 'en-US' ? scene.label_en : scene.label_zh
 }
 
+function numericFieldValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined
+  }
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return undefined
+  const numeric = Number(trimmed)
+  return Number.isFinite(numeric) ? numeric : undefined
+}
+
+function setNumericField(target, key, value) {
+  target[key] = value == null ? '' : String(value)
+}
+
 function roiTagLabel(scene, tag) {
   return sceneScopedRoiTagLabel(scene, tag, locale.value)
 }
 
 function formatCreatedAt(value) {
-  return formatTimeWithTimezone(value, appSettingsStore.timeZone)
+  return formatSortableDateTimeWithTimezone(value, appSettingsStore.timeZone)
 }
 
 function pluginSettingKeys(sceneId) {
@@ -1201,19 +1631,8 @@ async function reload() {
         data.max_push_workers,
         data.max_cpu_workers,
       ].some((value) => String(value ?? '').trim() !== '')
-      try {
-        const placeholderData = await settingsApi.emailTemplatePlaceholders()
-        if (Array.isArray(placeholderData?.placeholders)) {
-          emailTemplatePlaceholders.value = placeholderData.placeholders
-        }
-      } catch (_) {
-        // Keep built-in placeholder list when the backend endpoint is unavailable.
-      }
     }
     ensureValidSettingsRoute()
-    if (authStore.canManageUsers) {
-      await authStore.fetchUsers()
-    }
   } catch (err) {
     ElMessage.error(t('settings.failedToLoad', { message: err.message }))
   } finally {
@@ -1255,17 +1674,209 @@ async function createUserAccount() {
   }
   creatingUser.value = true
   try {
-    await authStore.createUser(userForm.value)
+    await authStore.createUser({
+      username: userForm.value.username,
+      password: userForm.value.password,
+      role: userForm.value.role,
+      ...(userForm.value.expires_at ? { expires_at: userForm.value.expires_at } : {}),
+    })
     userForm.value = {
       username: '',
       password: '',
       role: 'operator',
+      expires_at: '',
     }
+    createUserDialogVisible.value = false
     ElMessage.success(t('settings.createUserSuccess'))
   } catch (err) {
     ElMessage.error(t('settings.createUserFailed', { message: err.message }))
   } finally {
     creatingUser.value = false
+  }
+}
+
+function canDeleteUser(row) {
+  if (!row) return false
+  if (row.username === authStore.user?.username) return false
+  if (row.role === 'admin' && !row.is_banned) {
+    const activeAdmins = (authStore.users || []).filter((u) => u.role === 'admin' && !u.is_banned).length
+    if (activeAdmins <= 1) return false
+  }
+  return true
+}
+
+function canToggleBan(row) {
+  if (!row) return false
+  if (row.username === authStore.user?.username) return false
+  if (!row.is_banned && row.role === 'admin') {
+    const activeAdmins = (authStore.users || []).filter((u) => u.role === 'admin' && !u.is_banned).length
+    if (activeAdmins <= 1) return false
+  }
+  return true
+}
+
+async function toggleUserBan(row) {
+  try {
+    await authStore.updateUser(row.username, { is_banned: !row.is_banned })
+    ElMessage.success(t(!row.is_banned ? 'settings.banSuccess' : 'settings.unbanSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function deleteUserAccount(row) {
+  try {
+    await ElMessageBox.confirm(
+      t('settings.deleteUserConfirmMessage', { username: row.username }),
+      t('settings.deleteUserConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+      },
+    )
+  } catch (_) {
+    return
+  }
+  try {
+    await authStore.deleteUser(row.username)
+    ElMessage.success(t('settings.deleteUserSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+function openEditUser(row) {
+  editUserDialog.value = {
+    visible: true,
+    username: row.username,
+    role: row.role,
+    expires_at: row.expires_at || '',
+  }
+}
+
+async function submitEditUser() {
+  const payload = {
+    role: editUserDialog.value.role,
+  }
+  if (editUserDialog.value.expires_at) {
+    payload.expires_at = editUserDialog.value.expires_at
+  } else {
+    payload.clear_expires_at = true
+  }
+  try {
+    await authStore.updateUser(editUserDialog.value.username, payload)
+    editUserDialog.value.visible = false
+    ElMessage.success(t('settings.editUserSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+function openResetPassword(row) {
+  resetPasswordDialog.value = {
+    visible: true,
+    username: row.username,
+    new_password: '',
+  }
+}
+
+async function submitResetPassword() {
+  if (!resetPasswordDialog.value.new_password) {
+    ElMessage.warning(t('settings.missingFields'))
+    return
+  }
+  try {
+    await authStore.adminResetPassword(
+      resetPasswordDialog.value.username,
+      resetPasswordDialog.value.new_password,
+    )
+    resetPasswordDialog.value.visible = false
+    ElMessage.success(t('settings.resetPasswordSuccess'))
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function saveAccountExpirationSettings() {
+  await saveSection('accountExpiration', [
+    'account_expiration_days_user',
+    'account_expiration_days_operator',
+    'account_expiration_days_admin',
+  ])
+}
+
+async function saveLoginSecuritySettings() {
+  await saveSection('loginSecurity', [
+    'login_lockout_max_attempts',
+    'login_lockout_window_seconds',
+    'login_lockout_duration_seconds',
+  ])
+}
+
+async function reloadBlockedIps() {
+  if (!authStore.canManageUsers) return
+  try {
+    blockedIps.value = await accessApi.listBlockedIps()
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function reloadUserManagementData({ force = false } = {}) {
+  if (!authStore.canManageUsers) {
+    userManagementLoaded.value = false
+    blockedIps.value = []
+    return
+  }
+  if (!force && userManagementLoaded.value) return
+  if (!force && userManagementLoadPromise.value) {
+    return userManagementLoadPromise.value
+  }
+
+  userManagementLoadPromise.value = (async () => {
+    await authStore.fetchUsers()
+    await reloadBlockedIps()
+    userManagementLoaded.value = true
+  })()
+
+  try {
+    await userManagementLoadPromise.value
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  } finally {
+    userManagementLoadPromise.value = null
+  }
+}
+
+async function unblockIp(row) {
+  try {
+    await accessApi.unblockIp(row.ip)
+    ElMessage.success(t('settings.unblockIpSuccess'))
+    await reloadBlockedIps()
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
+  }
+}
+
+async function manualBlockIp() {
+  if (!manualBlockForm.value.ip) {
+    ElMessage.warning(t('settings.missingFields'))
+    return
+  }
+  const payload = { ip: manualBlockForm.value.ip, reason: manualBlockForm.value.reason || '' }
+  const duration = Number(manualBlockForm.value.duration_seconds)
+  if (!Number.isNaN(duration) && duration > 0) {
+    payload.duration_seconds = duration
+  }
+  try {
+    await accessApi.blockIp(payload)
+    manualBlockForm.value = { ip: '', duration_seconds: '', reason: '' }
+    manualBlockDialogVisible.value = false
+    ElMessage.success(t('settings.manualBlockIpSuccess'))
+    await reloadBlockedIps()
+  } catch (err) {
+    ElMessage.error(err.message || t('settings.actionFailed'))
   }
 }
 
@@ -1438,6 +2049,9 @@ watch(
   () => {
     ensureValidSettingsRoute()
     pluginDialogVisible.value = route.name === 'ManagementPlugin' && Boolean(currentPluginScene.value)
+    if (isUsersPage.value) {
+      reloadUserManagementData()
+    }
   },
   { immediate: true }
 )
@@ -1454,6 +2068,27 @@ onMounted(async () => {
   --management-nav-card-bg-end: rgba(11, 17, 31, 0.78);
   --management-nav-card-active-start: rgba(34, 74, 148, 0.85);
   --management-nav-card-active-end: rgba(15, 28, 58, 0.95);
+  --users-management-side-card-bg-start: rgba(25, 35, 60, 0.86);
+  --users-management-side-card-bg-end: rgba(14, 20, 36, 0.94);
+  --users-management-side-card-border: rgba(77, 101, 154, 0.55);
+  --users-management-side-card-shadow: rgba(4, 10, 24, 0.22);
+  --users-management-table-bg: rgba(9, 15, 30, 0.82);
+  --users-management-table-border: rgba(62, 82, 126, 0.65);
+  --users-management-cell-color: #d9e6ff;
+  --users-management-control-bg: rgba(9, 15, 30, 0.72);
+  --users-management-control-border: rgba(103, 132, 190, 0.5);
+  --users-management-control-button-bg: rgba(20, 31, 55, 0.94);
+  --users-management-control-button-hover: rgba(64, 158, 255, 0.18);
+  --user-identity-name-color: #edf4ff;
+  --current-account-tag-border: rgba(124, 194, 255, 0.48);
+  --current-account-tag-bg: rgba(64, 158, 255, 0.12);
+  --current-account-tag-color: #9dd3ff;
+  --users-management-action-button-min-width: 112px;
+  --users-management-compact-input-short: 132px;
+  --users-management-compact-input-medium: 240px;
+  --users-management-dialog-input-width: 224px;
+  --users-management-compact-action-padding: 18px;
+  --user-created-at-color: #8aa6d9;
   height: 100%;
   overflow-y: auto;
   padding: 24px 28px 32px;
@@ -1740,6 +2375,8 @@ onMounted(async () => {
 }
 
 .settings-top-tabs :deep(.el-tabs__nav) {
+  display: inline-flex;
+  align-items: center;
   padding: 4px;
   border-radius: 999px;
   background: rgba(9, 14, 28, 0.72);
@@ -1749,11 +2386,21 @@ onMounted(async () => {
   background-color: transparent;
 }
 
-.settings-top-tabs :deep(.el-tabs__item) {
+.settings-top-tabs :deep(.el-tabs__nav .el-tabs__item) {
+  display: inline-flex;
+  align-items: center; /* Center tab text vertically within each pill */
+  justify-content: center;
+  box-sizing: border-box;
   height: 38px;
+  line-height: 1;
   color: #aebbd7;
   padding: 0 18px;
   border-radius: 999px;
+}
+
+.settings-top-tabs :deep(.el-tabs__nav .el-tabs__item.is-top:nth-child(2)),
+.settings-top-tabs :deep(.el-tabs__nav .el-tabs__item.is-top:last-child) {
+  padding: 0 18px; /* Keep active pill text horizontally centered despite Element Plus edge-tab padding */
 }
 
 .settings-top-tabs :deep(.el-tabs__item.is-active) {
@@ -1784,6 +2431,28 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.settings-inline-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* Pair related settings on one line */
+  gap: 12px 20px;
+  align-items: stretch;
+}
+
+.settings-inline-field-row :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.settings-inline-field-row :deep(.el-form-item__label) {
+  display: flex;
+  align-items: flex-end; /* Align labels to the bottom for a consistent baseline above controls */
+  min-height: 24px;
+  padding-bottom: 6px;
+}
+
+.settings-inline-field-row :deep(.el-form-item__content) {
+  max-width: min(100%, 440px);
+}
+
 .form-grid-span-full {
   grid-column: 1 / -1;
 }
@@ -1798,6 +2467,16 @@ onMounted(async () => {
 .icon-path-input {
   min-width: min(420px, 100%);
   flex: 1 1 320px;
+}
+
+.site-icon-uploaded-tag {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.icon-upload-hint {
+  flex-basis: 100%;
+  margin-top: 0;
 }
 
 .roi-tags-editor {
@@ -1950,6 +2629,264 @@ onMounted(async () => {
   gap: 16px;
 }
 
+.users-management-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 22px; /* Vertical spacing between management sections */
+}
+
+.users-management-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.users-management-side {
+  display: flex;
+  flex-direction: column;
+  gap: 22px; /* Vertical spacing between side cards */
+}
+
+.users-management-layout .section-card {
+  background:
+    linear-gradient(
+      180deg,
+      var(--users-management-side-card-bg-start),
+      var(--users-management-side-card-bg-end)
+    ),
+    rgba(255, 255, 255, 0.025);
+  border-color: rgba(103, 132, 190, 0.42);
+  box-shadow: 0 20px 48px rgba(4, 10, 24, 0.18); /* Reduced shadow intensity for card elevation */
+}
+
+.users-management-layout .section-card + .section-card {
+  margin-top: 0;
+}
+
+.users-management-side .section-card__head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.users-management-side .section-card__actions.single-action {
+  justify-content: flex-end; /* Realigned confirmation buttons */
+  margin-top: 18px;
+}
+
+.users-management-side .section-card__actions.single-action .el-button {
+  min-width: var(--users-management-action-button-min-width);
+  margin-left: 0;
+}
+
+.settings-compact-fields {
+  row-gap: 16px; /* Use Element Plus row gutters with consistent vertical rhythm */
+}
+
+.settings-compact-fields :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.settings-compact-fields :deep(.el-input),
+.settings-compact-fields :deep(.el-select),
+.settings-compact-fields :deep(.el-date-editor) {
+  width: 100%;
+}
+
+.settings-compact-fields--inline-actions :deep(.el-form-item__content) {
+  align-items: flex-start;
+}
+
+.settings-compact-fields--inline-actions .info-tip {
+  flex-basis: 100%;
+}
+
+/* Keep role-default / login-security fields and their save button on one row */
+.settings-compact-fields--single-line {
+  flex-wrap: nowrap;
+}
+
+.settings-compact-fields--single-line :deep(.el-form-item__label) {
+  white-space: nowrap;
+}
+
+.numeric-setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+}
+
+.numeric-setting-item {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 178px;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(103, 132, 190, 0.22);
+  border-radius: 14px;
+  background: rgba(9, 15, 30, 0.34);
+}
+
+.numeric-setting-item :deep(.el-form-item__label) {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  color: #c6d6f4;
+  line-height: 1.35;
+}
+
+.numeric-setting-item :deep(.el-form-item__content) {
+  justify-content: flex-end;
+  width: 178px;
+  line-height: 1;
+}
+
+.themed-number-input {
+  width: 178px;
+  --el-input-number-controls-height: 34px;
+}
+
+.themed-number-input :deep(.el-input__wrapper) {
+  background: var(--users-management-control-bg);
+  box-shadow: 0 0 0 1px var(--users-management-control-border) inset;
+}
+
+.themed-number-input :deep(.el-input__inner) {
+  color: #edf4ff;
+  font-weight: 700;
+}
+
+.themed-number-input :deep(.el-input-number__decrease),
+.themed-number-input :deep(.el-input-number__increase) {
+  border-color: var(--users-management-control-border);
+  background: var(--users-management-control-button-bg);
+  color: #9dd3ff;
+}
+
+.themed-number-input :deep(.el-input-number__decrease:hover),
+.themed-number-input :deep(.el-input-number__increase:hover) {
+  background: var(--users-management-control-button-hover);
+  color: #d8ecff;
+}
+
+.themed-number-input--dialog {
+  width: 100%;
+  max-width: 220px;
+}
+
+.info-tip--block {
+  margin-top: 10px;
+}
+
+.short-number-input {
+  max-width: var(--users-management-compact-input-short); /* Keep short numeric settings visually compact */
+}
+
+.medium-text-input {
+  max-width: var(--users-management-compact-input-medium); /* Avoid overlong single-line controls */
+}
+
+.compact-action-col {
+  display: flex;
+  align-items: flex-end;
+}
+
+.compact-row-actions {
+  display: flex;
+  justify-content: flex-end; /* Merge save/submit buttons into the same control row */
+  width: 100%;
+  padding-bottom: var(--users-management-compact-action-padding);
+}
+
+.settings-action-footer {
+  display: flex;
+  justify-content: flex-end;
+  max-width: 520px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(103, 132, 190, 0.16); /* Visual separator between form fields and actions */
+}
+
+.user-management-table {
+  --el-table-bg-color: var(--users-management-table-bg);
+  --el-table-tr-bg-color: var(--users-management-table-bg);
+  --el-table-header-bg-color: rgba(18, 29, 54, 0.96);
+  --el-table-row-hover-bg-color: rgba(35, 72, 132, 0.28);
+  --el-table-border-color: var(--users-management-table-border);
+  --el-table-text-color: #d9e6ff;
+  --el-table-header-text-color: #9fb8e8;
+  overflow: hidden;
+  border: 1px solid rgba(103, 132, 190, 0.38);
+  border-radius: 16px;
+  background: var(--users-management-table-bg);
+  box-shadow: 0 12px 30px rgba(3, 9, 22, 0.16); /* Shadow effect for table container */
+}
+
+.user-management-table-shell {
+  overflow-x: visible; /* Account list now fits in one row without horizontal scroll */
+  border-radius: 16px;
+}
+
+.user-management-table :deep(.cell) {
+  color: var(--users-management-cell-color);
+  line-height: 1.45;
+}
+
+.user-management-table :deep(.el-table__inner-wrapper::before),
+.user-management-table :deep(.el-table__border-left-patch) {
+  background-color: var(--users-management-table-border);
+}
+
+.user-management-table :deep(.el-table__cell) {
+  border-bottom-color: rgba(62, 82, 126, 0.48);
+  padding-top: 12px; /* Add breathing room inside rows */
+  padding-bottom: 12px;
+}
+
+.user-management-table :deep(.el-table__empty-block) {
+  background: var(--users-management-table-bg);
+}
+
+.user-management-table :deep(.el-table__header-wrapper th) {
+  font-weight: 700;
+}
+
+.user-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.user-identity__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--user-identity-name-color);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.current-account-tag {
+  flex: 0 0 auto;
+  border-color: var(--current-account-tag-border);
+  background: var(--current-account-tag-bg);
+  color: var(--current-account-tag-color);
+}
+
+.user-action-space {
+  justify-content: flex-end;
+}
+
+.user-action-space :deep(.el-button + .el-button) {
+  margin-left: 0; /* Let el-space handle button spacing */
+}
+
 .settings-stack {
   display: flex;
   flex-direction: column;
@@ -1975,9 +2912,9 @@ onMounted(async () => {
 }
 
 .user-created-at {
-  margin-left: auto;
-  color: #8aa6d9;
+  color: var(--user-created-at-color);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .section-card__head {
@@ -1998,6 +2935,72 @@ onMounted(async () => {
 
 .section-card__actions.single-action {
   justify-content: flex-end;
+}
+
+.section-card__actions :deep(.el-button + .el-button) {
+  margin-left: 0; /* Prevent spacing conflicts with el-space */
+}
+
+:deep(.user-management-dialog) {
+  border: 1px solid rgba(103, 132, 190, 0.44);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(21, 30, 52, 0.98), rgba(13, 20, 37, 0.98));
+  box-shadow: 0 24px 64px rgba(4, 10, 24, 0.42); /* Enhanced shadow for dialog elevation */
+  overflow: hidden;
+}
+
+:deep(.user-management-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(103, 132, 190, 0.18);
+}
+
+:deep(.user-management-dialog .el-dialog__title) {
+  color: #eef4ff;
+  font-weight: 700;
+}
+
+:deep(.user-management-dialog .el-dialog__body) {
+  padding: 20px 24px 8px;
+}
+
+:deep(.user-management-dialog .el-dialog__footer) {
+  padding: 16px 24px 22px;
+  border-top: 1px solid rgba(103, 132, 190, 0.14);
+}
+
+.user-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-dialog-form :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.dialog-compact-grid {
+  row-gap: 8px; /* Pair related dialog fields in the same row */
+}
+
+.dialog-compact-grid :deep(.el-input),
+.dialog-compact-control,
+.dialog-password-input {
+  width: 100%;
+  max-width: var(--users-management-dialog-input-width);
+}
+
+.dialog-compact-grid .info-tip {
+  flex-basis: 100%;
+}
+
+.user-dialog-footer {
+  display: flex;
+  justify-content: flex-end; /* Realigned dialog confirmation buttons */
+}
+
+.user-dialog-footer :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .expert-card {
@@ -2114,6 +3117,24 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
+  .settings-compact-fields,
+  .manual-block-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .short-number-input,
+  .medium-text-input,
+  .dialog-compact-grid :deep(.el-input),
+  .dialog-compact-control,
+  .dialog-password-input {
+    max-width: 100%;
+  }
+
+  .compact-row-actions {
+    justify-content: flex-start;
+    padding-bottom: 0;
+  }
+
   .settings-form {
     padding: 14px;
   }
@@ -2141,6 +3162,10 @@ onMounted(async () => {
 
   .icon-path-input {
     min-width: 100%;
+  }
+
+  .settings-inline-field-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
