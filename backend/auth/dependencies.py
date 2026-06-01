@@ -39,6 +39,8 @@ async def _resolve_token_payload(authorization: str | None) -> dict:
                 raise HTTPException(status_code=401, detail="Account expired")
             payload["role"] = stored_role
             payload["expires_at"] = expires_at
+        elif payload.get("registered_user") is True:
+            raise HTTPException(status_code=401, detail="Account not found")
     return payload
 
 

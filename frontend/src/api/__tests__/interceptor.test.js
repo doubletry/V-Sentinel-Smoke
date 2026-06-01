@@ -82,6 +82,22 @@ describe('api response interceptor', () => {
     expect(localStorageMock.getItem('v_sentinel_token')).toBe('abc')
   })
 
+  it('does NOT clear the auth token on wrong current password', async () => {
+    localStorageMock.setItem('v_sentinel_token', 'abc')
+
+    const { default: api } = await import('../index.js')
+    const handler = api.interceptors.response.handlers[0]
+    const fakeError = {
+      response: { status: 401, data: { detail: 'Current password is incorrect' } },
+      config: { url: '/api/auth/password' },
+      message: '401',
+    }
+    try {
+      await handler.rejected(fakeError)
+    } catch (_) { /* expected */ }
+    expect(localStorageMock.getItem('v_sentinel_token')).toBe('abc')
+  })
+
   it('attaches structured detail for 403 IP block payloads', async () => {
     const { default: api } = await import('../index.js')
     const handler = api.interceptors.response.handlers[0]

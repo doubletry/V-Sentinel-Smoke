@@ -141,7 +141,9 @@ async def register_first_admin(data: AuthRegisterRequest) -> AuthTokenResponse:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except IntegrityError as exc:
         raise HTTPException(status_code=409, detail="Username already exists") from exc
-    return AuthTokenResponse(**create_access_token(username=username, role="admin"))
+    return AuthTokenResponse(
+        **create_access_token(username=username, role="admin", registered_user=True)
+    )
 
 
 @router.get("/me", response_model=CurrentUser)

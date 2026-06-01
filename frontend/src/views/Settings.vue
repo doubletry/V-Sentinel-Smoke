@@ -1698,9 +1698,9 @@ async function createUserAccount() {
 function canDeleteUser(row) {
   if (!row) return false
   if (row.username === authStore.user?.username) return false
-  if (row.role === 'admin') {
-    const adminCount = (authStore.users || []).filter((u) => u.role === 'admin').length
-    if (adminCount <= 1) return false
+  if (row.role === 'admin' && !row.is_banned) {
+    const activeAdmins = (authStore.users || []).filter((u) => u.role === 'admin' && !u.is_banned).length
+    if (activeAdmins <= 1) return false
   }
   return true
 }

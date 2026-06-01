@@ -175,6 +175,28 @@ class TestUserManagement:
         )
         assert users_forbidden.status_code == 403
 
+    async def test_deleted_registered_user_token_is_rejected(self, async_client: AsyncClient):
+        await async_client.post(
+            "/api/users",
+            json={"username": "gone", "password": "pw", "role": "operator"},
+        )
+        login = await async_client.post(
+            "/api/auth/login",
+            json={"username": "gone", "password": "pw"},
+        )
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+
+        delete_resp = await async_client.delete("/api/users/gone")
+        assert delete_resp.status_code == 204
+
+        me_after = await async_client.get(
+            "/api/auth/me",
+            headers={"Authorization": "Bearer " + token},
+        )
+        assert me_after.status_code == 401
+        assert me_after.json()["detail"] == "Account not found"
+
     async def test_cannot_ban_last_active_admin(self, async_client: AsyncClient):
         await async_client.post(
             "/api/users",
@@ -195,3 +217,42 @@ class TestUserManagement:
             json={"is_banned": True},
         )
         assert ban_admin1.status_code == 400
+
+    async def test_cannot_demote_last_active_admin(self, async_client: AsyncClient):
+        await async_client.post(
+            "/api/users",
+            json={"username": "admin1", "password": "pw", "role": "admin"},
+        )
+        await async_client.post(
+            "/api/users",
+            json={"username": "admin2", "password": "pw", "role": "admin"},
+        )
+        ban_admin2 = await async_client.patch(
+            "/api/users/admin2",
+            json={"is_banned": True},
+        )
+        assert ban_admin2.status_code == 200
+
+        demote_admin1 = await async_client.patch(
+            "/api/users/admin1",
+            json={"role": "user"},
+        )
+        assert demote_admin1.status_code == 400
+
+    async def test_cannot_delete_last_active_admin(self, async_client: AsyncClient):
+        await async_client.post(
+            "/api/users",
+            json={"username": "admin1", "password": "pw", "role": "admin"},
+        )
+        await async_client.post(
+            "/api/users",
+            json={"username": "admin2", "password": "pw", "role": "admin"},
+        )
+        ban_admin2 = await async_client.patch(
+            "/api/users/admin2",
+            json={"is_banned": True},
+        )
+        assert ban_admin2.status_code == 200
+
+        delete_admin1 = await async_client.delete("/api/users/admin1")
+        assert delete_admin1.status_code == 400

@@ -32,7 +32,17 @@ api.interceptors.response.use(
         : detail?.message || error.message || 'Request failed'
     const url = error.config?.url || ''
     const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/bootstrap')
-    if (status === 401 && !isAuthEndpoint && typeof window !== 'undefined') {
+    const shouldExpireSession =
+      typeof detail !== 'string' ||
+      detail === 'Account banned' ||
+      detail === 'Account expired' ||
+      detail === 'Invalid token' ||
+      detail === 'Invalid token payload' ||
+      detail === 'Invalid token role' ||
+      detail === 'Invalid token signature' ||
+      detail === 'Missing bearer token' ||
+      detail === 'Token expired'
+    if (status === 401 && !isAuthEndpoint && shouldExpireSession && typeof window !== 'undefined') {
       try {
         window.localStorage?.removeItem(AUTH_TOKEN_STORAGE_KEY)
       } catch (_) { /* ignore */ }

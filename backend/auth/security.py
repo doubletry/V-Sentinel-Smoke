@@ -89,7 +89,9 @@ def _sign(payload_b64: str) -> str:
     return _b64url_encode(digest)
 
 
-def create_access_token(*, username: str, role: str) -> dict[str, str]:
+def create_access_token(
+    *, username: str, role: str, registered_user: bool = False
+) -> dict[str, str]:
     """Create a signed bearer token for an authenticated role.
     为已认证角色创建签名 Bearer token。"""
     if role not in ROLE_PERMISSIONS:
@@ -101,6 +103,8 @@ def create_access_token(*, username: str, role: str) -> dict[str, str]:
         "exp": int(expires_at.timestamp()),
         "nonce": secrets.token_urlsafe(12),
     }
+    if registered_user:
+        payload["registered_user"] = True
     payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
     token = f"{payload_b64}.{_sign(payload_b64)}"
     return {
@@ -141,7 +145,11 @@ async def authenticate_user(username: str, password: str, role: str | None) -> d
             raise HTTPException(status_code=401, detail="Account banned")
         if _is_account_expired(expires_at):
             raise HTTPException(status_code=401, detail="Account expired")
-        return create_access_token(username=record_username, role=stored_role)
+        return create_access_token(
+            username=record_username,
+            role=stored_role,
+            registered_user=True,
+        )
 
     normalized_role = str(role or "").strip().lower()
     if normalized_role not in ROLE_PERMISSIONS:

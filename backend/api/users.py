@@ -52,6 +52,14 @@ async def _default_expires_at_for_role(role: str) -> str | None:
     return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
 
 
+def _count_other_active_admins(users: list[UserAccount], excluded_username: str) -> int:
+    return sum(
+        1
+        for user in users
+        if user.role == "admin" and not user.is_banned and user.username != excluded_username
+    )
+
+
 @router.get("", response_model=list[UserAccount])
 async def list_users(
     _role: str = Depends(require_permission("users:*")),
@@ -119,9 +127,9 @@ async def update_user(
         await db.set_user_banned(username=target_username, banned=bool(data.is_banned))
 
     if data.role is not None and data.role != target.role:
-        if target.role == "admin" and data.role != "admin":
-            admin_count = await db.count_users_by_role("admin")
-            if admin_count <= 1:
+        if target.role == "admin" and data.role != "admin" and not target.is_banned:
+            users = await db.list_users()
+            if _count_other_active_admins(users, target_username) <= 0:
                 raise HTTPException(
                     status_code=400, detail="Cannot demote the last admin account"
                 )
@@ -153,9 +161,9 @@ async def delete_user(
     target = await db.get_user_account(target_username)
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")
-    if target.role == "admin":
-        admin_count = await db.count_users_by_role("admin")
-        if admin_count <= 1:
+    if target.role == "admin" and not target.is_banned:
+        users = await db.list_users()
+        if _count_other_active_admins(users, target_username) <= 0:
             raise HTTPException(
                 status_code=400, detail="Cannot delete the last admin account"
             )
