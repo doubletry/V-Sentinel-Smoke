@@ -104,6 +104,8 @@ export const messagesApi = {
   markFalsePositive: (id) => api.post(`/api/messages/${id}/false-positive`),
   unmarkFalsePositive: (id) => api.delete(`/api/messages/${id}/false-positive`),
   resendNotification: (id) => api.post(`/api/messages/${id}/resend-notification`),
+  delete: (id) => api.delete(`/api/messages/${id}`),
+  batchDelete: (ids) => api.post('/api/messages/batch-delete', { ids }),
 }
 
 

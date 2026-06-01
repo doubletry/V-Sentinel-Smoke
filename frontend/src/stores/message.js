@@ -4,11 +4,20 @@ import config from '../config.js'
 import { messagesApi } from '../api/index.js'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.js'
 
+function timestampDay(timestamp) {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
+
 export const useMessageStore = defineStore('message', () => {
   const messages = ref([])
   const wsConnected = ref(false)
   const filterSource = ref('')
   const falsePositiveOnly = ref(false)
+  const startDate = ref('')
+  const endDate = ref('')
   const loading = ref(false)
   const page = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
@@ -16,6 +25,7 @@ export const useMessageStore = defineStore('message', () => {
   const totalPages = ref(0)
   const lastUpdatedAt = ref('')
   const pendingCount = ref(0)
+  const selectedIds = ref({})
   const maxPageWindow = 20
   let _ws = null
   let _reconnectTimer = null
@@ -30,6 +40,8 @@ export const useMessageStore = defineStore('message', () => {
         page_size: nextPageSize,
         source_id: filterSource.value || undefined,
         false_positive_only: falsePositiveOnly.value || undefined,
+        start_date: startDate.value || undefined,
+        end_date: endDate.value || undefined,
       })
       page.value = Number(data.page || nextPage)
       pageSize.value = Number(data.page_size || nextPageSize)
@@ -38,10 +50,20 @@ export const useMessageStore = defineStore('message', () => {
       messages.value = Array.isArray(data.items) ? data.items : []
       lastUpdatedAt.value = new Date().toISOString()
       pendingCount.value = 0
+      pruneSelection()
       return messages.value
     } finally {
       loading.value = false
     }
+  }
+
+  function matchesActiveDateRange(timestamp) {
+    if (!startDate.value && !endDate.value) return true
+    const day = timestampDay(timestamp)
+    if (!day) return true
+    if (startDate.value && day < startDate.value) return false
+    if (endDate.value && day > endDate.value) return false
+    return true
   }
 
   function connectWS() {
@@ -70,7 +92,8 @@ export const useMessageStore = defineStore('message', () => {
         if (msg === 'pong') return
         const matchesFilter = !filterSource.value || msg.source_id === filterSource.value
         const matchesFalsePositive = !falsePositiveOnly.value || Boolean(msg.false_positive)
-        if (!matchesFilter || !matchesFalsePositive) return
+        const matchesDate = matchesActiveDateRange(msg.timestamp)
+        if (!matchesFilter || !matchesFalsePositive || !matchesDate) return
         if (page.value === 1) {
           messages.value.unshift(msg)
           if (messages.value.length > pageSize.value) {
@@ -110,14 +133,23 @@ export const useMessageStore = defineStore('message', () => {
     messages.value = []
     total.value = 0
     pendingCount.value = 0
+    clearSelection()
   }
 
   function setFilterSource(sourceId) {
     filterSource.value = sourceId
+    clearSelection()
   }
 
   function setFalsePositiveOnly(value) {
     falsePositiveOnly.value = Boolean(value)
+    clearSelection()
+  }
+
+  function setDateRange(start, end) {
+    startDate.value = String(start || '')
+    endDate.value = String(end || '')
+    clearSelection()
   }
 
   function applyFalsePositiveFilterToLocalMessages() {
@@ -149,6 +181,68 @@ export const useMessageStore = defineStore('message', () => {
     return messagesApi.resendNotification(messageId)
   }
 
+  function toggleSelection(messageId, value) {
+    if (!messageId) return
+    const next = { ...selectedIds.value }
+    const shouldSelect = value === undefined ? !next[messageId] : Boolean(value)
+    if (shouldSelect) {
+      next[messageId] = true
+    } else {
+      delete next[messageId]
+    }
+    selectedIds.value = next
+  }
+
+  function setSelection(ids, value) {
+    const next = { ...selectedIds.value }
+    const shouldSelect = Boolean(value)
+    for (const id of ids || []) {
+      if (!id) continue
+      if (shouldSelect) {
+        next[id] = true
+      } else {
+        delete next[id]
+      }
+    }
+    selectedIds.value = next
+  }
+
+  function clearSelection() {
+    selectedIds.value = {}
+  }
+
+  function pruneSelection() {
+    const visible = new Set(messages.value.map((item) => item.id).filter(Boolean))
+    const next = {}
+    for (const id of Object.keys(selectedIds.value)) {
+      if (visible.has(id)) next[id] = true
+    }
+    selectedIds.value = next
+  }
+
+  async function deleteMessage(messageId) {
+    const result = await messagesApi.delete(messageId)
+    messages.value = messages.value.filter((item) => item.id !== messageId)
+    if (total.value > 0) total.value -= 1
+    const next = { ...selectedIds.value }
+    delete next[messageId]
+    selectedIds.value = next
+    return result
+  }
+
+  async function batchDelete(ids) {
+    const result = await messagesApi.batchDelete(ids)
+    const deleted = new Set(result.deleted_ids || [])
+    if (deleted.size) {
+      messages.value = messages.value.filter((item) => !deleted.has(item.id))
+      total.value = Math.max(0, total.value - deleted.size)
+      const next = { ...selectedIds.value }
+      for (const id of deleted) delete next[id]
+      selectedIds.value = next
+    }
+    return result
+  }
+
   return {
     messages,
     loading,
@@ -163,14 +257,23 @@ export const useMessageStore = defineStore('message', () => {
     wsConnected,
     filterSource,
     falsePositiveOnly,
+    startDate,
+    endDate,
+    selectedIds,
     fetchMessages,
     connectWS,
     disconnectWS,
     clearMessages,
     setFilterSource,
     setFalsePositiveOnly,
+    setDateRange,
     markFalsePositive,
     unmarkFalsePositive,
     resendNotification,
+    toggleSelection,
+    setSelection,
+    clearSelection,
+    deleteMessage,
+    batchDelete,
   }
 })

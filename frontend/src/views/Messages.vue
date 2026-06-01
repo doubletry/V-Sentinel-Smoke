@@ -25,6 +25,20 @@
               :value="src.id"
             />
           </el-select>
+          <el-date-picker
+            v-model="filterDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            unlink-panels
+            clearable
+            size="small"
+            :range-separator="'~'"
+            :start-placeholder="t('messages.startDate')"
+            :end-placeholder="t('messages.endDate')"
+            :aria-label="t('messages.dateRange')"
+            style="width: 260px"
+            @change="handleDateRangeChange"
+          />
           <div class="false-positive-filter">
             <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
             <el-switch
@@ -35,6 +49,16 @@
           </div>
           <el-button size="small" type="primary" :loading="refreshing" @click="handleManualRefresh">
             {{ t('messages.refresh') }}
+          </el-button>
+          <el-button
+            v-if="canDeleteMessages"
+            size="small"
+            type="danger"
+            :disabled="!selectedCount"
+            :title="selectedCount ? '' : t('messages.deleteSelectedDisabledHint')"
+            @click="handleBatchDelete"
+          >
+            {{ t('messages.deleteSelected', { count: selectedCount }) }}
           </el-button>
           <el-button size="small" :disabled="!store.messages.length" @click="handleClearMessages">
             {{ t('messages.clear') }}
@@ -53,9 +77,13 @@
       <MessageList
         :messages="store.messages"
         :resending-message-ids="resendingMessageIds"
+        :selected-ids="store.selectedIds"
         @mark-false-positive="handleMarkFalsePositive"
         @unmark-false-positive="handleUnmarkFalsePositive"
         @resend-notification="handleResendNotification"
+        @delete-message="handleDeleteMessage"
+        @toggle-select="handleToggleSelect"
+        @toggle-select-group="handleToggleSelectGroup"
       />
     </el-scrollbar>
     <div class="messages-pagination">
@@ -86,13 +114,16 @@ import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useMessageStore } from '../stores/message.js'
 import { useSourceStore } from '../stores/source.js'
+import { useAuthStore } from '../stores/auth.js'
 import MessageList from '../components/MessageList.vue'
 
 const MESSAGE_PAGER_COUNT = 7
 const store = useMessageStore()
 const sourceStore = useSourceStore()
+const authStore = useAuthStore()
 const { t } = useI18n()
 const filterSource = ref('')
+const filterDateRange = ref([])
 const scrollbar = ref(null)
 const refreshing = ref(false)
 const resendingMessageIds = ref({})
@@ -100,6 +131,8 @@ const lastUpdatedLabel = computed(() => {
   if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
   return new Date(store.lastUpdatedAt).toLocaleString()
 })
+const canDeleteMessages = computed(() => authStore.hasPermission('messages:delete'))
+const selectedCount = computed(() => Object.keys(store.selectedIds || {}).length)
 
 // Auto-scroll to top (newest first)
 watch(
@@ -122,10 +155,12 @@ async function refresh(page, size) {
 }
 
 async function handlePageChange(nextPage) {
+  store.clearSelection()
   await refresh(nextPage, store.pageSize)
 }
 
 async function handleSizeChange(nextSize) {
+  store.clearSelection()
   await refresh(1, nextSize)
 }
 
@@ -136,6 +171,12 @@ async function handleFilterChange(value) {
 
 async function handleFalsePositiveFilterChange(value) {
   store.setFalsePositiveOnly(value)
+  await refresh(1, store.pageSize)
+}
+
+async function handleDateRangeChange(value) {
+  const [start, end] = Array.isArray(value) ? value : ['', '']
+  store.setDateRange(start || '', end || '')
   await refresh(1, store.pageSize)
 }
 
@@ -187,6 +228,86 @@ async function handleResendNotification(message) {
     const next = { ...resendingMessageIds.value }
     delete next[message.id]
     resendingMessageIds.value = next
+  }
+}
+
+function handleToggleSelect(messageId, value) {
+  store.toggleSelection(messageId, value)
+}
+
+function handleToggleSelectGroup(ids, value) {
+  store.setSelection(ids, value)
+}
+
+async function handleDeleteMessage(message) {
+  if (!message?.id) return
+  try {
+    await ElMessageBox.confirm(
+      t('messages.deleteConfirmMessage'),
+      t('messages.deleteConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('messages.confirmDelete'),
+        cancelButtonText: t('common.cancel'),
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch (_) {
+    return
+  }
+  try {
+    await store.deleteMessage(message.id)
+    ElMessage.success(t('messages.deleteSuccess'))
+    await maybeStepBackAndRefresh()
+  } catch (err) {
+    ElMessage.error(t('messages.deleteFailed', { message: err.message }))
+  }
+}
+
+async function handleBatchDelete() {
+  const ids = Object.keys(store.selectedIds || {})
+  if (!ids.length) return
+  try {
+    await ElMessageBox.confirm(
+      t('messages.batchDeleteConfirmMessage', { count: ids.length }),
+      t('messages.batchDeleteConfirmTitle', { count: ids.length }),
+      {
+        type: 'warning',
+        confirmButtonText: t('messages.confirmDelete'),
+        cancelButtonText: t('common.cancel'),
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch (_) {
+    return
+  }
+  try {
+    const result = await store.batchDelete(ids)
+    const deletedCount = (result.deleted_ids || []).length
+    const missingCount = (result.missing_ids || []).length
+    if (missingCount) {
+      ElMessage.warning(
+        t('messages.batchDeletePartial', {
+          deleted: deletedCount,
+          requested: ids.length,
+          missing: missingCount,
+        })
+      )
+    } else {
+      ElMessage.success(t('messages.batchDeleteSuccess', { count: deletedCount }))
+    }
+    await maybeStepBackAndRefresh()
+  } catch (err) {
+    ElMessage.error(t('messages.deleteFailed', { message: err.message }))
+  }
+}
+
+async function maybeStepBackAndRefresh() {
+  // If we deleted everything visible on a non-first page, step back one page.
+  if (!store.messages.length && store.page > 1) {
+    await refresh(store.page - 1, store.pageSize)
+  } else {
+    await refresh(store.page, store.pageSize)
   }
 }
 

@@ -13,6 +13,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "video:watch",
         "messages:read",
         "messages:annotate",
+        "messages:delete",
     ],
     "admin": [
         "sources:*",

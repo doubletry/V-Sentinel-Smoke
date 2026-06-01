@@ -357,6 +357,17 @@ class MyProcessor(BaseVideoProcessor):
 | `POST` | `/api/processor/stop` | 停止 AI 分析 |
 | `GET` | `/api/processor/status` | 获取所有处理器状态 |
 
+### 消息
+
+| 方法 | 路径 | 描述 |
+|--------|------|-------------|
+| `GET` | `/api/messages` | 列出已持久化消息，支持 `source_id`、`false_positive_only`、`start_date`、`end_date`（`YYYY-MM-DD`，UTC）过滤 |
+| `POST` | `/api/messages/{id}/false-positive` | 标记为误报并将原图/检测图导出到 `false_positives/`（操作员/管理员） |
+| `DELETE` | `/api/messages/{id}/false-positive` | 取消误报标记（操作员/管理员） |
+| `POST` | `/api/messages/{id}/resend-notification` | 手动再次发送通知（操作员/管理员） |
+| `DELETE` | `/api/messages/{id}` | 永久删除一条消息及其 `message_thumbnails/` 文件；`false_positives/` 导出图片会被保留（操作员/管理员） |
+| `POST` | `/api/messages/batch-delete` | 一次性批量永久删除消息，请求体 `{"ids": [...]}`；`false_positives/` 导出图片会被保留（操作员/管理员） |
+
 ### WebSocket
 
 | 路径 | 描述 |

@@ -9,6 +9,8 @@ from backend.db.database import (
     build_analysis_message_image_url,
     create_notification_provider,
     get_analysis_message_for_notification,
+    get_false_positive_dir,
+    get_message_image_dir,
     list_analysis_messages,
     save_analysis_message,
     update_settings,
@@ -402,3 +404,213 @@ class TestMessagesAPI:
         resp = await async_client.post("/api/messages/missing/resend-notification")
 
         assert resp.status_code == 404
+
+
+class TestMessageDateFilter:
+    async def test_list_filters_by_start_and_end_date(self, async_client: AsyncClient):
+        now = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+        days = [now - timedelta(days=2), now - timedelta(days=1), now]
+        labels = [day.date().isoformat() for day in days]
+        for ts in days:
+            await save_analysis_message(
+                {
+                    "timestamp": ts.isoformat(),
+                    "source_name": "Cam1",
+                    "source_id": "s1",
+                    "level": "info",
+                    "message": f"msg-{ts.date()}",
+                }
+            )
+
+        resp = await async_client.get(
+            "/api/messages",
+            params={"start_date": labels[1], "end_date": labels[1]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 1
+        assert data["items"][0]["message"] == f"msg-{labels[1]}"
+
+        resp = await async_client.get(
+            "/api/messages",
+            params={"start_date": labels[1]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        messages = {item["message"] for item in data["items"]}
+        assert messages == {f"msg-{labels[1]}", f"msg-{labels[2]}"}
+
+        resp = await async_client.get(
+            "/api/messages",
+            params={"end_date": labels[1]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        messages = {item["message"] for item in data["items"]}
+        assert messages == {f"msg-{labels[0]}", f"msg-{labels[1]}"}
+
+    async def test_list_ignores_invalid_dates(self, async_client: AsyncClient):
+        await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "info",
+                "message": "kept",
+            }
+        )
+        resp = await async_client.get(
+            "/api/messages",
+            params={"start_date": "not-a-date", "end_date": "1234"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 1
+
+
+class TestMessageDeletion:
+    async def test_delete_message_removes_row_and_thumbnails(self, async_client: AsyncClient):
+        thumbnails_root = get_message_image_dir()
+        before = set(thumbnails_root.rglob("*.jpg"))
+
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "to-delete",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
+        )
+
+        created = set(thumbnails_root.rglob("*.jpg")) - before
+        assert len(created) == 2
+
+        resp = await async_client.delete(f"/api/messages/{message_id}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["deleted"] is True
+        assert body["id"] == message_id
+        assert body["false_positive_was"] is False
+
+        rows = await list_analysis_messages(limit=10, source_id="s1")
+        assert rows["items"] == []
+        # Files created by this test should be gone; pre-existing files (from
+        # other tests reusing the shared /tmp directory) are not affected.
+        assert all(not path.exists() for path in created)
+
+    async def test_delete_message_preserves_false_positive_exports(self, async_client: AsyncClient):
+        thumbnails_root = get_message_image_dir()
+        fp_root = get_false_positive_dir()
+        thumbnails_before = set(thumbnails_root.rglob("*.jpg"))
+        fp_before = set(fp_root.rglob("*.jpg")) if fp_root.exists() else set()
+
+        original = base64.b64encode(b"original-bytes").decode("ascii")
+        detected = base64.b64encode(b"detected-bytes").decode("ascii")
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s2",
+                "level": "alert",
+                "message": "fp-then-delete",
+                "original_image_base64": original,
+                "detected_image_base64": detected,
+            }
+        )
+
+        resp = await async_client.post(f"/api/messages/{message_id}/false-positive")
+        assert resp.status_code == 200
+        exported_files = resp.json()["exported_files"]
+        assert exported_files
+        for path in exported_files:
+            assert "false_positives" in path
+
+        new_thumbnails = set(thumbnails_root.rglob("*.jpg")) - thumbnails_before
+        new_fp = set(fp_root.rglob("*.jpg")) - fp_before
+        assert len(new_thumbnails) == 2
+        assert len(new_fp) == 2
+
+        resp = await async_client.delete(f"/api/messages/{message_id}")
+        assert resp.status_code == 200
+        assert resp.json()["false_positive_was"] is True
+
+        assert all(not path.exists() for path in new_thumbnails)
+        assert all(path.exists() for path in new_fp)
+
+
+    async def test_delete_message_returns_404_for_missing(self, async_client: AsyncClient):
+        resp = await async_client.delete("/api/messages/missing")
+        assert resp.status_code == 404
+
+    async def test_batch_delete_messages(self, async_client: AsyncClient):
+        ids = []
+        for index in range(3):
+            ids.append(
+                await save_analysis_message(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "source_name": "Cam1",
+                        "source_id": "s1",
+                        "level": "info",
+                        "message": f"bulk-{index}",
+                    }
+                )
+            )
+
+        resp = await async_client.post(
+            "/api/messages/batch-delete",
+            json={"ids": [ids[0], ids[1], "missing"]},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert set(body["deleted_ids"]) == {ids[0], ids[1]}
+        assert body["missing_ids"] == ["missing"]
+
+        rows = await list_analysis_messages(limit=10)
+        assert [item["id"] for item in rows["items"]] == [ids[2]]
+
+    async def test_batch_delete_rejects_invalid_payload(self, async_client: AsyncClient):
+        resp = await async_client.post("/api/messages/batch-delete", json={"ids": "nope"})
+        assert resp.status_code == 400
+
+        resp = await async_client.post("/api/messages/batch-delete", json={"ids": [""]})
+        assert resp.status_code == 400
+
+        resp = await async_client.post(
+            "/api/messages/batch-delete",
+            json={"ids": [f"id-{i}" for i in range(501)]},
+        )
+        assert resp.status_code == 400
+
+    async def test_delete_message_requires_permission(self, async_client: AsyncClient):
+        from backend.auth.security import create_access_token
+
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "info",
+                "message": "guarded",
+            }
+        )
+
+        user_token = create_access_token(username="user1", role="user")["access_token"]
+        resp = await async_client.delete(
+            f"/api/messages/{message_id}",
+            headers={"Authorization": f"Bearer {user_token}"},
+        )
+        assert resp.status_code == 403
+
+        operator_token = create_access_token(username="op1", role="operator")["access_token"]
+        resp = await async_client.delete(
+            f"/api/messages/{message_id}",
+            headers={"Authorization": f"Bearer {operator_token}"},
+        )
+        assert resp.status_code == 200
+

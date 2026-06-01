@@ -308,6 +308,7 @@ class TestRbacFoundation:
                 "video:watch",
                 "messages:read",
                 "messages:annotate",
+                "messages:delete",
             ],
             "expires_at": None,
             "expired": False,
