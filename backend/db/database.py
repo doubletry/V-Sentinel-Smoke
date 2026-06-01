@@ -17,6 +17,7 @@ from loguru import logger
 from backend.config import DEFAULT_APP_SETTINGS, settings
 from backend.models.schemas import ROI, ROICreate, UserAccount, VideoSource, VideoSourceCreate, VideoSourceUpdate
 from backend.models.schemas import (
+    AuditLogEntry,
     BlockedIp,
     NotificationPolicy,
     NotificationPolicyCreate,
@@ -186,6 +187,34 @@ CREATE TABLE IF NOT EXISTS blocked_ips (
 );
 """
 
+CREATE_AUDIT_LOGS_TABLE = """
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    username TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT '',
+    ip TEXT NOT NULL DEFAULT '',
+    operation_type TEXT NOT NULL,
+    resource_type TEXT NOT NULL DEFAULT '',
+    resource_id TEXT NOT NULL DEFAULT '',
+    method TEXT NOT NULL DEFAULT '',
+    path TEXT NOT NULL DEFAULT '',
+    result TEXT NOT NULL CHECK(result IN ('SUCCESS', 'FAILURE')),
+    status_code INTEGER NOT NULL DEFAULT 200,
+    detail TEXT NOT NULL DEFAULT ''
+);
+"""
+
+CREATE_AUDIT_LOGS_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+ON audit_logs (created_at DESC);
+"""
+
+CREATE_AUDIT_LOGS_FILTER_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_audit_logs_filters
+ON audit_logs (username, operation_type, result, created_at DESC);
+"""
+
 MESSAGE_IMAGE_URL_PREFIX = "/api/messages"
 MESSAGE_IMAGE_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MESSAGE_IMAGE_FILENAME_RE = re.compile(r"^[0-9a-f]{32}\.jpg$")
@@ -304,6 +333,9 @@ async def init_db() -> None:
         await db.execute(CREATE_LOGIN_FAILURES_TABLE)
         await db.execute(CREATE_LOGIN_FAILURES_INDEX)
         await db.execute(CREATE_BLOCKED_IPS_TABLE)
+        await db.execute(CREATE_AUDIT_LOGS_TABLE)
+        await db.execute(CREATE_AUDIT_LOGS_CREATED_AT_INDEX)
+        await db.execute(CREATE_AUDIT_LOGS_FILTER_INDEX)
         await _ensure_column_exists(db, "users", "is_banned", "INTEGER NOT NULL DEFAULT 0")
         await _ensure_column_exists(db, "users", "banned_at", "TEXT")
         await _ensure_column_exists(db, "users", "expires_at", "TEXT")
@@ -1876,6 +1908,160 @@ async def update_user_expires_at(*, username: str, expires_at: str | None) -> bo
         )
         await db.commit()
     return int(cursor.rowcount or 0) > 0
+
+
+def _row_to_audit_log(row: tuple) -> AuditLogEntry:
+    return AuditLogEntry(
+        id=str(row[0]),
+        created_at=str(row[1]),
+        username=str(row[2] or ""),
+        role=str(row[3] or ""),
+        ip=str(row[4] or ""),
+        operation_type=str(row[5]),
+        resource_type=str(row[6] or ""),
+        resource_id=str(row[7] or ""),
+        method=str(row[8] or ""),
+        path=str(row[9] or ""),
+        result=str(row[10]),
+        status_code=int(row[11] or 0),
+        detail=str(row[12] or ""),
+    )
+
+
+async def create_audit_log(
+    *,
+    username: str = "",
+    role: str = "",
+    ip: str = "",
+    operation_type: str,
+    resource_type: str = "",
+    resource_id: str = "",
+    method: str = "",
+    path: str = "",
+    result: str,
+    status_code: int,
+    detail: str = "",
+) -> AuditLogEntry:
+    """Persist one audit log entry.
+    持久化一条审计日志。"""
+    entry = AuditLogEntry(
+        id=uuid.uuid4().hex,
+        created_at=_now_iso(),
+        username=str(username or "").strip(),
+        role=str(role or "").strip().lower(),
+        ip=str(ip or "").strip(),
+        operation_type=str(operation_type or "").strip(),
+        resource_type=str(resource_type or "").strip(),
+        resource_id=str(resource_id or "").strip(),
+        method=str(method or "").strip().upper(),
+        path=str(path or "").strip(),
+        result="SUCCESS" if str(result or "").strip().upper() == "SUCCESS" else "FAILURE",
+        status_code=int(status_code),
+        detail=str(detail or "").strip(),
+    )
+    async with _db_session() as db:
+        await db.execute(
+            "INSERT INTO audit_logs "
+            "(id, created_at, username, role, ip, operation_type, resource_type, resource_id, "
+            "method, path, result, status_code, detail) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                entry.id,
+                entry.created_at,
+                entry.username,
+                entry.role,
+                entry.ip,
+                entry.operation_type,
+                entry.resource_type,
+                entry.resource_id,
+                entry.method,
+                entry.path,
+                entry.result,
+                entry.status_code,
+                entry.detail,
+            ),
+        )
+        await db.commit()
+    return entry
+
+
+async def list_audit_logs(
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    username: str | None = None,
+    operation_type: str | None = None,
+    result: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+) -> dict[str, object]:
+    """Return paginated audit logs with optional combined filters.
+    返回带组合筛选的分页审计日志。"""
+    safe_page = max(int(page), 1)
+    safe_size = max(int(page_size), 1)
+    where: list[str] = []
+    params: list[object] = []
+
+    username_text = str(username or "").strip()
+    if username_text:
+        where.append("username = ?")
+        params.append(username_text)
+
+    operation_text = str(operation_type or "").strip()
+    if operation_text:
+        where.append("operation_type = ?")
+        params.append(operation_text)
+
+    result_text = str(result or "").strip().upper()
+    if result_text in {"SUCCESS", "FAILURE"}:
+        where.append("result = ?")
+        params.append(result_text)
+
+    start_text = str(start_time or "").strip()
+    if start_text:
+        where.append("created_at >= ?")
+        params.append(start_text)
+
+    end_text = str(end_time or "").strip()
+    if end_text:
+        where.append("created_at <= ?")
+        params.append(end_text)
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    offset = (safe_page - 1) * safe_size
+
+    async with _db_session() as db:
+        async with db.execute(
+            f"SELECT COUNT(*) FROM audit_logs {where_sql}",
+            tuple(params),
+        ) as cursor:
+            count_row = await cursor.fetchone()
+        total = int(count_row[0] if count_row else 0)
+
+        async with db.execute(
+            "SELECT DISTINCT operation_type FROM audit_logs "
+            "WHERE operation_type != '' ORDER BY operation_type ASC"
+        ) as cursor:
+            operation_rows = await cursor.fetchall()
+
+        async with db.execute(
+            "SELECT id, created_at, username, role, ip, operation_type, resource_type, "
+            "resource_id, method, path, result, status_code, detail "
+            f"FROM audit_logs {where_sql} "
+            "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            tuple([*params, safe_size, offset]),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+    total_pages = ceil(total / safe_size) if total else 0
+    return {
+        "items": [_row_to_audit_log(row).model_dump() for row in rows],
+        "page": safe_page,
+        "page_size": safe_size,
+        "total": total,
+        "total_pages": total_pages,
+        "operation_types": [str(row[0]) for row in operation_rows if row and row[0]],
+    }
 
 
 # ── Anti-brute-force login helpers / 登录暴力破解防护辅助方法 ──────────────────

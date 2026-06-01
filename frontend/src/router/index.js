@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import pinia from '../stores/pinia.js'
 import { useAuthStore } from '../stores/auth.js'
 import {
-  canViewProcessingLogs,
+  canViewAuditLogs,
   defaultLandingFor,
   getDefaultManagementPath,
   legacySettingsSectionToManagement,
@@ -27,7 +27,7 @@ const routes = [
   },
   {
     path: '/processing-logs',
-    name: 'ProcessingLogs',
+    name: 'AuditLogsLegacy',
     redirect: '/management/logs',
   },
   {
@@ -78,7 +78,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('v-sentinel:auth-expired', () => {
     try {
       const authStore = useAuthStore(pinia)
-      authStore.logout()
+      authStore.logout({ remote: false })
     } catch (_) { /* ignore */ }
     if (router.currentRoute.value.path !== '/auth') {
       router.push({ path: '/auth', query: { mode: 'login' } })
@@ -133,10 +133,7 @@ router.beforeEach(async (to) => {
       return { path: userRedirect, replace: true }
     }
     if (to.path === '/management') {
-      const canViewLogs = canViewProcessingLogs(
-        authStore.hasPermission('sources:operate'),
-        authStore.hasPermission('settings:*'),
-      )
+      const canViewLogs = canViewAuditLogs(authStore.hasPermission('audit:read'))
       const defaultSettingsPath = getDefaultManagementPath(
         authStore.hasPermission('settings:*'),
         authStore.canManageUsers,

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { defaultLandingFor, userRoleRedirect } from '../settingsRoutes.js'
+import { canViewAuditLogs, defaultLandingFor, userRoleRedirect } from '../settingsRoutes.js'
+
+describe('canViewAuditLogs', () => {
+  it('only allows explicit audit read permission', () => {
+    expect(canViewAuditLogs(true)).toBe(true)
+    expect(canViewAuditLogs(false)).toBe(false)
+    expect(canViewAuditLogs(null)).toBe(false)
+  })
+})
 
 describe('defaultLandingFor', () => {
   it('returns /messages for the user role', () => {
@@ -40,4 +48,3 @@ describe('userRoleRedirect', () => {
     expect(userRoleRedirect('', '/management/users')).toBeNull()
   })
 })
-

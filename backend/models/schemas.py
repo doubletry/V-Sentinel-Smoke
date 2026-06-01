@@ -389,6 +389,37 @@ class BlockIpRequest(BaseModel):
     reason: str = ""
 
 
+class AuditLogEntry(BaseModel):
+    """Persisted audit log entry.
+    持久化审计日志条目。"""
+
+    id: str
+    created_at: str
+    username: str = ""
+    role: str = ""
+    ip: str = ""
+    operation_type: str
+    resource_type: str = ""
+    resource_id: str = ""
+    method: str = ""
+    path: str = ""
+    result: str
+    status_code: int
+    detail: str = ""
+
+
+class PaginatedAuditLogsResponse(BaseModel):
+    """Paginated audit log response with available operation filters.
+    带操作类型筛选项的分页审计日志响应。"""
+
+    items: list[AuditLogEntry]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+    operation_types: list[str] = []
+
+
 class ProcessorStartRequest(BaseModel):
     """Request body to start processing for a specific video source.
     启动指定视频源处理的请求体。"""

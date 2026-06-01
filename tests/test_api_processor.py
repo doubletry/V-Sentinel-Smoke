@@ -1,12 +1,7 @@
 """Tests for the Processor REST API endpoints."""
 from __future__ import annotations
 
-import logging
-
-import pytest
 from httpx import AsyncClient
-
-from backend.processing.log_buffer import processing_log_buffer
 
 
 class TestProcessorStatus:
@@ -29,50 +24,3 @@ class TestProcessorStartStop:
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "not_running"
-
-
-class TestProcessorLogs:
-    async def test_get_processing_logs_page(self, async_client: AsyncClient):
-        resp = await async_client.get(
-            "/api/processor/logs",
-            params={"page": 1, "page_size": 10},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-
-        assert "items" in data
-        assert "page" in data
-        assert "page_size" in data
-        assert "total" in data
-        assert "total_pages" in data
-        assert data["page"] == 1
-        assert data["page_size"] == 10
-        assert isinstance(data["items"], list)
-
-        if data["items"]:
-            first = data["items"][0]
-            assert "timestamp" in first
-            assert "level" in first
-            assert "module" in first
-            assert "message" in first
-
-    async def test_processing_logs_exclude_http_access_logs(
-        self, async_client: AsyncClient
-    ):
-        from backend.main import _should_capture_runtime_log
-
-        processing_log_buffer.clear()
-        assert _should_capture_runtime_log("core.smoke.processor") is True
-        assert _should_capture_runtime_log("uvicorn.access") is False
-        assert _should_capture_runtime_log("random.module") is False
-
-        uvicorn_logger = logging.getLogger("uvicorn.access")
-        original_level = uvicorn_logger.level
-        uvicorn_logger.setLevel(logging.INFO)
-        uvicorn_logger.info('127.0.0.1 - "GET /health HTTP/1.1" 200 OK')
-
-        resp = await async_client.get("/api/processor/logs", params={"page": 1, "page_size": 20})
-        assert resp.status_code == 200
-        items = resp.json()["items"]
-        assert not any(item["module"] == "uvicorn.access" for item in items)
-        uvicorn_logger.setLevel(original_level)

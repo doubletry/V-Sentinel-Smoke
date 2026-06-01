@@ -1,13 +1,35 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth.dependencies import current_user, require_permission
 from backend.auth.roles import list_roles
 from backend.db import database as db
-from backend.models.schemas import BlockedIp, BlockIpRequest, CurrentUser, RoleInfo
+from backend.models.schemas import (
+    AuditLogEntry,
+    BlockedIp,
+    BlockIpRequest,
+    CurrentUser,
+    PaginatedAuditLogsResponse,
+    RoleInfo,
+)
 
 router = APIRouter(prefix="/api/access", tags=["access"])
+
+
+def _normalize_datetime_query(value: str | None) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid datetime filter") from exc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 @router.get("/roles", response_model=list[RoleInfo])
@@ -15,6 +37,38 @@ async def get_roles() -> list[RoleInfo]:
     """Return built-in user/operator/admin role definitions.
     返回内置用户、操作员、管理员角色定义。"""
     return list_roles()
+
+
+@router.get("/audit-logs", response_model=PaginatedAuditLogsResponse)
+async def get_audit_logs(
+    page: int = 1,
+    page_size: int = 20,
+    username: str | None = None,
+    operation_type: str | None = None,
+    result: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    _role: str = Depends(require_permission("audit:read")),
+) -> PaginatedAuditLogsResponse:
+    """List paginated audit logs with combined filters.
+    按组合条件列出分页审计日志。"""
+    data = await db.list_audit_logs(
+        page=page,
+        page_size=page_size,
+        username=username,
+        operation_type=operation_type,
+        result=result,
+        start_time=_normalize_datetime_query(start_time),
+        end_time=_normalize_datetime_query(end_time),
+    )
+    return PaginatedAuditLogsResponse(
+        items=[AuditLogEntry(**item) for item in data["items"]],
+        page=int(data["page"]),
+        page_size=int(data["page_size"]),
+        total=int(data["total"]),
+        total_pages=int(data["total_pages"]),
+        operation_types=[str(item) for item in data["operation_types"]],
+    )
 
 
 @router.get("/blocked-ips", response_model=list[BlockedIp])
