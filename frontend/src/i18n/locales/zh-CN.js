@@ -230,7 +230,7 @@ export default {
   },
   auditLogs: {
     title: '审计日志',
-    subtitle: '记录账号登录、主动退出及关键业务操作，支持按账号、操作类型、时间范围和结果组合筛选。',
+    subtitle: '记录账号登录及关键业务操作，支持按账号、操作类型、时间范围和结果组合筛选。',
     search: '查询',
     noLogs: '暂无审计日志',
     logTime: '时间',

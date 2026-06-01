@@ -230,7 +230,7 @@ export default {
   },
   auditLogs: {
     title: 'Audit Logs',
-    subtitle: 'Tracks sign-in, active sign-out, and key business operations with combined account, operation type, time range, and result filters.',
+    subtitle: 'Tracks sign-in and key business operations with combined account, operation type, time range, and result filters.',
     search: 'Search',
     noLogs: 'No audit logs available',
     logTime: 'Time',
