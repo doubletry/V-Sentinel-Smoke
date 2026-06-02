@@ -1,5 +1,5 @@
-export function canViewProcessingLogs(hasSourceOperatePermission, canManageSettings) {
-  return Boolean(hasSourceOperatePermission || canManageSettings)
+export function canViewAuditLogs(hasAuditReadPermission) {
+  return Boolean(hasAuditReadPermission)
 }
 
 export function getDefaultManagementSection(canManageSettings, canManageUsers, canViewLogs = false) {

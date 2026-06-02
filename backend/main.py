@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import sys
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -12,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from loguru import logger
 
+from backend.audit import audit_request
 from backend.api import access as access_router
 from backend.api import auth as auth_router
 from backend.api import notifications as notifications_router
@@ -31,80 +31,12 @@ from backend.db.database import (
     save_analysis_message,
 )
 from backend.notifications.dispatcher import NotificationDispatcher
-from backend.processing.log_buffer import processing_log_buffer
 from backend.processing.manager import ProcessorManager
 from backend.vengine.client import AsyncVEngineClient
 
 # Configure loguru / 配置 loguru 日志
 logger.remove()
 logger.add(sys.stderr, level="INFO", colorize=True)
-
-
-def _should_capture_runtime_log(module_name: str) -> bool:
-    """Return whether a runtime log should be shown in the log page.
-    返回该运行时日志是否应显示在日志页。"""
-    return module_name.startswith(("backend.", "core."))
-
-
-def _processing_log_sink(message) -> None:
-    """Forward processing logs to the in-memory ring buffer.
-    将处理日志转发到内存环形缓冲区。"""
-    record = message.record
-    processing_log_buffer.append(
-        timestamp=record["time"].isoformat(),
-        level=record["level"].name,
-        module=record["name"],
-        message=record["message"],
-    )
-
-
-logger.add(
-    _processing_log_sink,
-    level="INFO",
-    filter=lambda record: _should_capture_runtime_log(str(record["name"])),
-)
-
-
-class _StdlibProcessingLogHandler(logging.Handler):
-    """Bridge stdlib logging records into the runtime log buffer.
-    将标准库 logging 记录桥接到运行时日志缓冲区。"""
-
-    def emit(self, record: logging.LogRecord) -> None:
-        if not _should_capture_runtime_log(record.name):
-            return
-        processing_log_buffer.append(
-            timestamp=datetime_from_record(record),
-            level=record.levelname,
-            module=record.name,
-            message=record.getMessage(),
-        )
-
-
-def datetime_from_record(record: logging.LogRecord) -> str:
-    """Format a stdlib logging timestamp as ISO string.
-    将标准库 logging 的时间格式化为 ISO 字符串。"""
-    from datetime import datetime, timezone
-
-    return datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat()
-
-
-_STDLIB_LOG_HANDLER = _StdlibProcessingLogHandler()
-_STDLIB_LOG_CAPTURE_CONFIGURED = False
-
-
-def _configure_stdlib_log_capture() -> None:
-    """Register stdlib log forwarding exactly once per process.
-    为当前进程只注册一次标准库日志转发。"""
-    global _STDLIB_LOG_CAPTURE_CONFIGURED
-
-    if _STDLIB_LOG_CAPTURE_CONFIGURED:
-        return
-
-    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
-        std_logger = logging.getLogger(logger_name)
-        if not any(handler is _STDLIB_LOG_HANDLER for handler in std_logger.handlers):
-            std_logger.addHandler(_STDLIB_LOG_HANDLER)
-    _STDLIB_LOG_CAPTURE_CONFIGURED = True
 
 # Module-level singletons (accessed by API routers) / 模块级单例（供 API 路由使用）
 ws_manager: ws_module.WSManager
@@ -120,7 +52,6 @@ async def lifespan(app: FastAPI):
     global ws_manager, vengine_client, notification_dispatcher, processor_manager
 
     logger.info("Starting {} ...", settings.app_name)
-    _configure_stdlib_log_capture()
 
     # Initialize WebSocket manager / 初始化 WebSocket 管理器
     async def _persist_message(message) -> str:
@@ -187,6 +118,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.middleware("http")(audit_request)
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(sources_router.router)

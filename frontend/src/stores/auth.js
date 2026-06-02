@@ -42,7 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = await authApi.me()
       return user.value
     } catch (_) {
-      logout()
+      await logout()
       return null
     }
   }
@@ -138,7 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.includes(value) || permissions.value.includes(`${namespace}:*`)
   }
 
-  function logout() {
+  async function logout() {
     persistToken('')
     user.value = null
   }

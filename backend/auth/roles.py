@@ -10,12 +10,14 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     "operator": [
         "sources:read",
         "sources:operate",
+        "audit:read",
         "video:watch",
         "messages:read",
         "messages:annotate",
         "messages:delete",
     ],
     "admin": [
+        "audit:read",
         "sources:*",
         "scenes:*",
         "gateways:*",

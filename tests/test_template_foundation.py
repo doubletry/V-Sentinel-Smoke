@@ -305,6 +305,7 @@ class TestRbacFoundation:
             "permissions": [
                 "sources:read",
                 "sources:operate",
+                "audit:read",
                 "video:watch",
                 "messages:read",
                 "messages:annotate",

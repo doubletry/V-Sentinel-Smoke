@@ -93,9 +93,6 @@ export const sourcesApi = {
 export const processorApi = {
   start: (sourceId) => api.post('/api/processor/start', { source_id: sourceId }),
   stop: (sourceId) => api.post('/api/processor/stop', { source_id: sourceId }),
-  logs: (page = 1, pageSize = 20) => api.get('/api/processor/logs', {
-    params: { page, page_size: pageSize },
-  }),
   status: () => api.get('/api/processor/status'),
 }
 
@@ -137,6 +134,7 @@ export const usersApi = {
 }
 
 export const accessApi = {
+  auditLogs: (params = {}) => api.get('/api/access/audit-logs', { params }),
   roles: () => api.get('/api/access/roles'),
   listBlockedIps: () => api.get('/api/access/blocked-ips'),
   unblockIp: (ip) => api.delete(`/api/access/blocked-ips/${encodeURIComponent(ip)}`),

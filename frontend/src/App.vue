@@ -147,7 +147,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
-import { canViewProcessingLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
+import { canViewAuditLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -168,18 +168,15 @@ const canSeeVideoWall = computed(() =>
   authStore.isBootstrapRegistrationOpen || authStore.hasPermission('video:watch')
 )
 const canSeeMessages = computed(() => authStore.hasPermission('messages:read'))
-const canSeeProcessingLogs = computed(() => canViewProcessingLogs(
-  authStore.hasPermission('sources:operate'),
-  authStore.hasPermission('settings:*'),
-))
+const canSeeAuditLogs = computed(() => canViewAuditLogs(authStore.hasPermission('audit:read')))
 const canSeeManagement = computed(() => (
-  authStore.hasPermission('settings:*') || authStore.hasPermission('users:*') || canSeeProcessingLogs.value
+  authStore.hasPermission('settings:*') || authStore.hasPermission('users:*') || canSeeAuditLogs.value
 ))
 const isAuthRoute = computed(() => route.path === '/auth')
 const managementEntryPath = computed(() => getDefaultManagementPath(
   authStore.hasPermission('settings:*'),
   authStore.hasPermission('users:*'),
-  canSeeProcessingLogs.value,
+  canSeeAuditLogs.value,
 ))
 const activeHeaderPath = computed(() => (
   route.path === '/' || route.path === '/messages' ? route.path : ''
@@ -248,10 +245,10 @@ async function submitPasswordChange() {
   }
 }
 
-function onAuthCommand(command) {
+async function onAuthCommand(command) {
   accountMenuVisible.value = false
   if (command === 'logout') {
-    authStore.logout()
+    await authStore.logout()
     ElMessage.success(t('auth.logoutSuccess'))
     return
   }

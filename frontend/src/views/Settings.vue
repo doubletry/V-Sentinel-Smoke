@@ -327,7 +327,7 @@
         </section>
 
             <section v-else-if="isLogsPage" class="settings-page-panel management-logs-panel">
-          <ProcessingLogs embedded />
+          <AuditLogs embedded />
         </section>
 
         <section v-else-if="isNotificationsPage" class="settings-page-panel">
@@ -1098,11 +1098,11 @@ import { accessApi, scenesApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
-import { canViewProcessingLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
+import { canViewAuditLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
-import ProcessingLogs from './ProcessingLogs.vue'
+import AuditLogs from './AuditLogs.vue'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -1351,10 +1351,7 @@ const manualBlockForm = ref({
   reason: '',
 })
 const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
-const canViewLogs = computed(() => canViewProcessingLogs(
-  authStore.hasPermission('sources:operate'),
-  canManageSettings.value,
-))
+const canViewLogs = computed(() => canViewAuditLogs(authStore.hasPermission('audit:read')))
 const hasSettingsAccess = computed(() => canManageSettings.value || authStore.canManageUsers || canViewLogs.value)
 const form = ref({
   ui_language: 'zh-CN',
@@ -1470,7 +1467,7 @@ const settingsNavItems = computed(() => {
     items.push({ key: 'users', label: t('settings.userManagement'), hint: t('settings.userManagementHint'), icon: User })
   }
   if (canViewLogs.value) {
-    items.push({ key: 'logs', label: t('management.processingLogs'), hint: t('processingLogs.subtitle'), icon: Document })
+    items.push({ key: 'logs', label: t('management.auditLogs'), hint: t('auditLogs.subtitle'), icon: Document })
   }
   if (canManageSettings.value) {
     items.push(
