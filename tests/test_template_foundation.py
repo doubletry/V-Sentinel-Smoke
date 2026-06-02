@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import socket
 import pytest
 from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 from unittest.mock import patch
 from httpx import AsyncClient
 from loguru import logger
@@ -21,7 +23,12 @@ from backend.models.schemas import (
 )
 from backend.auth.security import create_access_token
 from backend.notifications.dispatcher import NotificationDispatcher
-from core.notification_client import NotificationPayload, SmtpNotificationProvider, WebhookNotificationProvider
+from core.notification_client import (
+    NotificationPayload,
+    SocketNotificationProvider,
+    SmtpNotificationProvider,
+    WebhookNotificationProvider,
+)
 
 
 def _capture_log_messages(target: list[str]):
@@ -174,6 +181,82 @@ class TestNotificationFoundation:
         assert update_resp.status_code == 200
         assert update_resp.json()["enabled"] is False
         assert update_resp.json()["name"] == "Ops Webhook Disabled"
+
+    async def test_notification_instance_persists_source_scope(self, async_client: AsyncClient):
+        source_a = await create_source(
+            VideoSourceCreate(name="Cam A", rtsp_url="rtsp://localhost:8554/cam-a")
+        )
+        source_b = await create_source(
+            VideoSourceCreate(name="Cam B", rtsp_url="rtsp://localhost:8554/cam-b")
+        )
+
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Scoped Webhook",
+                "type": "webhook",
+                "enabled": True,
+                "source_ids": [source_a.id, source_b.id],
+                "apply_to_all_sources": False,
+                "config": {
+                    "url": "https://example.com/hooks/ops",
+                    "method": "POST",
+                },
+            },
+        )
+
+        assert create_resp.status_code == 201, create_resp.text
+        data = create_resp.json()
+        assert data["apply_to_all_sources"] is False
+        assert data["source_ids"] == [source_a.id, source_b.id]
+
+        update_resp = await async_client.put(
+            f"/api/notifications/instances/{data['id']}",
+            json={
+                "source_ids": [source_b.id],
+                "apply_to_all_sources": False,
+            },
+        )
+
+        assert update_resp.status_code == 200, update_resp.text
+        assert update_resp.json()["source_ids"] == [source_b.id]
+
+    async def test_notification_instance_test_endpoint_invokes_socket_provider(
+        self,
+        async_client: AsyncClient,
+    ):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Ops Socket",
+                "type": "socket",
+                "enabled": True,
+                "config": {
+                    "protocol": "tcp",
+                    "host": "127.0.0.1",
+                    "port": 9000,
+                    "message_mode": "string",
+                    "message_text": "Alert from {source_name}",
+                    "encoding": "utf-8",
+                },
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        instance_id = create_resp.json()["id"]
+
+        async def fake_send(self, payload):  # noqa: ARG001
+            return {"status": "SUCCESS", "message": payload.body}
+
+        with patch(
+            "backend.api.notifications.SocketNotificationProvider.send",
+            new=fake_send,
+        ):
+            test_resp = await async_client.post(
+                f"/api/notifications/instances/{instance_id}/test"
+            )
+
+        assert test_resp.status_code == 200, test_resp.text
+        assert test_resp.json()["status"] == "SUCCESS"
 
     async def test_notification_instance_test_endpoint_invokes_provider(
         self, async_client: AsyncClient
@@ -543,6 +626,203 @@ class TestNotificationDispatcher:
         payload = send.await_args.args[0]
         assert payload.body.endswith("Smoke Cam")
         assert payload.html_body.endswith("Smoke Cam")
+
+    async def test_dispatcher_skips_provider_when_source_is_not_selected(self, init_db):
+        await create_notification_provider(
+            NotificationProviderCreate(
+                name="Scoped Webhook",
+                type="webhook",
+                enabled=True,
+                source_ids=["source-a"],
+                apply_to_all_sources=False,
+                config={
+                    "url": "https://example.com/hooks/ops",
+                    "method": "POST",
+                },
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch.object(
+            dispatcher,
+            "_send_provider",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": "sent"}),
+        ) as send_provider:
+            results = await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": "source-b",
+                    "source_name": "Cam B",
+                    "event_type": "smoke",
+                    "event_label": "Smoke",
+                },
+                force=True,
+            )
+
+        assert results == []
+        send_provider.assert_not_awaited()
+
+    async def test_dispatcher_sends_provider_when_source_is_selected(self, init_db):
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="Scoped Webhook",
+                type="webhook",
+                enabled=True,
+                source_ids=["source-a"],
+                apply_to_all_sources=False,
+                config={
+                    "url": "https://example.com/hooks/ops",
+                    "method": "POST",
+                },
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch.object(
+            dispatcher,
+            "_send_provider",
+            new=AsyncMock(return_value={"status": "SUCCESS", "message": provider.id}),
+        ) as send_provider:
+            results = await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": "source-a",
+                    "source_name": "Cam A",
+                    "event_type": "smoke",
+                    "event_label": "Smoke",
+                },
+                force=True,
+            )
+
+        assert results == [{"status": "SUCCESS", "message": provider.id}]
+        send_provider.assert_awaited_once()
+
+
+class TestSocketNotificationProvider:
+    def test_socket_provider_sends_tcp_string_message(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "tcp",
+                "host": "127.0.0.1",
+                "port": 9527,
+                "message_mode": "string",
+                "message_text": "Alert from {source_name}",
+                "encoding": "utf-8",
+            }
+        )
+        payload = NotificationPayload(
+            subject="ignored",
+            body="fallback",
+            context={"source_name": "Cam A"},
+        )
+
+        client = MagicMock()
+        connection = MagicMock()
+        connection.__enter__.return_value = client
+        connection.__exit__.return_value = False
+
+        with patch("core.notification_client.socket.create_connection", return_value=connection) as create_connection:
+            result = provider.send_sync(payload)
+
+        assert result == {"status": "SUCCESS", "message": "Socket message sent via TCP"}
+        create_connection.assert_called_once_with(("127.0.0.1", 9527), timeout=10)
+        client.sendall.assert_called_once_with("Alert from Cam A".encode("utf-8"))
+
+    def test_socket_provider_waits_for_tcp_response(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "tcp",
+                "host": "127.0.0.1",
+                "port": 9527,
+                "message_mode": "string",
+                "message_text": "Alert from {source_name}",
+                "encoding": "utf-8",
+                "wait_for_response": True,
+                "response_timeout_seconds": 1.5,
+            }
+        )
+        payload = NotificationPayload(
+            subject="ignored",
+            body="fallback",
+            context={"source_name": "Cam A"},
+        )
+
+        client = MagicMock()
+        client.recv.return_value = b"ACK"
+        connection = MagicMock()
+        connection.__enter__.return_value = client
+        connection.__exit__.return_value = False
+
+        with patch("core.notification_client.socket.create_connection", return_value=connection):
+            result = provider.send_sync(payload)
+
+        assert result == {"status": "SUCCESS", "message": "Socket message sent via TCP (response: ACK)"}
+        client.settimeout.assert_called_once_with(1.5)
+        client.recv.assert_called_once_with(4096)
+
+    def test_socket_provider_closes_tcp_on_response_timeout(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "tcp",
+                "host": "127.0.0.1",
+                "port": 9527,
+                "message_mode": "string",
+                "wait_for_response": True,
+                "response_timeout_seconds": 2,
+            }
+        )
+        payload = NotificationPayload(subject="ignored", body="fallback")
+
+        client = MagicMock()
+        client.recv.side_effect = socket.timeout
+        connection = MagicMock()
+        connection.__enter__.return_value = client
+        connection.__exit__.return_value = False
+
+        with patch("core.notification_client.socket.create_connection", return_value=connection):
+            result = provider.send_sync(payload)
+
+        assert result == {"status": "SUCCESS", "message": "Socket message sent via TCP (response timeout)"}
+        client.settimeout.assert_called_once_with(2.0)
+
+    def test_socket_provider_sends_udp_hex_message(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "udp",
+                "host": "127.0.0.1",
+                "port": 9528,
+                "message_mode": "hex",
+                "message_hex": "48656c6c6f",
+            }
+        )
+        payload = NotificationPayload(subject="ignored", body="ignored")
+
+        client = MagicMock()
+        udp_socket = MagicMock()
+        udp_socket.__enter__.return_value = client
+        udp_socket.__exit__.return_value = False
+
+        with patch("core.notification_client.socket.socket", return_value=udp_socket) as socket_factory:
+            result = provider.send_sync(payload)
+
+        assert result == {"status": "SUCCESS", "message": "Socket message sent via UDP"}
+        socket_factory.assert_called_once()
+        client.settimeout.assert_called_once_with(10)
+        client.sendto.assert_called_once_with(b"Hello", ("127.0.0.1", 9528))
+
+    def test_socket_provider_rejects_invalid_hex(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "udp",
+                "host": "127.0.0.1",
+                "port": 9528,
+                "message_mode": "hex",
+                "message_hex": "GG",
+            }
+        )
+
+        with pytest.raises(ValueError, match="valid hexadecimal"):
+            provider.send_sync(NotificationPayload(subject="ignored", body="ignored"))
 
     async def test_dispatcher_escapes_html_body_lines(self, init_db):
         provider = await create_notification_provider(

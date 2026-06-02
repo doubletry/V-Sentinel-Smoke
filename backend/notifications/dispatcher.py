@@ -11,6 +11,7 @@ from loguru import logger
 from backend.db import database as db
 from core.notification_client import (
     NotificationPayload,
+    SocketNotificationProvider,
     SmtpNotificationProvider,
     WebhookNotificationProvider,
 )
@@ -62,7 +63,7 @@ class NotificationDispatcher:
         providers = {
             provider.id: provider
             for provider in await db.list_notification_providers()
-            if provider.enabled
+            if provider.enabled and self._provider_matches_source(provider, event)
         }
         templates = {template.id: template for template in await db.list_notification_templates()}
         policy_overrides = await self._policy_overrides_for_source(source)
@@ -182,7 +183,22 @@ class NotificationDispatcher:
             return await SmtpNotificationProvider(config).send(payload)
         if provider_type == "webhook":
             return await WebhookNotificationProvider(config).send(payload)
+        if provider_type == "socket":
+            return await SocketNotificationProvider(config).send(payload)
         raise ValueError(f"Unsupported notification provider type: {provider_type}")
+
+    def _provider_matches_source(self, provider: Any, event: dict[str, Any]) -> bool:
+        if bool(getattr(provider, "apply_to_all_sources", True)):
+            return True
+        source_id = str(event.get("source_id") or "").strip()
+        if not source_id:
+            return False
+        allowed_source_ids = {
+            str(item).strip()
+            for item in getattr(provider, "source_ids", []) or []
+            if str(item).strip()
+        }
+        return source_id in allowed_source_ids
 
     def _cooldown_key(self, policy_id: str, event: dict[str, Any]) -> str:
         event_type = str(event.get("event_type") or event.get("label") or "event")

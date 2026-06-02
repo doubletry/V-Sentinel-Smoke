@@ -9,7 +9,7 @@
 
     <div class="notification-instances-toolbar">
       <span class="notification-instances-toolbar__meta">
-        {{ t('settings.notificationTypeEmail') }} / {{ t('settings.notificationTypeWebhook') }}
+        {{ t('settings.notificationTypeEmail') }} / {{ t('settings.notificationTypeWebhook') }} / {{ t('settings.notificationTypeSocket') }}
       </span>
       <el-button size="small" class="notification-instances-section__add" @click="openCreateDialog">
         {{ t('settings.addNotificationInstance') }}
@@ -25,7 +25,7 @@
         <header class="notification-instance-card__header">
           <div class="notification-instance-card__title-wrap">
             <span :class="['notification-instance-card__type-badge', `notification-instance-card__type-badge--${item.type}`]">
-              {{ item.type === 'email' ? t('settings.notificationTypeEmail') : t('settings.notificationTypeWebhook') }}
+              {{ notificationTypeLabel(item.type) }}
             </span>
             <h3 class="notification-instance-card__name">{{ item.name }}</h3>
           </div>
@@ -40,6 +40,10 @@
             <dt>{{ t('settings.notificationEndpoint') }}</dt>
             <dd>{{ endpointSummary(item) }}</dd>
           </div>
+          <div class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationSources') }}</dt>
+            <dd>{{ sourceScopeSummary(item) }}</dd>
+          </div>
           <div v-if="item.type === 'email'" class="notification-instance-card__meta-row">
             <dt>{{ t('settings.notificationTemplateSubject') }}</dt>
             <dd class="notification-instance-card__code">{{ item.config?.subject_template || defaultSubjectTemplate }}</dd>
@@ -53,6 +57,16 @@
             <dd class="notification-instance-card__code notification-instance-card__body">
               {{ payloadSummary(item) }}
             </dd>
+          </div>
+          <div v-else-if="item.type === 'socket'" class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationSocketMessageMode') }}</dt>
+            <dd class="notification-instance-card__code notification-instance-card__body">
+              {{ socketSummary(item) }}
+            </dd>
+          </div>
+          <div v-if="item.type === 'socket' && item.config?.protocol === 'tcp'" class="notification-instance-card__meta-row">
+            <dt>{{ t('settings.notificationSocketWaitForResponse') }}</dt>
+            <dd>{{ tcpWaitSummary(item) }}</dd>
           </div>
         </dl>
 
@@ -84,6 +98,7 @@
       v-model="dialogVisible"
       :title="editingInstanceId ? t('settings.editNotificationInstance') : t('settings.addNotificationInstance')"
       width="760px"
+      class="notification-instance-dialog"
       destroy-on-close
     >
       <el-form label-position="top">
@@ -95,6 +110,7 @@
             <el-select v-model="form.type" :disabled="Boolean(editingInstanceId)" style="width: 100%">
               <el-option value="email" :label="t('settings.notificationTypeEmail')" />
               <el-option value="webhook" :label="t('settings.notificationTypeWebhook')" />
+              <el-option value="socket" :label="t('settings.notificationTypeSocket')" />
             </el-select>
           </el-form-item>
           <el-form-item :label="t('settings.notificationEnabled')">
@@ -102,6 +118,64 @@
           </el-form-item>
           <el-form-item :label="t('settings.notificationCooldownSeconds')">
             <el-input v-model="form.cooldown_seconds" placeholder="300" />
+          </el-form-item>
+        </div>
+
+        <div class="notification-instance-form-grid notification-instance-form-grid--sources">
+          <el-form-item :label="t('settings.notificationSources')" class="notification-instance-form-span-full">
+            <div class="source-picker-panel">
+              <div class="source-picker-panel__head">
+                <div>
+                  <div class="source-picker-panel__eyebrow">{{ t('settings.notificationSources') }}</div>
+                  <p class="source-picker-panel__summary">{{ sourceSelectionSummary }}</p>
+                </div>
+                <el-tag
+                  size="small"
+                  effect="dark"
+                  :type="form.apply_to_all_sources ? 'success' : 'info'"
+                  class="source-picker-panel__status"
+                >
+                  {{ sourceSelectionStatus }}
+                </el-tag>
+              </div>
+
+              <el-select
+                v-model="selectedSourceValues"
+                multiple
+                clearable
+                filterable
+                collapse-tags
+                collapse-tags-tooltip
+                class="source-picker-panel__select"
+                :placeholder="t('settings.notificationSourceSelectPlaceholder')"
+                style="width: 100%"
+              >
+                <el-option :value="ALL_NOTIFICATION_SOURCES_VALUE" :label="t('settings.notificationAllSources')">
+                  <div class="source-picker-panel__option">
+                    <span>{{ t('settings.notificationAllSources') }}</span>
+                    <span class="source-picker-panel__option-hint">{{ t('settings.notificationAllSourcesAutoHint') }}</span>
+                  </div>
+                </el-option>
+                <el-option
+                  v-for="source in availableSources"
+                  :key="source.id"
+                  :value="source.id"
+                  :label="source.name"
+                >
+                  <div class="source-picker-panel__option">
+                    <span>{{ source.name }}</span>
+                    <span class="source-picker-panel__option-hint">{{ source.remark || source.route_path || source.id }}</span>
+                  </div>
+                </el-option>
+              </el-select>
+
+              <p class="form-hint">
+                {{ form.apply_to_all_sources ? t('settings.notificationAllSourcesAutoHint') : t('settings.notificationSourceSelectionHint') }}
+              </p>
+              <div v-if="!availableSources.length" class="source-picker-panel__empty">
+                {{ t('settings.notificationSourceSelectionEmptyHint') }}
+              </div>
+            </div>
           </el-form-item>
         </div>
 
@@ -129,7 +203,7 @@
           </el-form-item>
         </div>
 
-        <div v-else class="notification-instance-form-grid">
+        <div v-else-if="form.type === 'webhook'" class="notification-instance-form-grid">
           <el-form-item :label="t('settings.notificationWebhookUrl')" class="notification-instance-form-span-full">
             <el-input v-model="form.url" placeholder="https://example.com/webhook" />
           </el-form-item>
@@ -224,6 +298,87 @@
             </div>
           </el-form-item>
         </div>
+
+        <div v-else class="notification-instance-form-grid">
+          <el-form-item :label="t('settings.notificationSocketProtocol')">
+            <el-select v-model="form.socket_protocol" style="width: 100%">
+              <el-option value="tcp" :label="t('settings.notificationSocketProtocolTcp')" />
+              <el-option value="udp" :label="t('settings.notificationSocketProtocolUdp')" />
+            </el-select>
+          </el-form-item>
+          <el-form-item :label="t('settings.notificationSocketHost')">
+            <el-input v-model="form.socket_host" placeholder="127.0.0.1" />
+          </el-form-item>
+          <el-form-item :label="t('settings.notificationSocketPort')">
+            <el-input v-model="form.socket_port" placeholder="9527" />
+          </el-form-item>
+          <el-form-item :label="t('settings.notificationSocketMessageMode')">
+            <el-select v-model="form.socket_message_mode" style="width: 100%">
+              <el-option value="string" :label="t('settings.notificationSocketMessageModeString')" />
+              <el-option value="hex" :label="t('settings.notificationSocketMessageModeHex')" />
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            v-if="form.socket_message_mode === 'string'"
+            :label="t('settings.notificationSocketMessageText')"
+            class="notification-instance-form-span-full"
+          >
+            <div class="field-stack">
+              <el-input v-model="form.socket_message_text" type="textarea" :rows="5" />
+              <p class="form-hint">{{ t('settings.notificationSocketStringHint') }}</p>
+              <div class="placeholder-group-list">
+                <div
+                  v-for="group in placeholderGroups"
+                  :key="`socket-${group.key}`"
+                  class="placeholder-group"
+                >
+                  <div class="placeholder-group__title">{{ group.label }}</div>
+                  <div class="placeholder-tags">
+                    <el-tooltip
+                      v-for="item in group.items"
+                      :key="`socket-${group.key}-${item}`"
+                      effect="dark"
+                      placement="top"
+                      trigger="hover"
+                      :show-after="120"
+                      :content="placeholderDescription(item)"
+                    >
+                      <el-tag
+                        size="small"
+                        effect="dark"
+                        :type="placeholderTagType(group.key)"
+                        class="placeholder-tag"
+                        tabindex="0"
+                        :title="placeholderDescription(item)"
+                      >
+                        {{ '{' + item + '}' }}
+                      </el-tag>
+                    </el-tooltip>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-form-item>
+          <el-form-item v-if="form.socket_message_mode === 'string'" :label="t('settings.notificationSocketEncoding')">
+            <el-input v-model="form.socket_encoding" placeholder="utf-8" />
+          </el-form-item>
+          <el-form-item v-if="form.socket_protocol === 'tcp'" :label="t('settings.notificationSocketWaitForResponse')">
+            <el-switch v-model="form.socket_wait_for_response" />
+          </el-form-item>
+          <el-form-item
+            v-if="form.socket_protocol === 'tcp' && form.socket_wait_for_response"
+            :label="t('settings.notificationSocketResponseTimeout')"
+          >
+            <el-input v-model="form.socket_response_timeout_seconds" placeholder="3" />
+          </el-form-item>
+          <el-form-item
+            v-if="form.socket_message_mode === 'hex'"
+            :label="t('settings.notificationSocketMessageHex')"
+            class="notification-instance-form-span-full"
+          >
+            <el-input v-model="form.socket_message_hex" type="textarea" :rows="4" placeholder="41 42 43 44" />
+          </el-form-item>
+        </div>
       </el-form>
 
       <template #footer>
@@ -240,8 +395,20 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
-import { notificationsApi, settingsApi } from '../api/index.js'
+import { notificationsApi, settingsApi, sourcesApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
+import {
+  ALL_NOTIFICATION_SOURCES_VALUE,
+  applyNotificationSourceSelection,
+  buildNotificationInstancePayload,
+  createDefaultNotificationInstanceForm,
+  defaultBodyTemplate,
+  defaultSubjectTemplate,
+  defaultWebhookPayloadTemplate,
+  normalizeSourceIds,
+  serializeNotificationSourceSelection,
+  serializeNotificationInstanceForEdit,
+} from '../utils/notificationInstances.js'
 import { formatTimeWithTimezone } from '../utils/time.js'
 
 const { t } = useI18n()
@@ -252,6 +419,7 @@ const testingInstanceId = ref('')
 const dialogVisible = ref(false)
 const editingInstanceId = ref('')
 const instances = ref([])
+const availableSources = ref([])
 const placeholderItems = ref([
   'site_title', 'timestamp', 'local_time', 'timezone', 'source_name', 'source_id',
   'event_type', 'event_label', 'message', 'labels', 'confidence', 'confidence_percent',
@@ -265,35 +433,7 @@ const SMOKE_SCENE_ID = 'smoke'
 const FIRE_DOOR_SCENE_ID = 'fire_door'
 const SMOKE_PLACEHOLDERS = new Set(['detection_count', 'frame_id', 'active_tracks'])
 const FIRE_DOOR_PLACEHOLDERS = new Set(['roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
-const defaultSubjectTemplate = '[{site_title}] {event_label} alert from {source_name}'
-const defaultBodyTemplate = 'Event: {event_label}\nTime: {local_time} ({timezone})\nVideo source: {source_name} ({source_id})\nMessage: {message}'
-// Keep in sync with core.notification_client.WebhookNotificationProvider.DEFAULT_PAYLOAD_TEMPLATE.
-const defaultWebhookPayloadTemplate = {
-  site_title: '{site_title}',
-  event_type: '{event_type}',
-  event_label: '{event_label}',
-  message: '{message}',
-  timestamp: '{timestamp}',
-  local_time: '{local_time}',
-  timezone: '{timezone}',
-  source: {
-    id: '{source_id}',
-    name: '{source_name}',
-    route_path: '{source_route_path}',
-    remark: '{source_remark}',
-  },
-  detection: {
-    labels: '{labels}',
-    confidence: '{confidence}',
-    confidence_percent: '{confidence_percent}',
-  },
-  images: {
-    original_url: '{original_image_url}',
-    detected_url: '{detected_image_url}',
-  },
-}
-
-const form = ref(createDefaultForm())
+const form = ref(createDefaultNotificationInstanceForm())
 
 const placeholderGroups = computed(() => {
   const activePluginId = String(appSettingsStore.activePluginId || SMOKE_SCENE_ID)
@@ -313,28 +453,6 @@ const placeholderGroups = computed(() => {
   }
   return groups.filter((group) => group.items.length)
 })
-
-function createDefaultForm(type = 'email') {
-  return {
-    name: '',
-    type,
-    enabled: true,
-    smtp_host: '',
-    smtp_port: '587',
-    use_tls: true,
-    from_address: '',
-    smtp_password: '',
-    to_addresses: '',
-    cc_addresses: '',
-    url: '',
-    method: 'POST',
-    headers_text: '{}',
-    webhook_payload_text: JSON.stringify(defaultWebhookPayloadTemplate, null, 2),
-    cooldown_seconds: '300',
-    subject_template: defaultSubjectTemplate,
-    body_template: defaultBodyTemplate,
-  }
-}
 
 function placeholderDescription(item) {
   const translated = t(`settings.placeholderDescriptions.${item}`)
@@ -357,7 +475,32 @@ function endpointSummary(item) {
     const recipients = item.config?.to_addresses || ''
     return `${host} · ${String(recipients || '—')}`
   }
+  if (item.type === 'socket') {
+    const protocol = String(item.config?.protocol || 'tcp').toUpperCase()
+    const host = item.config?.host || '—'
+    const port = item.config?.port || '—'
+    return `${protocol} · ${host}:${port}`
+  }
   return `${item.config?.method || 'POST'} · ${item.config?.url || '—'}`
+}
+
+function notificationTypeLabel(type) {
+  if (type === 'email') return t('settings.notificationTypeEmail')
+  if (type === 'socket') return t('settings.notificationTypeSocket')
+  return t('settings.notificationTypeWebhook')
+}
+
+function sourceScopeSummary(item) {
+  if (item.apply_to_all_sources ?? true) {
+    return t('settings.notificationAllSources')
+  }
+  const selectedIds = normalizeSourceIds(item.source_ids || [])
+  if (!selectedIds.length) {
+    return t('settings.notificationNoSourcesSelected')
+  }
+  const names = selectedIds.map((id) => availableSources.value.find((source) => source.id === id)?.name || id)
+  if (names.length <= 2) return names.join(', ')
+  return t('settings.notificationSpecificSources', { count: names.length })
 }
 
 function payloadSummary(item) {
@@ -368,14 +511,69 @@ function payloadSummary(item) {
   }
 }
 
-function normalizeAddressField(value) {
-  return Array.isArray(value) ? value.join(',') : String(value || '')
+function socketSummary(item) {
+  const mode = String(item.config?.message_mode || 'string').toLowerCase()
+  if (mode === 'hex') {
+    return item.config?.message_hex || '—'
+  }
+  return item.config?.message_text || '—'
 }
+
+function tcpWaitSummary(item) {
+  if (!item.config?.wait_for_response) {
+    return t('settings.notificationSocketNoWait')
+  }
+  return t('settings.notificationSocketWaitWithTimeout', {
+    seconds: item.config?.response_timeout_seconds || '3',
+  })
+}
+
+const normalizedSelectedSourceIds = computed(() => normalizeSourceIds(form.value.source_ids || []))
+
+const selectedSourceValues = computed({
+  get() {
+    return serializeNotificationSourceSelection(form.value)
+  },
+  set(values) {
+    Object.assign(form.value, applyNotificationSourceSelection(form.value, values))
+  },
+})
+
+const sourceSelectionSummary = computed(() => {
+  if (form.value.apply_to_all_sources) {
+    return t('settings.notificationAllSourcesAutoHint')
+  }
+  const names = normalizedSelectedSourceIds.value.map(
+    (id) => availableSources.value.find((source) => source.id === id)?.name || id,
+  )
+  if (!names.length) {
+    return t('settings.notificationNoSourcesSelected')
+  }
+  if (names.length <= 2) {
+    return names.join(', ')
+  }
+  return t('settings.notificationSpecificSources', { count: names.length })
+})
+
+const sourceSelectionStatus = computed(() => {
+  if (form.value.apply_to_all_sources) {
+    return t('settings.notificationAllSources')
+  }
+  if (!normalizedSelectedSourceIds.value.length) {
+    return t('settings.notificationNoSourcesSelected')
+  }
+  return t('settings.notificationSpecificSources', { count: normalizedSelectedSourceIds.value.length })
+})
 
 async function loadInstances() {
   loading.value = true
   try {
-    instances.value = await notificationsApi.instances()
+    const [loadedInstances, loadedSources] = await Promise.all([
+      notificationsApi.instances(),
+      sourcesApi.list(),
+    ])
+    instances.value = loadedInstances
+    availableSources.value = loadedSources
     try {
       const placeholderData = await settingsApi.emailTemplatePlaceholders()
       if (Array.isArray(placeholderData?.placeholders)) {
@@ -394,97 +592,20 @@ async function loadInstances() {
 
 function openCreateDialog() {
   editingInstanceId.value = ''
-  form.value = createDefaultForm()
+  form.value = createDefaultNotificationInstanceForm()
   dialogVisible.value = true
 }
 
 function openEditDialog(item) {
-  let headersText = '{}'
-  try {
-    headersText = JSON.stringify(item.config?.headers || {}, null, 2)
-  } catch {
-    headersText = '{}'
-  }
   editingInstanceId.value = item.id
-  form.value = {
-    name: item.name || '',
-    type: item.type || 'email',
-    enabled: Boolean(item.enabled),
-    smtp_host: item.config?.smtp_host || '',
-    smtp_port: String(item.config?.smtp_port || '587'),
-    use_tls: Boolean(item.config?.use_tls ?? true),
-    from_address: item.config?.from_address || '',
-    smtp_password: item.config?.smtp_password || '',
-    to_addresses: normalizeAddressField(item.config?.to_addresses),
-    cc_addresses: normalizeAddressField(item.config?.cc_addresses),
-    url: item.config?.url || '',
-    method: item.config?.method || 'POST',
-    headers_text: headersText,
-    webhook_payload_text: JSON.stringify(item.config?.payload_template || defaultWebhookPayloadTemplate, null, 2),
-    cooldown_seconds: String(item.config?.cooldown_seconds || '300'),
-    subject_template: item.config?.subject_template || defaultSubjectTemplate,
-    body_template: item.config?.body_template || defaultBodyTemplate,
-  }
+  form.value = serializeNotificationInstanceForEdit(item)
   dialogVisible.value = true
-}
-
-function buildPayload() {
-  const payload = {
-    name: form.value.name.trim(),
-    type: form.value.type,
-    enabled: Boolean(form.value.enabled),
-    config: {
-      cooldown_seconds: String(form.value.cooldown_seconds || '300').trim(),
-    },
-  }
-  if (!payload.name) {
-    throw new Error(t('settings.notificationInstanceNameRequired'))
-  }
-  if (payload.type === 'email') {
-    payload.config = {
-      ...payload.config,
-      subject_template: form.value.subject_template || defaultSubjectTemplate,
-      body_template: form.value.body_template || defaultBodyTemplate,
-      smtp_host: form.value.smtp_host.trim(),
-      smtp_port: String(form.value.smtp_port || '587').trim(),
-      use_tls: Boolean(form.value.use_tls),
-      from_address: form.value.from_address.trim(),
-      smtp_username: form.value.from_address.trim(),
-      smtp_password: form.value.smtp_password,
-      to_addresses: form.value.to_addresses.trim(),
-      cc_addresses: form.value.cc_addresses.trim(),
-    }
-  } else {
-    let headers = {}
-    try {
-      headers = JSON.parse(form.value.headers_text || '{}')
-    } catch {
-      throw new Error(t('settings.notificationWebhookHeadersInvalid'))
-    }
-    let payloadTemplate = {}
-    try {
-      payloadTemplate = JSON.parse(form.value.webhook_payload_text || '{}')
-    } catch {
-      throw new Error(t('settings.notificationWebhookPayloadInvalid'))
-    }
-    if (typeof payloadTemplate !== 'object' || payloadTemplate === null || Array.isArray(payloadTemplate)) {
-      throw new Error(t('settings.notificationWebhookPayloadInvalid'))
-    }
-    payload.config = {
-      ...payload.config,
-      url: form.value.url.trim(),
-      method: String(form.value.method || 'POST').toUpperCase(),
-      headers,
-      payload_template: payloadTemplate,
-    }
-  }
-  return payload
 }
 
 async function submit() {
   saving.value = true
   try {
-    const payload = buildPayload()
+    const payload = buildNotificationInstancePayload(form.value, t)
     if (editingInstanceId.value) {
       await notificationsApi.updateInstance(editingInstanceId.value, payload)
     } else {
@@ -615,6 +736,10 @@ onMounted(loadInstances)
   background: #f59e0b;
 }
 
+.notification-instance-card--socket::before {
+  background: #06b6d4;
+}
+
 .notification-instance-card:hover {
   border-color: #5a78b8;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
@@ -664,6 +789,10 @@ onMounted(loadInstances)
 
 .notification-instance-card__type-badge--webhook {
   background: #d97706;
+}
+
+.notification-instance-card__type-badge--socket {
+  background: #0891b2;
 }
 
 .notification-instance-card__name {
@@ -760,9 +889,163 @@ onMounted(loadInstances)
   grid-column: 1 / -1;
 }
 
+.source-picker-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.35);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(10, 16, 30, 0.82));
+}
+
+.source-picker-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.source-picker-panel__eyebrow {
+  color: #9fb1d1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.source-picker-panel__summary {
+  margin: 6px 0 0;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.source-picker-panel__status {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.source-picker-panel__select :deep(.el-select__wrapper) {
+  min-height: 44px;
+  background: rgba(8, 13, 26, 0.68);
+  box-shadow: inset 0 0 0 1px rgba(71, 85, 105, 0.45);
+}
+
+.source-picker-panel__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.source-picker-panel__option-hint {
+  color: #8ea0c2;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.source-picker-panel__empty {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+:deep(.notification-instance-dialog) {
+  border: 1px solid rgba(71, 96, 148, 0.72);
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(64, 158, 255, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(16, 24, 44, 0.98), rgba(11, 18, 34, 0.98));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+:deep(.notification-instance-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid rgba(87, 107, 152, 0.35);
+}
+
+:deep(.notification-instance-dialog .el-dialog__title) {
+  color: #eef4ff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+:deep(.notification-instance-dialog .el-dialog__headerbtn .el-dialog__close) {
+  color: #9db4da;
+}
+
+:deep(.notification-instance-dialog .el-dialog__body) {
+  padding: 18px 22px 10px;
+  color: #d7e2f3;
+}
+
+:deep(.notification-instance-dialog .el-dialog__footer) {
+  padding: 12px 22px 20px;
+  border-top: 1px solid rgba(87, 107, 152, 0.28);
+  background: rgba(7, 12, 26, 0.36);
+}
+
+:deep(.notification-instance-dialog .el-form-item__label) {
+  color: #b8c8e6;
+  font-weight: 600;
+}
+
+:deep(.notification-instance-dialog .el-input__wrapper),
+:deep(.notification-instance-dialog .el-textarea__inner),
+:deep(.notification-instance-dialog .el-select__wrapper) {
+  background: rgba(8, 13, 26, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(83, 102, 146, 0.52);
+}
+
+:deep(.notification-instance-dialog .el-input__inner),
+:deep(.notification-instance-dialog .el-textarea__inner) {
+  color: #edf3ff;
+}
+
+:deep(.notification-instance-dialog .el-input__inner::placeholder),
+:deep(.notification-instance-dialog .el-textarea__inner::placeholder) {
+  color: #7285a9;
+}
+
+:deep(.notification-instance-dialog .el-switch__label) {
+  color: #c6d5f0;
+}
+
+:deep(.notification-instance-dialog .el-button:not(.el-button--primary)) {
+  border-color: rgba(86, 106, 149, 0.62);
+  background: rgba(12, 18, 34, 0.72);
+  color: #dbe8ff;
+}
+
+:deep(.notification-instance-dialog .el-button:not(.el-button--primary):hover),
+:deep(.notification-instance-dialog .el-button:not(.el-button--primary):focus) {
+  border-color: rgba(113, 139, 193, 0.82);
+  background: rgba(24, 36, 66, 0.92);
+  color: #f3f7ff;
+}
+
+:deep(.notification-instance-dialog .el-button--primary) {
+  border-color: rgba(64, 158, 255, 0.72);
+  background: linear-gradient(135deg, rgba(47, 132, 255, 0.96), rgba(30, 97, 214, 0.96));
+  color: #f7fbff;
+}
+
+:deep(.notification-instance-dialog .el-button--primary:hover),
+:deep(.notification-instance-dialog .el-button--primary:focus) {
+  border-color: rgba(103, 181, 255, 0.9);
+  background: linear-gradient(135deg, rgba(77, 156, 255, 0.98), rgba(39, 112, 232, 0.98));
+}
+
 @media (max-width: 780px) {
   .notification-instance-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .source-picker-panel__head {
+    flex-direction: column;
   }
 }
 </style>

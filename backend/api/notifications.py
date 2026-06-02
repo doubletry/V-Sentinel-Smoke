@@ -19,6 +19,7 @@ from backend.models.schemas import (
 )
 from core.notification_client import (
     NotificationPayload,
+    SocketNotificationProvider,
     SmtpNotificationProvider,
     WebhookNotificationProvider,
 )
@@ -149,6 +150,8 @@ async def test_instance(
             result = await SmtpNotificationProvider(config).send(payload)
         elif provider.type == "webhook":
             result = await WebhookNotificationProvider(config).send(payload)
+        elif provider.type == "socket":
+            result = await SocketNotificationProvider(config).send(payload)
         else:
             raise HTTPException(
                 status_code=400,

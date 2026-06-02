@@ -123,9 +123,11 @@ CREATE_NOTIFICATION_PROVIDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS notification_providers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('email', 'webhook')),
+    type TEXT NOT NULL CHECK(type IN ('email', 'webhook', 'socket')),
     enabled INTEGER NOT NULL DEFAULT 1,
     config TEXT NOT NULL DEFAULT '{}',
+    source_ids TEXT NOT NULL DEFAULT '[]',
+    apply_to_all_sources INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL
 );
 """
@@ -360,6 +362,18 @@ async def init_db() -> None:
         await _ensure_column_exists(db, "analysis_messages", "image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "original_image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "detected_image_url", "TEXT")
+        await _ensure_column_exists(
+            db,
+            "notification_providers",
+            "source_ids",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )
+        await _ensure_column_exists(
+            db,
+            "notification_providers",
+            "apply_to_all_sources",
+            "INTEGER NOT NULL DEFAULT 1",
+        )
         await _ensure_column_exists(
             db,
             "analysis_messages",
@@ -1478,7 +1492,9 @@ def _row_to_notification_provider(row: tuple) -> NotificationProvider:
         type=row[2],
         enabled=_normalize_bool_db_value(row[3]),
         config=_json_dict(row[4]),
-        created_at=row[5],
+        source_ids=[str(item) for item in _json_list(row[5])],
+        apply_to_all_sources=_normalize_bool_db_value(row[6]),
+        created_at=row[7],
     )
 
 
@@ -1487,7 +1503,7 @@ async def list_notification_providers() -> list[NotificationProvider]:
     列出通知服务。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, type, enabled, config, created_at "
+            "SELECT id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at "
             "FROM notification_providers ORDER BY created_at"
         ) as cursor:
             rows = await cursor.fetchall()
@@ -1499,14 +1515,17 @@ async def create_notification_provider(data: NotificationProviderCreate) -> Noti
     created_at = _now_iso()
     async with _db_session() as db:
         await db.execute(
-            "INSERT INTO notification_providers (id, name, type, enabled, config, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO notification_providers "
+            "(id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 provider_id,
                 data.name,
                 data.type,
                 1 if data.enabled else 0,
                 _json_dumps(data.config),
+                _json_dumps(data.source_ids),
+                1 if data.apply_to_all_sources else 0,
                 created_at,
             ),
         )
@@ -1527,7 +1546,11 @@ async def update_notification_provider(
                 fields.append(f"{key} = ?")
                 if key == "enabled":
                     values.append(1 if value else 0)
+                elif key == "apply_to_all_sources":
+                    values.append(1 if value else 0)
                 elif key == "config":
+                    values.append(_json_dumps(value))
+                elif key == "source_ids":
                     values.append(_json_dumps(value))
                 else:
                     values.append(value)
@@ -1538,7 +1561,7 @@ async def update_notification_provider(
             )
             await db.commit()
         async with db.execute(
-            "SELECT id, name, type, enabled, config, created_at "
+            "SELECT id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at "
             "FROM notification_providers WHERE id = ?",
             (provider_id,),
         ) as cursor:
