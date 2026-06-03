@@ -568,6 +568,7 @@ export default {
     expirationDaysAdmin: 'Administrator role (days)',
     loginSecurity: 'Login security',
     loginSecurityHint: 'Configure brute-force login protection and view blocked IPs.',
+    loginLockoutTrustProxySectionHint: 'Trust the reverse-proxy client IP headers used for audit logs and login lockout.',
     lockoutMaxAttempts: 'Max failed attempts',
     lockoutWindowSeconds: 'Window (seconds)',
     lockoutDurationSeconds: 'Block duration (seconds)',

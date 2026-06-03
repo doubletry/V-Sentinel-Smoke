@@ -568,6 +568,7 @@ export default {
     expirationDaysAdmin: '管理员角色（天）',
     loginSecurity: '登录安全',
     loginSecurityHint: '配置登录暴力破解防护规则及被封锁 IP 列表。',
+    loginLockoutTrustProxySectionHint: '信任反向代理传入的客户端 IP 头，用于审计日志和登录封禁。',
     lockoutMaxAttempts: '最大失败次数',
     lockoutWindowSeconds: '统计窗口（秒）',
     lockoutDurationSeconds: '封锁时长（秒）',

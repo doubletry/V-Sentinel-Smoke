@@ -177,6 +177,47 @@
                   </el-form-item>
                 </div>
               </section>
+
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.loginSecurity') }}</h2>
+                    <p class="info-tip">{{ t('settings.loginLockoutTrustProxySectionHint') }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'site-login-security'"
+                      @click="restoreSection('site-login-security', SITE_LOGIN_SECURITY_SETTING_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'site-login-security'"
+                      @click="saveSection('site-login-security', SITE_LOGIN_SECURITY_SETTING_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
+                <div class="settings-form-grid compact-grid">
+                  <el-form-item class="numeric-setting-item">
+                    <template #label>
+                      <ProxyTrustLabel
+                        :label="t('settings.loginLockoutTrustProxy')"
+                        :hint="t('settings.loginLockoutTrustProxyHint')"
+                      />
+                    </template>
+                    <div class="field-stack switch-field-stack">
+                      <el-switch
+                        v-model="form.login_lockout_trust_proxy"
+                        active-value="true"
+                        inactive-value="false"
+                      />
+                    </div>
+                  </el-form-item>
+                </div>
+              </section>
             </el-tab-pane>
 
             <el-tab-pane :label="t('settings.platformSectionMediaMtx')" name="mediamtx">
@@ -566,21 +607,6 @@
                       class="themed-number-input"
                       @update:model-value="setNumericField(form, 'login_lockout_duration_seconds', $event)"
                     />
-                  </el-form-item>
-                  <el-form-item class="numeric-setting-item">
-                    <template #label>
-                      <ProxyTrustLabel
-                        :label="t('settings.loginLockoutTrustProxy')"
-                        :hint="t('settings.loginLockoutTrustProxyHint')"
-                      />
-                    </template>
-                    <div class="field-stack switch-field-stack">
-                      <el-switch
-                        v-model="form.login_lockout_trust_proxy"
-                        active-value="true"
-                        inactive-value="false"
-                      />
-                    </div>
                   </el-form-item>
                 </div>
                 <p class="info-tip info-tip--block">{{ t('settings.lockoutDurationSecondsHint') }}</p>
@@ -1115,6 +1141,10 @@ import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { canViewAuditLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
+import {
+  SITE_LOGIN_SECURITY_SETTING_KEYS,
+  USER_LOGIN_SECURITY_SETTING_KEYS,
+} from '../utils/loginSecuritySettings.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
 import { resolveAppUrl } from '../utils/appPath.js'
@@ -1824,10 +1854,7 @@ async function saveAccountExpirationSettings() {
 
 async function saveLoginSecuritySettings() {
   await saveSection('loginSecurity', [
-    'login_lockout_max_attempts',
-    'login_lockout_window_seconds',
-    'login_lockout_duration_seconds',
-    'login_lockout_trust_proxy',
+    ...USER_LOGIN_SECURITY_SETTING_KEYS,
   ])
 }
 
