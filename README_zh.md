@@ -206,6 +206,7 @@ DB_PATH=./v_sentinel.db
   - 账号被封禁或过期后，已签发的 Bearer token 在下一次请求时即被拒绝（`401 Account banned` / `401 Account expired`），无需等待 token 自然过期。
 - 登录安全（`Settings → 用户管理 → 登录安全`，需要管理员权限）：
   - 配置项 `login_lockout_max_attempts`、`login_lockout_window_seconds`、`login_lockout_duration_seconds` 控制 IP 级登录暴力破解防护。
+  - `login_lockout_trust_proxy` 用于反向代理部署；启用后审计日志与登录封禁会优先采用 nginx 传入的 `X-Forwarded-For` / `X-Real-IP`。
   - 当某 IP 在 `window_seconds` 内连续失败次数达到 `max_attempts`，该 IP 会被封锁；`duration_seconds` 为 0 或留空表示需要管理员手动解除。
   - `/api/access/blocked-ips` 提供列出、解除、手动封锁 IP 的能力，前端在“被封锁 IP 列表”里提供「解除封锁」按钮和“手动封锁 IP”表单。
   - 登录失败请求返回 `401`；触发封锁或访问已封锁 IP 时返回 `403`，并在响应 `detail` 中包含 `code=IP_BLOCKED` 与 `blocked_until` 字段，前端会展示中英文友好提示。
@@ -396,6 +397,8 @@ docker run -d \
 - 不再需要 `docker-compose`
 - 镜像内不再打包 MediaMTX；如需视频墙播放，请在设置页配置外部 RTSP/WebRTC 网关
 - 容器启动时会自动合并 `NO_PROXY` / `no_proxy` 默认值，覆盖 localhost、Docker 宿主机别名和常见局域网网段，避免本地服务流量被错误走代理
+- 若要通过 `http://mydomain.com/sentinel` 这类子路径反向代理，请在构建镜像时设置 `VITE_APP_BASE_PATH=/sentinel/`，并使用仓库里的 `deploy/nginx/sentinel.conf`
+  作为 nginx 参考配置。
 
 详见 [`docs/docker-deployment.md`](docs/docker-deployment.md)。
 

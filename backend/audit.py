@@ -9,6 +9,7 @@ from starlette.responses import Response
 from backend.auth.dependencies import _extract_bearer_token, _resolve_token_payload
 from backend.auth.security import verify_access_token
 from backend.db import database as db
+from backend.utils.client_ip import client_ip
 
 AUDIT_OPERATION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/access/blocked-ips"): ("access.block_ip", "access"),
@@ -62,21 +63,6 @@ RESOURCE_ID_KEYS = (
 
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _client_ip(request: Request, trust_proxy: bool) -> str:
-    if trust_proxy:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            first = forwarded.split(",")[0].strip()
-            if first:
-                return first
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip.strip()
-    if request.client is not None and request.client.host:
-        return str(request.client.host)
-    return ""
 
 
 def _route_template(request: Request) -> str:
@@ -225,7 +211,7 @@ async def write_audit_log(
     body_payload = payload or {}
     username, role = await _resolve_actor(request, body_payload, operation_type)
     settings_map = await db.get_all_settings()
-    ip = _client_ip(request, _truthy(settings_map.get("login_lockout_trust_proxy")))
+    ip = client_ip(request, _truthy(settings_map.get("login_lockout_trust_proxy")))
     response_detail = _extract_response_detail(response) if response is not None else ""
     summary = str(detail or _state_text(request, "audit_detail") or response_detail or "").strip()
     resource_id = _state_text(request, "audit_resource_id") or _extract_resource_id(

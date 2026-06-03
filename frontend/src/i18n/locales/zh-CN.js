@@ -572,6 +572,8 @@ export default {
     lockoutWindowSeconds: '统计窗口（秒）',
     lockoutDurationSeconds: '封锁时长（秒）',
     lockoutDurationSecondsHint: '0 或空表示需要管理员手动解除封锁。',
+    loginLockoutTrustProxy: '信任反向代理头',
+    loginLockoutTrustProxyHint: '启用后，审计日志和登录封禁会优先使用 nginx 传入的 X-Forwarded-For / X-Real-IP。',
     blockedIps: '被封锁 IP 列表',
     blockedIpsHint: '展示当前因连续登录失败或手动封锁的客户端 IP。',
     blockedAt: '封锁时间',

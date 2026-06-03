@@ -572,6 +572,8 @@ export default {
     lockoutWindowSeconds: 'Window (seconds)',
     lockoutDurationSeconds: 'Block duration (seconds)',
     lockoutDurationSecondsHint: '0 or empty means an administrator must unblock manually.',
+    loginLockoutTrustProxy: 'Trust reverse-proxy headers',
+    loginLockoutTrustProxyHint: 'When enabled, audit logs and login lockout use nginx-provided X-Forwarded-For / X-Real-IP first.',
     blockedIps: 'Blocked IPs',
     blockedIpsHint: 'Client IPs currently blocked due to repeated failures or manual block.',
     blockedAt: 'Blocked at',

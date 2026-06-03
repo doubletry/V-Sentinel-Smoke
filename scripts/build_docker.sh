@@ -130,6 +130,10 @@ if [[ -n "$RELAX_HTTPS_VERIFICATION_VALUE" ]]; then
   build_args+=(--build-arg "RELAX_HTTPS_VERIFICATION=${RELAX_HTTPS_VERIFICATION_VALUE}")
 fi
 
+if [[ -n "${VITE_APP_BASE_PATH:-}" ]]; then
+  build_args+=(--build-arg "VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}")
+fi
+
 if [[ -n "$BUILD_CA_CERT_PATH" ]]; then
   secret_args+=(--secret "id=build_proxy_ca,src=${BUILD_CA_CERT_PATH}")
 fi

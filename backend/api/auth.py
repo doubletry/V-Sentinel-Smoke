@@ -19,23 +19,9 @@ from backend.models.schemas import (
     AuthTokenResponse,
     CurrentUser,
 )
+from backend.utils.client_ip import client_ip
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-def _client_ip(request: Request, trust_proxy: bool) -> str:
-    if trust_proxy:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            first = forwarded.split(",")[0].strip()
-            if first:
-                return first
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip.strip()
-    if request.client is not None and request.client.host:
-        return str(request.client.host)
-    return ""
 
 
 def _truthy(value: str | None) -> bool:
@@ -101,7 +87,7 @@ async def login(data: AuthLoginRequest, request: Request) -> AuthTokenResponse:
     认证用户/操作员/管理员角色并返回签名 token。"""
     settings_map = await db.get_all_settings()
     trust_proxy = _truthy(settings_map.get("login_lockout_trust_proxy"))
-    ip = _client_ip(request, trust_proxy)
+    ip = client_ip(request, trust_proxy)
 
     await _enforce_ip_block(ip)
 

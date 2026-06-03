@@ -153,7 +153,7 @@
                   </el-form-item>
                   <el-form-item :label="t('settings.faviconUrl')" class="form-grid-span-full">
                     <div class="icon-upload-group">
-                      <el-avatar :size="32" shape="square" :src="form.favicon_url">
+                      <el-avatar :size="32" shape="square" :src="resolveAppUrl(form.favicon_url, config.appBasePath)">
                         <el-icon><VideoCamera /></el-icon>
                       </el-avatar>
                       <el-upload
@@ -566,6 +566,16 @@
                       class="themed-number-input"
                       @update:model-value="setNumericField(form, 'login_lockout_duration_seconds', $event)"
                     />
+                  </el-form-item>
+                  <el-form-item :label="t('settings.loginLockoutTrustProxy')" class="numeric-setting-item">
+                    <div class="field-stack switch-field-stack">
+                      <el-switch
+                        v-model="form.login_lockout_trust_proxy"
+                        active-value="true"
+                        inactive-value="false"
+                      />
+                      <p class="form-hint">{{ t('settings.loginLockoutTrustProxyHint') }}</p>
+                    </div>
                   </el-form-item>
                 </div>
                 <p class="info-tip info-tip--block">{{ t('settings.lockoutDurationSecondsHint') }}</p>
@@ -1093,6 +1103,7 @@ import { Bell, Crop, Delete, Document, Edit, Key, Lock, Monitor, Setting, Unlock
 import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
+import config from '../config.js'
 import { localeOptions } from '../i18n/index.js'
 import { accessApi, scenesApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
@@ -1101,6 +1112,7 @@ import { useSourceStore } from '../stores/source.js'
 import { canViewAuditLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
+import { resolveAppUrl } from '../utils/appPath.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
 import AuditLogs from './AuditLogs.vue'
 
@@ -1433,6 +1445,7 @@ const form = ref({
   login_lockout_max_attempts: '5',
   login_lockout_window_seconds: '300',
   login_lockout_duration_seconds: '900',
+  login_lockout_trust_proxy: 'false',
 })
 const firstAllowedSectionKey = computed(() => {
   return getDefaultManagementSection(canManageSettings.value, authStore.canManageUsers, canViewLogs.value)
@@ -1808,6 +1821,7 @@ async function saveLoginSecuritySettings() {
     'login_lockout_max_attempts',
     'login_lockout_window_seconds',
     'login_lockout_duration_seconds',
+    'login_lockout_trust_proxy',
   ])
 }
 

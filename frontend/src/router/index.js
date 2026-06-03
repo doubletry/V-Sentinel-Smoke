@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { appBasePath } from '../config.js'
 import pinia from '../stores/pinia.js'
 import { useAuthStore } from '../stores/auth.js'
 import {
@@ -68,7 +69,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(appBasePath ? `${appBasePath}/` : '/'),
   routes,
 })
 

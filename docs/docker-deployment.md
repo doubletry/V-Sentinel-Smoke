@@ -23,6 +23,13 @@ You can override the image name or tag:
 IMAGE_NAME=my-registry/v-sentinel IMAGE_TAG=2026.04.03 ./scripts/build_docker.sh
 ```
 
+To build for a reverse-proxy subpath such as `/sentinel`, set `VITE_APP_BASE_PATH`
+before running the build script:
+
+```bash
+VITE_APP_BASE_PATH=/sentinel ./scripts/build_docker.sh
+```
+
 ## Run
 
 The application is packaged as a **single container**. It serves the built frontend, the REST API, the WebSocket endpoint, and the persisted message thumbnails from the same process.
@@ -63,6 +70,7 @@ This container does **not** start MediaMTX or any other sidecar service.
 - When the MediaMTX WebRTC address or shared credentials change, frontend playback reconnects by using the new WHEP settings.
 - If you need AI inference, configure the V-Engine service addresses in the Settings page. For host-side V-Engine services, prefer `docker.internal`, `host.docker.internal`, or a LAN IP instead of `localhost`.
 - The container startup script now exports merged `NO_PROXY` / `no_proxy` defaults for `localhost`, `127.0.0.1`, `::1`, `host.docker.internal`, `docker.internal`, and private LAN ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`) so local gRPC / RTSP / WebRTC traffic bypasses HTTP proxies by default.
+- When deploying behind nginx under `/sentinel`, also enable `login_lockout_trust_proxy` in Settings so audit logs and IP lockout use the forwarded client IP from nginx.
 - If you need daily-summary email delivery, configure the email service in the Settings page.
 
 ## Smoke / fire scene operations

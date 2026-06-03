@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import config from '../config.js'
 import { settingsApi } from '../api/index.js'
 import { setI18nLocale } from '../i18n/index.js'
+import { resolveAppUrl } from '../utils/appPath.js'
 
 const DEFAULT_EVENT_EMAIL_BODY_TEMPLATE = [
   'Event: {event_label}',
@@ -62,7 +63,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   const uiLanguage = computed(() => settings.value.ui_language || DEFAULT_UI_SETTINGS.ui_language)
   const timeZone = computed(() => settings.value.timezone || DEFAULT_UI_SETTINGS.timezone)
   const faviconUrl = computed(() => settings.value.favicon_url || DEFAULT_UI_SETTINGS.favicon_url)
-  const siteIconUrl = computed(() => faviconUrl.value)
+  const siteIconUrl = computed(() => resolveAppUrl(faviconUrl.value, config.appBasePath))
   const activePluginId = computed(() => settings.value.active_plugin_id || DEFAULT_UI_SETTINGS.active_plugin_id)
   const mediamtxRtspAddr = computed(
     () => settings.value.mediamtx_rtsp_addr || DEFAULT_UI_SETTINGS.mediamtx_rtsp_addr
