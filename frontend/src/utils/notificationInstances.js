@@ -38,9 +38,10 @@ export function formatSocketHexBytes(value) {
   return normalized.match(/.{1,2}/g)?.join('-') || ''
 }
 
-export function formatSocketHexInput(value, cursorIndex = String(value || '').length) {
+export function formatSocketHexInput(value, cursorIndex = null) {
   const rawValue = String(value || '')
-  const normalizedCursorIndex = Math.max(0, Math.min(Number(cursorIndex) || 0, rawValue.length))
+  const rawCursorIndex = cursorIndex === null || cursorIndex === undefined ? rawValue.length : Number(cursorIndex)
+  const normalizedCursorIndex = Math.max(0, Math.min(rawCursorIndex || 0, rawValue.length))
   const hexCharsBeforeCursor = (rawValue.slice(0, normalizedCursorIndex).match(/[\da-fA-F]/g) || []).length
   const text = formatSocketHexBytes(rawValue)
   let cursor = 0

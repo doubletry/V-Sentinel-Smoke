@@ -565,9 +565,6 @@ function updateSocketHexText(value) {
   nextTick(() => {
     const target = getSocketHexTextarea()
     if (!target) return
-    if (target.value !== text) {
-      target.value = text
-    }
     target.setSelectionRange(cursor, cursor)
   })
 }
