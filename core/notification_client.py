@@ -268,10 +268,11 @@ class SocketNotificationProvider:
                         }
                     decoded = self._decode_response(response)
                     message_text = "Socket message sent via TCP"
+                    result = {"status": "SUCCESS", "message": message_text}
                     if decoded:
-                        message_text = f"{message_text} (response: {decoded})"
-                        return {"status": "SUCCESS", "message": message_text, "response": decoded}
-                    return {"status": "SUCCESS", "message": message_text}
+                        result["message"] = f"{message_text} (response: {decoded})"
+                        result["response"] = decoded
+                    return result
             return {"status": "SUCCESS", "message": "Socket message sent via TCP"}
 
         if protocol == "udp":

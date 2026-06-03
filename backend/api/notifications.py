@@ -29,7 +29,7 @@ from core.notification_template import build_template_context, render_template
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
-def _set_notification_audit_context(
+def _set_audit_context_for_instance(
     request: Request,
     provider: NotificationProvider,
     detail: dict[str, object] | None = None,
@@ -66,7 +66,7 @@ async def create_provider(
     """Create an email or webhook notification provider.
     创建邮件或 Webhook 通知服务。"""
     provider = await db.create_notification_provider(data)
-    _set_notification_audit_context(request, provider)
+    _set_audit_context_for_instance(request, provider)
     return provider
 
 
@@ -79,7 +79,7 @@ async def create_instance(
     """Create a notification instance.
     创建通知实例。"""
     provider = await db.create_notification_provider(data)
-    _set_notification_audit_context(request, provider)
+    _set_audit_context_for_instance(request, provider)
     return provider
 
 
@@ -95,7 +95,7 @@ async def update_provider(
     provider = await db.update_notification_provider(provider_id, data)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification provider not found")
-    _set_notification_audit_context(request, provider)
+    _set_audit_context_for_instance(request, provider)
     return provider
 
 
@@ -111,7 +111,7 @@ async def update_instance(
     provider = await db.update_notification_provider(provider_id, data)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification instance not found")
-    _set_notification_audit_context(request, provider)
+    _set_audit_context_for_instance(request, provider)
     return provider
 
 
@@ -164,7 +164,7 @@ async def test_instance(
     provider = next((item for item in providers if item.id == instance_id), None)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification instance not found")
-    _set_notification_audit_context(request, provider)
+    _set_audit_context_for_instance(request, provider)
     app_settings = await db.get_all_settings()
     payload = _build_test_payload(app_settings, provider)
     config = dict(provider.config or {})
@@ -193,7 +193,7 @@ async def test_instance(
     }
     if result.get("response"):
         audit_detail["response"] = result["response"]
-    _set_notification_audit_context(request, provider, audit_detail)
+    _set_audit_context_for_instance(request, provider, audit_detail)
     return result
 
 
