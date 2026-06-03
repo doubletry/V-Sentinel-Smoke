@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.auth.dependencies import require_permission
 from backend.db import database as db
@@ -19,12 +20,24 @@ from backend.models.schemas import (
 )
 from core.notification_client import (
     NotificationPayload,
+    SocketNotificationProvider,
     SmtpNotificationProvider,
     WebhookNotificationProvider,
 )
 from core.notification_template import build_template_context, render_template
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+
+
+def _set_audit_context_for_instance(
+    request: Request,
+    provider: NotificationProvider,
+    detail: dict[str, object] | None = None,
+) -> None:
+    """Expose notification instance name and optional detail to audit middleware."""
+    request.state.audit_resource_id = provider.name
+    if detail is not None:
+        request.state.audit_detail = json.dumps(detail, ensure_ascii=False)
 
 
 @router.get("/providers", response_model=list[NotificationProvider])
@@ -47,26 +60,33 @@ async def list_instances(
 
 @router.post("/providers", response_model=NotificationProvider, status_code=201)
 async def create_provider(
+    request: Request,
     data: NotificationProviderCreate,
     _role: str = Depends(require_permission("notifications:*")),
 ) -> NotificationProvider:
     """Create an email or webhook notification provider.
     创建邮件或 Webhook 通知服务。"""
-    return await db.create_notification_provider(data)
+    provider = await db.create_notification_provider(data)
+    _set_audit_context_for_instance(request, provider)
+    return provider
 
 
 @router.post("/instances", response_model=NotificationProvider, status_code=201)
 async def create_instance(
+    request: Request,
     data: NotificationProviderCreate,
     _role: str = Depends(require_permission("notifications:*")),
 ) -> NotificationProvider:
     """Create a notification instance.
     创建通知实例。"""
-    return await db.create_notification_provider(data)
+    provider = await db.create_notification_provider(data)
+    _set_audit_context_for_instance(request, provider)
+    return provider
 
 
 @router.put("/providers/{provider_id}", response_model=NotificationProvider)
 async def update_provider(
+    request: Request,
     provider_id: str,
     data: NotificationProviderUpdate,
     _role: str = Depends(require_permission("notifications:*")),
@@ -76,11 +96,13 @@ async def update_provider(
     provider = await db.update_notification_provider(provider_id, data)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification provider not found")
+    _set_audit_context_for_instance(request, provider)
     return provider
 
 
 @router.put("/instances/{provider_id}", response_model=NotificationProvider)
 async def update_instance(
+    request: Request,
     provider_id: str,
     data: NotificationProviderUpdate,
     _role: str = Depends(require_permission("notifications:*")),
@@ -90,6 +112,7 @@ async def update_instance(
     provider = await db.update_notification_provider(provider_id, data)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification instance not found")
+    _set_audit_context_for_instance(request, provider)
     return provider
 
 
@@ -128,6 +151,7 @@ def _build_test_payload(app_settings: dict[str, str], provider: NotificationProv
 
 @router.post("/instances/{instance_id}/test")
 async def test_instance(
+    request: Request,
     instance_id: str,
     _role: str = Depends(require_permission("notifications:*")),
 ) -> dict[str, str]:
@@ -141,6 +165,7 @@ async def test_instance(
     provider = next((item for item in providers if item.id == instance_id), None)
     if provider is None:
         raise HTTPException(status_code=404, detail="Notification instance not found")
+    _set_audit_context_for_instance(request, provider)
     app_settings = await db.get_all_settings()
     payload = _build_test_payload(app_settings, provider)
     config = dict(provider.config or {})
@@ -149,6 +174,8 @@ async def test_instance(
             result = await SmtpNotificationProvider(config).send(payload)
         elif provider.type == "webhook":
             result = await WebhookNotificationProvider(config).send(payload)
+        elif provider.type == "socket":
+            result = await SocketNotificationProvider(config).send(payload)
         else:
             raise HTTPException(
                 status_code=400,
@@ -158,6 +185,16 @@ async def test_instance(
         raise
     except Exception as exc:  # noqa: BLE001 - surface provider errors to the UI
         raise HTTPException(status_code=400, detail=str(exc) or exc.__class__.__name__) from exc
+    audit_detail = {
+        "provider_id": provider.id,
+        "provider_name": provider.name,
+        "provider_type": provider.type,
+        "status": result.get("status", ""),
+        "message": result.get("message", ""),
+    }
+    if result.get("response"):
+        audit_detail["response"] = result["response"]
+    _set_audit_context_for_instance(request, provider, audit_detail)
     return result
 
 

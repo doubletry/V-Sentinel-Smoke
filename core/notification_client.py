@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 import smtplib
 import ssl
 from dataclasses import dataclass, field
@@ -168,6 +169,121 @@ class WebhookNotificationProvider:
         req = urllib_request.Request(url, data=body, headers=headers, method=method)
         with urllib_request.urlopen(req, timeout=10) as response:
             return {"status": "SUCCESS", "message": str(response.status)}
+
+    async def send(self, payload: NotificationPayload) -> dict[str, str]:
+        return await asyncio.to_thread(self.send_sync, payload)
+
+
+class SocketNotificationProvider:
+    """TCP/UDP socket provider for raw byte or encoded string delivery.
+    用于原始字节或编码字符串投递的 TCP/UDP Socket 服务。"""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        self.config = dict(config)
+
+    def _message_bytes(self, payload: NotificationPayload) -> bytes:
+        message_mode = str(self.config.get("message_mode") or "string").strip().lower()
+        if message_mode == "hex":
+            raw_hex = str(self.config.get("message_hex") or "").strip()
+            if not raw_hex:
+                raise ValueError("Socket message_hex is required for hex mode")
+            try:
+                return bytes.fromhex(raw_hex)
+            except ValueError as exc:
+                raise ValueError("Socket message_hex must be valid hexadecimal") from exc
+
+        encoding = str(self.config.get("encoding") or "utf-8").strip() or "utf-8"
+        message_template = self.config.get("message_text")
+        if message_template in (None, ""):
+            message_text = payload.body
+        else:
+            message_text = render_template(str(message_template), payload.context)
+        try:
+            return str(message_text).encode(encoding)
+        except LookupError as exc:
+            raise ValueError(f"Unsupported socket encoding: {encoding}") from exc
+
+    def _wait_for_response(self) -> bool:
+        return str(self.config.get("wait_for_response", "false")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    def _response_timeout_seconds(self) -> float:
+        raw_value = self.config.get("response_timeout_seconds", 3)
+        try:
+            timeout = float(raw_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Socket response_timeout_seconds must be numeric") from exc
+        if timeout <= 0:
+            raise ValueError("Socket response_timeout_seconds must be greater than 0")
+        return timeout
+
+    def _connect_timeout_seconds(self) -> float:
+        raw_value = self.config.get("connect_timeout_seconds", self.config.get("timeout_seconds", 3))
+        try:
+            timeout = float(raw_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Socket connect_timeout_seconds must be numeric") from exc
+        if timeout <= 0:
+            raise ValueError("Socket connect_timeout_seconds must be greater than 0")
+        return timeout
+
+    def _format_response(self, data: bytes) -> str:
+        if not data:
+            return ""
+        message_mode = str(self.config.get("message_mode") or "string").strip().lower()
+        if message_mode == "hex":
+            return data.hex()
+        encoding = str(self.config.get("response_encoding") or self.config.get("encoding") or "utf-8").strip() or "utf-8"
+        try:
+            return data.decode(encoding)
+        except LookupError as exc:
+            raise ValueError(f"Unsupported socket response encoding: {encoding}") from exc
+        except UnicodeDecodeError:
+            return data.hex()
+
+    def send_sync(self, payload: NotificationPayload) -> dict[str, str]:
+        host = str(self.config.get("host") or "").strip()
+        if not host:
+            raise ValueError("Socket host is required")
+        try:
+            port = int(self.config.get("port"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Socket port is required") from exc
+        protocol = str(self.config.get("protocol") or "tcp").strip().lower()
+        message = self._message_bytes(payload)
+        connect_timeout = self._connect_timeout_seconds()
+
+        if protocol == "tcp":
+            with socket.create_connection((host, port), timeout=connect_timeout) as client:
+                client.sendall(message)
+                if self._wait_for_response():
+                    client.settimeout(self._response_timeout_seconds())
+                    try:
+                        response = client.recv(4096)
+                    except socket.timeout:
+                        return {
+                            "status": "SUCCESS",
+                            "message": "Socket message sent via TCP (response timeout)",
+                        }
+                    response_text = self._format_response(response)
+                    message_text = "Socket message sent via TCP"
+                    result = {"status": "SUCCESS", "message": message_text}
+                    if response_text:
+                        result["response"] = response_text
+                    return result
+            return {"status": "SUCCESS", "message": "Socket message sent via TCP"}
+
+        if protocol == "udp":
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+                client.settimeout(connect_timeout)
+                client.sendto(message, (host, port))
+            return {"status": "SUCCESS", "message": "Socket message sent via UDP"}
+
+        raise ValueError(f"Unsupported socket protocol: {protocol}")
 
     async def send(self, payload: NotificationPayload) -> dict[str, str]:
         return await asyncio.to_thread(self.send_sync, payload)

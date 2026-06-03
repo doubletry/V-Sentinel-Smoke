@@ -170,7 +170,7 @@ class VideoGateway(VideoGatewayCreate):
     created_at: str
 
 
-NotificationProviderType = Literal["email", "webhook"]
+NotificationProviderType = Literal["email", "webhook", "socket"]
 
 
 class NotificationProviderCreate(BaseModel):
@@ -181,6 +181,8 @@ class NotificationProviderCreate(BaseModel):
     type: NotificationProviderType
     enabled: bool = True
     config: dict[str, Any] = {}
+    source_ids: list[str] = []
+    apply_to_all_sources: bool = True
 
 
 class NotificationProviderUpdate(BaseModel):
@@ -191,6 +193,8 @@ class NotificationProviderUpdate(BaseModel):
     type: NotificationProviderType | None = None
     enabled: bool | None = None
     config: dict[str, Any] | None = None
+    source_ids: list[str] | None = None
+    apply_to_all_sources: bool | None = None
 
 
 class NotificationProvider(NotificationProviderCreate):

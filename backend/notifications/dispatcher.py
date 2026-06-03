@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import html
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +12,7 @@ from loguru import logger
 from backend.db import database as db
 from core.notification_client import (
     NotificationPayload,
+    SocketNotificationProvider,
     SmtpNotificationProvider,
     WebhookNotificationProvider,
 )
@@ -62,7 +64,7 @@ class NotificationDispatcher:
         providers = {
             provider.id: provider
             for provider in await db.list_notification_providers()
-            if provider.enabled
+            if provider.enabled and self._provider_matches_source(provider, event)
         }
         templates = {template.id: template for template in await db.list_notification_templates()}
         policy_overrides = await self._policy_overrides_for_source(source)
@@ -167,10 +169,55 @@ class NotificationDispatcher:
                     result.get("status", ""),
                     result.get("message", ""),
                 )
+            await self._write_dispatch_audit(
+                provider_id=provider_id,
+                provider_name=provider_name,
+                provider_type=provider_type,
+                source_id=source_id,
+                event_type=event_type,
+                result=result,
+            )
             return result
 
         results = await asyncio.gather(*(dispatch_provider(provider) for provider in providers.values()))
         return [result for result in results if result is not None]
+
+    async def _write_dispatch_audit(
+        self,
+        *,
+        provider_id: str,
+        provider_name: str,
+        provider_type: str,
+        source_id: str,
+        event_type: str,
+        result: dict[str, str],
+    ) -> None:
+        audit_detail = {
+            "provider_id": provider_id,
+            "provider_name": provider_name,
+            "provider_type": provider_type,
+            "source_id": source_id,
+            "event_type": event_type,
+            "status": result.get("status", ""),
+            "message": result.get("message", ""),
+        }
+        if result.get("response"):
+            audit_detail["response"] = result["response"]
+        try:
+            await db.create_audit_log(
+                username="system",
+                role="system",
+                operation_type="notifications.dispatch",
+                resource_type="notifications.instances",
+                resource_id=provider_name,
+                method="SYSTEM",
+                path="/notifications/dispatch",
+                result="SUCCESS" if result.get("status") == "SUCCESS" else "FAILURE",
+                status_code=200 if result.get("status") == "SUCCESS" else 500,
+                detail=json.dumps(audit_detail, ensure_ascii=False),
+            )
+        except Exception:  # pragma: no cover - audit logging must not break dispatch
+            logger.exception("Failed to write notification dispatch audit log")
 
     async def _send_provider(
         self,
@@ -182,7 +229,22 @@ class NotificationDispatcher:
             return await SmtpNotificationProvider(config).send(payload)
         if provider_type == "webhook":
             return await WebhookNotificationProvider(config).send(payload)
+        if provider_type == "socket":
+            return await SocketNotificationProvider(config).send(payload)
         raise ValueError(f"Unsupported notification provider type: {provider_type}")
+
+    def _provider_matches_source(self, provider: Any, event: dict[str, Any]) -> bool:
+        if bool(getattr(provider, "apply_to_all_sources", True)):
+            return True
+        source_id = str(event.get("source_id") or "").strip()
+        if not source_id:
+            return False
+        allowed_source_ids = {
+            str(item).strip()
+            for item in getattr(provider, "source_ids", []) or []
+            if str(item).strip()
+        }
+        return source_id in allowed_source_ids
 
     def _cooldown_key(self, policy_id: str, event: dict[str, Any]) -> str:
         event_type = str(event.get("event_type") or event.get("label") or "event")

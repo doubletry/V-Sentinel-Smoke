@@ -123,9 +123,11 @@ CREATE_NOTIFICATION_PROVIDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS notification_providers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('email', 'webhook')),
+    type TEXT NOT NULL CHECK(type IN ('email', 'webhook', 'socket')),
     enabled INTEGER NOT NULL DEFAULT 1,
     config TEXT NOT NULL DEFAULT '{}',
+    source_ids TEXT NOT NULL DEFAULT '[]',
+    apply_to_all_sources INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL
 );
 """
@@ -328,6 +330,7 @@ async def init_db() -> None:
         await db.execute(CREATE_SCENES_TABLE)
         await db.execute(CREATE_VIDEO_GATEWAYS_TABLE)
         await db.execute(CREATE_NOTIFICATION_PROVIDERS_TABLE)
+        await _ensure_notification_provider_type_allows_socket(db)
         await db.execute(CREATE_NOTIFICATION_TEMPLATES_TABLE)
         await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
         await db.execute(CREATE_USERS_TABLE)
@@ -360,6 +363,18 @@ async def init_db() -> None:
         await _ensure_column_exists(db, "analysis_messages", "image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "original_image_url", "TEXT")
         await _ensure_column_exists(db, "analysis_messages", "detected_image_url", "TEXT")
+        await _ensure_column_exists(
+            db,
+            "notification_providers",
+            "source_ids",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )
+        await _ensure_column_exists(
+            db,
+            "notification_providers",
+            "apply_to_all_sources",
+            "INTEGER NOT NULL DEFAULT 1",
+        )
         await _ensure_column_exists(
             db,
             "analysis_messages",
@@ -397,6 +412,34 @@ async def _ensure_column_exists(
     if any(str(row[1]) == column_name for row in rows):
         return
     await db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
+
+
+async def _ensure_notification_provider_type_allows_socket(db: aiosqlite.Connection) -> None:
+    """Rebuild legacy notification_providers tables whose type CHECK excludes socket.
+    重建旧版 notification_providers 表，以支持 socket 类型。"""
+    async with db.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notification_providers'"
+    ) as cursor:
+        row = await cursor.fetchone()
+    create_sql = str(row[0] or "") if row else ""
+    if "'socket'" in create_sql or '"socket"' in create_sql:
+        return
+
+    async with db.execute("PRAGMA table_info(notification_providers)") as cursor:
+        columns = {str(item[1]) for item in await cursor.fetchall()}
+    source_ids_expr = "source_ids" if "source_ids" in columns else "'[]'"
+    apply_all_expr = "apply_to_all_sources" if "apply_to_all_sources" in columns else "1"
+
+    await db.execute("ALTER TABLE notification_providers RENAME TO notification_providers_legacy")
+    await db.execute(CREATE_NOTIFICATION_PROVIDERS_TABLE)
+    await db.execute(
+        "INSERT INTO notification_providers "
+        "(id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at) "
+        "SELECT id, name, type, enabled, config, "
+        f"{source_ids_expr}, {apply_all_expr}, created_at "
+        "FROM notification_providers_legacy"
+    )
+    await db.execute("DROP TABLE notification_providers_legacy")
 
 
 async def _seed_default_scene(db: aiosqlite.Connection) -> None:
@@ -1478,7 +1521,9 @@ def _row_to_notification_provider(row: tuple) -> NotificationProvider:
         type=row[2],
         enabled=_normalize_bool_db_value(row[3]),
         config=_json_dict(row[4]),
-        created_at=row[5],
+        source_ids=[str(item) for item in _json_list(row[5])],
+        apply_to_all_sources=_normalize_bool_db_value(row[6]),
+        created_at=row[7],
     )
 
 
@@ -1487,7 +1532,7 @@ async def list_notification_providers() -> list[NotificationProvider]:
     列出通知服务。"""
     async with _db_session() as db:
         async with db.execute(
-            "SELECT id, name, type, enabled, config, created_at "
+            "SELECT id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at "
             "FROM notification_providers ORDER BY created_at"
         ) as cursor:
             rows = await cursor.fetchall()
@@ -1499,14 +1544,17 @@ async def create_notification_provider(data: NotificationProviderCreate) -> Noti
     created_at = _now_iso()
     async with _db_session() as db:
         await db.execute(
-            "INSERT INTO notification_providers (id, name, type, enabled, config, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO notification_providers "
+            "(id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 provider_id,
                 data.name,
                 data.type,
                 1 if data.enabled else 0,
                 _json_dumps(data.config),
+                _json_dumps(data.source_ids),
+                1 if data.apply_to_all_sources else 0,
                 created_at,
             ),
         )
@@ -1527,7 +1575,11 @@ async def update_notification_provider(
                 fields.append(f"{key} = ?")
                 if key == "enabled":
                     values.append(1 if value else 0)
+                elif key == "apply_to_all_sources":
+                    values.append(1 if value else 0)
                 elif key == "config":
+                    values.append(_json_dumps(value))
+                elif key == "source_ids":
                     values.append(_json_dumps(value))
                 else:
                     values.append(value)
@@ -1538,7 +1590,7 @@ async def update_notification_provider(
             )
             await db.commit()
         async with db.execute(
-            "SELECT id, name, type, enabled, config, created_at "
+            "SELECT id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at "
             "FROM notification_providers WHERE id = ?",
             (provider_id,),
         ) as cursor:
