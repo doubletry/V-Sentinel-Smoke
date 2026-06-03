@@ -396,6 +396,7 @@ export default {
     notificationSocketMessageHex: 'Hex 消息内容',
     notificationSocketEncoding: '字符串编码',
     notificationSocketStringHint: '字符串消息支持占位符，发送前会先渲染，再按所选编码转成字节。',
+    notificationSocketHexHint: 'Hex 内容会按字节自动用 - 分隔展示，保存时会去除分隔符。',
     notificationSocketWaitForResponse: '等待 TCP 返回',
     notificationSocketResponseTimeout: 'TCP 等待超时（秒）',
     notificationSocketTimeoutInvalid: 'TCP 等待超时必须是大于 0 的数字',

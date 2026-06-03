@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import html
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -168,10 +169,53 @@ class NotificationDispatcher:
                     result.get("status", ""),
                     result.get("message", ""),
                 )
+            await self._write_dispatch_audit(
+                provider_id=provider_id,
+                provider_name=provider_name,
+                provider_type=provider_type,
+                source_id=source_id,
+                event_type=event_type,
+                result=result,
+            )
             return result
 
         results = await asyncio.gather(*(dispatch_provider(provider) for provider in providers.values()))
         return [result for result in results if result is not None]
+
+    async def _write_dispatch_audit(
+        self,
+        *,
+        provider_id: str,
+        provider_name: str,
+        provider_type: str,
+        source_id: str,
+        event_type: str,
+        result: dict[str, str],
+    ) -> None:
+        audit_detail = {
+            "provider_id": provider_id,
+            "provider_name": provider_name,
+            "provider_type": provider_type,
+            "source_id": source_id,
+            "event_type": event_type,
+            "status": result.get("status", ""),
+            "message": result.get("message", ""),
+        }
+        try:
+            await db.create_audit_log(
+                username="system",
+                role="system",
+                operation_type="notifications.dispatch",
+                resource_type="notifications.providers",
+                resource_id=provider_id,
+                method="SYSTEM",
+                path="/notifications/dispatch",
+                result="SUCCESS" if result.get("status") == "SUCCESS" else "FAILURE",
+                status_code=200 if result.get("status") == "SUCCESS" else 500,
+                detail=json.dumps(audit_detail, ensure_ascii=False),
+            )
+        except Exception:  # pragma: no cover - audit logging must not break dispatch
+            logger.exception("Failed to write notification dispatch audit log")
 
     async def _send_provider(
         self,

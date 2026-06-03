@@ -376,7 +376,10 @@
             :label="t('settings.notificationSocketMessageHex')"
             class="notification-instance-form-span-full"
           >
-            <el-input v-model="form.socket_message_hex" type="textarea" :rows="4" placeholder="41 42 43 44" />
+            <div class="field-stack">
+              <el-input v-model="socketHexText" type="textarea" :rows="4" placeholder="41-42-43-44" />
+              <p class="form-hint">{{ t('settings.notificationSocketHexHint') }}</p>
+            </div>
           </el-form-item>
         </div>
       </el-form>
@@ -405,6 +408,7 @@ import {
   defaultBodyTemplate,
   defaultSubjectTemplate,
   defaultWebhookPayloadTemplate,
+  formatSocketHexBytes,
   normalizeSourceIds,
   serializeNotificationSourceSelection,
   serializeNotificationInstanceForEdit,
@@ -514,7 +518,7 @@ function payloadSummary(item) {
 function socketSummary(item) {
   const mode = String(item.config?.message_mode || 'string').toLowerCase()
   if (mode === 'hex') {
-    return item.config?.message_hex || '—'
+    return formatSocketHexBytes(item.config?.message_hex) || '—'
   }
   return item.config?.message_text || '—'
 }
@@ -536,6 +540,15 @@ const selectedSourceValues = computed({
   },
   set(values) {
     Object.assign(form.value, applyNotificationSourceSelection(form.value, values))
+  },
+})
+
+const socketHexText = computed({
+  get() {
+    return formatSocketHexBytes(form.value.socket_message_hex)
+  },
+  set(value) {
+    form.value.socket_message_hex = formatSocketHexBytes(value)
   },
 })
 

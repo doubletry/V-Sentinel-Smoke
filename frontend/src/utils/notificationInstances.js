@@ -33,6 +33,11 @@ export function normalizeAddressField(value) {
   return Array.isArray(value) ? value.join(',') : String(value || '')
 }
 
+export function formatSocketHexBytes(value) {
+  const normalized = String(value || '').replace(/[\s-]+/g, '').toUpperCase()
+  return normalized.match(/.{1,2}/g)?.join('-') || ''
+}
+
 export function normalizeSourceIds(value) {
   return [...new Set((Array.isArray(value) ? value : []).map((item) => String(item || '').trim()).filter(Boolean))]
 }
@@ -214,7 +219,7 @@ export function buildNotificationInstancePayload(form, t = (key) => key) {
     throw new Error(t('settings.notificationSocketAddressRequired'))
   }
   if (messageMode === 'hex') {
-    const normalizedHex = String(form.socket_message_hex || '').replace(/\s+/g, '')
+    const normalizedHex = String(form.socket_message_hex || '').replace(/[\s-]+/g, '')
     if (!normalizedHex || normalizedHex.length % 2 !== 0 || !/^[\da-fA-F]+$/.test(normalizedHex)) {
       throw new Error(t('settings.notificationSocketHexInvalid'))
     }

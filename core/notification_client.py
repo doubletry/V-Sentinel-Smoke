@@ -221,6 +221,16 @@ class SocketNotificationProvider:
             raise ValueError("Socket response_timeout_seconds must be greater than 0")
         return timeout
 
+    def _connect_timeout_seconds(self) -> float:
+        raw_value = self.config.get("connect_timeout_seconds", self.config.get("timeout_seconds", 3))
+        try:
+            timeout = float(raw_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Socket connect_timeout_seconds must be numeric") from exc
+        if timeout <= 0:
+            raise ValueError("Socket connect_timeout_seconds must be greater than 0")
+        return timeout
+
     def _decode_response(self, data: bytes) -> str:
         if not data:
             return ""
@@ -242,9 +252,10 @@ class SocketNotificationProvider:
             raise ValueError("Socket port is required") from exc
         protocol = str(self.config.get("protocol") or "tcp").strip().lower()
         message = self._message_bytes(payload)
+        connect_timeout = self._connect_timeout_seconds()
 
         if protocol == "tcp":
-            with socket.create_connection((host, port), timeout=10) as client:
+            with socket.create_connection((host, port), timeout=connect_timeout) as client:
                 client.sendall(message)
                 if self._wait_for_response():
                     client.settimeout(self._response_timeout_seconds())
@@ -264,7 +275,7 @@ class SocketNotificationProvider:
 
         if protocol == "udp":
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
-                client.settimeout(10)
+                client.settimeout(connect_timeout)
                 client.sendto(message, (host, port))
             return {"status": "SUCCESS", "message": "Socket message sent via UDP"}
 

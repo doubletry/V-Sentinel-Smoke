@@ -5,6 +5,7 @@ import {
   buildNotificationInstancePayload,
   createDefaultNotificationInstanceForm,
   defaultSocketMessageTemplate,
+  formatSocketHexBytes,
   serializeNotificationSourceSelection,
   serializeNotificationInstanceForEdit,
 } from '../notificationInstances.js'
@@ -85,6 +86,10 @@ describe('notification instance helpers', () => {
     }
 
     expect(buildNotificationInstancePayload(form, t).config.message_hex).toBe('41424344')
+  })
+
+  it('formats socket hex bytes with separators for display', () => {
+    expect(formatSocketHexBytes('41 42-4344')).toBe('41-42-43-44')
   })
 
   it('requires at least one source when all-sources is off', () => {

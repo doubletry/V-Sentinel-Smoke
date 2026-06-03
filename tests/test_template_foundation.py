@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import json
 import pytest
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
@@ -12,6 +13,7 @@ from backend.db.database import (
     create_notification_policy,
     create_notification_provider,
     create_notification_template,
+    list_audit_logs,
     create_source,
     update_settings,
 )
@@ -697,6 +699,53 @@ class TestNotificationDispatcher:
         assert results == [{"status": "SUCCESS", "message": provider.id}]
         send_provider.assert_awaited_once()
 
+    async def test_dispatcher_writes_provider_result_to_audit_log(self, init_db):
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="TCP Socket",
+                type="socket",
+                enabled=True,
+                config={
+                    "protocol": "tcp",
+                    "host": "127.0.0.1",
+                    "port": 9527,
+                    "wait_for_response": True,
+                },
+            )
+        )
+
+        dispatcher = NotificationDispatcher()
+        with patch.object(
+            dispatcher,
+            "_send_provider",
+            new=AsyncMock(
+                return_value={
+                    "status": "SUCCESS",
+                    "message": "Socket message sent via TCP (response: ACK)",
+                }
+            ),
+        ):
+            await dispatcher.send_event(
+                {
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "source_id": "source-a",
+                    "source_name": "Cam A",
+                    "event_type": "smoke",
+                    "event_label": "Smoke",
+                },
+                force=True,
+            )
+
+        audit_logs = await list_audit_logs(operation_type="notifications.dispatch")
+        assert audit_logs["total"] == 1
+        audit = audit_logs["items"][0]
+        detail = json.loads(audit["detail"])
+        assert audit["result"] == "SUCCESS"
+        assert audit["resource_id"] == provider.id
+        assert detail["provider_type"] == "socket"
+        assert detail["source_id"] == "source-a"
+        assert detail["message"] == "Socket message sent via TCP (response: ACK)"
+
 
 class TestSocketNotificationProvider:
     def test_socket_provider_sends_tcp_string_message(self):
@@ -725,7 +774,7 @@ class TestSocketNotificationProvider:
             result = provider.send_sync(payload)
 
         assert result == {"status": "SUCCESS", "message": "Socket message sent via TCP"}
-        create_connection.assert_called_once_with(("127.0.0.1", 9527), timeout=10)
+        create_connection.assert_called_once_with(("127.0.0.1", 9527), timeout=3.0)
         client.sendall.assert_called_once_with("Alert from Cam A".encode("utf-8"))
 
     def test_socket_provider_waits_for_tcp_response(self):
@@ -759,6 +808,23 @@ class TestSocketNotificationProvider:
         assert result == {"status": "SUCCESS", "message": "Socket message sent via TCP (response: ACK)"}
         client.settimeout.assert_called_once_with(1.5)
         client.recv.assert_called_once_with(4096)
+
+    def test_socket_provider_uses_configured_tcp_connect_timeout(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "tcp",
+                "host": "192.0.2.1",
+                "port": 9527,
+                "message_mode": "string",
+                "connect_timeout_seconds": 0.25,
+            }
+        )
+
+        with patch("core.notification_client.socket.create_connection", side_effect=socket.timeout) as create_connection:
+            with pytest.raises(socket.timeout):
+                provider.send_sync(NotificationPayload(subject="ignored", body="fallback"))
+
+        create_connection.assert_called_once_with(("192.0.2.1", 9527), timeout=0.25)
 
     def test_socket_provider_closes_tcp_on_response_timeout(self):
         provider = SocketNotificationProvider(
@@ -807,7 +873,7 @@ class TestSocketNotificationProvider:
 
         assert result == {"status": "SUCCESS", "message": "Socket message sent via UDP"}
         socket_factory.assert_called_once()
-        client.settimeout.assert_called_once_with(10)
+        client.settimeout.assert_called_once_with(3.0)
         client.sendto.assert_called_once_with(b"Hello", ("127.0.0.1", 9528))
 
     def test_socket_provider_rejects_invalid_hex(self):

@@ -396,6 +396,7 @@ export default {
     notificationSocketMessageHex: 'Hex Message',
     notificationSocketEncoding: 'String Encoding',
     notificationSocketStringHint: 'String socket messages support placeholders and are encoded into bytes after rendering.',
+    notificationSocketHexHint: 'Hex content is displayed with - between bytes; separators are removed when saved.',
     notificationSocketWaitForResponse: 'Wait for TCP response',
     notificationSocketResponseTimeout: 'TCP response timeout (seconds)',
     notificationSocketTimeoutInvalid: 'TCP response timeout must be a number greater than 0',
