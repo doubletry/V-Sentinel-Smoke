@@ -94,14 +94,13 @@ describe('notification instance helpers', () => {
   })
 
   it('keeps socket hex input cursor near the edited byte', () => {
-    expect(formatSocketHexInput('41-4-43-44', 4)).toEqual({
-      text: '41-44-34-4',
-      cursor: 4,
-    })
-    expect(formatSocketHexInput('41-4A2-43-44', 5)).toEqual({
-      text: '41-4A-24-34-4',
-      cursor: 5,
-    })
+    const deletedNibble = formatSocketHexInput('41-4-43-44', 4)
+    expect(deletedNibble.text).toBe(formatSocketHexBytes('41-4-43-44'))
+    expect(deletedNibble.cursor).toBe(4)
+
+    const insertedNibble = formatSocketHexInput('41-4A2-43-44', 5)
+    expect(insertedNibble.text).toBe(formatSocketHexBytes('41-4A2-43-44'))
+    expect(insertedNibble.cursor).toBe(5)
   })
 
   it('requires at least one source when all-sources is off', () => {
