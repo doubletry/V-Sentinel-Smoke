@@ -3054,6 +3054,11 @@ onMounted(async () => {
   display: inline-block;
 }
 
+.settings-tooltip-label__trigger {
+  display: inline-block;
+  cursor: help;
+}
+
 .settings-tooltip-label__icon {
   font-size: 14px;
   color: #8f9fbe;
