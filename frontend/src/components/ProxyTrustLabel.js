@@ -20,7 +20,7 @@ export default defineComponent({
       h(ElTooltip, { content: props.hint, placement: 'top' }, {
         default: () => h('span', {
           class: 'settings-tooltip-label__trigger',
-          'aria-label': `${props.label}：${props.hint}`,
+          'aria-label': `${props.label}: ${props.hint}`,
         }, props.label),
       }),
       h(ElIcon, { class: 'settings-tooltip-label__icon', 'aria-hidden': 'true' }, {

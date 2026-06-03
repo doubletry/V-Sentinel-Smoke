@@ -24,7 +24,7 @@ describe('ProxyTrustLabel', () => {
     expect(trigger).not.toBeNull()
     expect(trigger.textContent).toBe('信任反向代理头')
     expect(trigger.getAttribute('aria-label')).toBe(
-      '信任反向代理头：启用后，审计日志和登录封禁会优先使用 nginx 传入的 X-Forwarded-For / X-Real-IP。',
+      '信任反向代理头: 启用后，审计日志和登录封禁会优先使用 nginx 传入的 X-Forwarded-For / X-Real-IP。',
     )
     expect(container.querySelector('.settings-tooltip-label__icon')).not.toBeNull()
     expect(container.textContent).not.toContain('启用后，审计日志和登录封禁会优先使用 nginx 传入的 X-Forwarded-For / X-Real-IP。')
