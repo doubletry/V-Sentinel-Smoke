@@ -273,7 +273,6 @@ class SocketNotificationProvider:
                     message_text = "Socket message sent via TCP"
                     result = {"status": "SUCCESS", "message": message_text}
                     if response_text:
-                        result["message"] = f"{message_text} (response: {response_text})"
                         result["response"] = response_text
                     return result
             return {"status": "SUCCESS", "message": "Socket message sent via TCP"}

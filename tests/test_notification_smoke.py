@@ -146,7 +146,8 @@ class TestNotificationSocketSmoke:
 
             assert test_resp.status_code == 200, test_resp.text
             assert received.get(timeout=2) == b"Alert from Test Source"
-            assert test_resp.json()["message"].endswith("response: ACK)")
+            assert test_resp.json()["message"] == "Socket message sent via TCP"
+            assert test_resp.json()["response"] == "ACK"
             thread.join(timeout=2)
         finally:
             server.close()
