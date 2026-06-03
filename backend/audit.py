@@ -173,6 +173,11 @@ def _exception_detail(exc: Exception) -> str:
     return exc.__class__.__name__
 
 
+def _state_text(request: Request, name: str) -> str:
+    value = getattr(request.state, name, "")
+    return str(value or "").strip()
+
+
 async def _resolve_actor(
     request: Request,
     payload: dict[str, object],
@@ -221,8 +226,10 @@ async def write_audit_log(
     settings_map = await db.get_all_settings()
     ip = _client_ip(request, _truthy(settings_map.get("login_lockout_trust_proxy")))
     response_detail = _extract_response_detail(response) if response is not None else ""
-    summary = str(detail or response_detail or "").strip()
-    resource_id = _extract_resource_id(request, body_payload, operation_type)
+    summary = str(detail or _state_text(request, "audit_detail") or response_detail or "").strip()
+    resource_id = _state_text(request, "audit_resource_id") or _extract_resource_id(
+        request, body_payload, operation_type
+    )
     await db.create_audit_log(
         username=username,
         role=role,

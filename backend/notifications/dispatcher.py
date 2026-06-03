@@ -201,13 +201,15 @@ class NotificationDispatcher:
             "status": result.get("status", ""),
             "message": result.get("message", ""),
         }
+        if result.get("response"):
+            audit_detail["response"] = result["response"]
         try:
             await db.create_audit_log(
                 username="system",
                 role="system",
                 operation_type="notifications.dispatch",
-                resource_type="notifications.providers",
-                resource_id=provider_id,
+                resource_type="notifications.instances",
+                resource_id=provider_name,
                 method="SYSTEM",
                 path="/notifications/dispatch",
                 result="SUCCESS" if result.get("status") == "SUCCESS" else "FAILURE",

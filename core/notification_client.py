@@ -270,6 +270,7 @@ class SocketNotificationProvider:
                     message_text = "Socket message sent via TCP"
                     if decoded:
                         message_text = f"{message_text} (response: {decoded})"
+                        return {"status": "SUCCESS", "message": message_text, "response": decoded}
                     return {"status": "SUCCESS", "message": message_text}
             return {"status": "SUCCESS", "message": "Socket message sent via TCP"}
 

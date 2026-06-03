@@ -260,6 +260,88 @@ class TestNotificationFoundation:
         assert test_resp.status_code == 200, test_resp.text
         assert test_resp.json()["status"] == "SUCCESS"
 
+    async def test_notification_instance_audit_uses_instance_name(
+        self,
+        async_client: AsyncClient,
+    ):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Ops Socket",
+                "type": "socket",
+                "enabled": True,
+                "config": {
+                    "protocol": "tcp",
+                    "host": "127.0.0.1",
+                    "port": 9000,
+                    "message_mode": "string",
+                    "message_text": "Alert from {source_name}",
+                    "encoding": "utf-8",
+                },
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        instance_id = create_resp.json()["id"]
+
+        update_resp = await async_client.put(
+            f"/api/notifications/instances/{instance_id}",
+            json={"name": "Primary Socket"},
+        )
+        assert update_resp.status_code == 200, update_resp.text
+
+        create_audits = await list_audit_logs(operation_type="notifications.instances.create")
+        assert create_audits["items"][0]["resource_id"] == "Ops Socket"
+        update_audits = await list_audit_logs(operation_type="notifications.instances.update")
+        assert update_audits["items"][0]["resource_id"] == "Primary Socket"
+
+    async def test_notification_instance_test_audit_includes_socket_response(
+        self,
+        async_client: AsyncClient,
+    ):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Audit Socket",
+                "type": "socket",
+                "enabled": True,
+                "config": {
+                    "protocol": "tcp",
+                    "host": "127.0.0.1",
+                    "port": 9000,
+                    "message_mode": "string",
+                    "message_text": "Alert from {source_name}",
+                    "encoding": "utf-8",
+                    "wait_for_response": True,
+                },
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        instance_id = create_resp.json()["id"]
+
+        async def fake_send(self, payload):  # noqa: ARG001
+            return {
+                "status": "SUCCESS",
+                "message": "Socket message sent via TCP (response: ACK)",
+                "response": "ACK",
+            }
+
+        with patch(
+            "backend.api.notifications.SocketNotificationProvider.send",
+            new=fake_send,
+        ):
+            test_resp = await async_client.post(
+                f"/api/notifications/instances/{instance_id}/test"
+            )
+
+        assert test_resp.status_code == 200, test_resp.text
+        audits = await list_audit_logs(operation_type="notifications.instances.test")
+        audit = audits["items"][0]
+        detail = json.loads(audit["detail"])
+        assert audit["resource_id"] == "Audit Socket"
+        assert detail["provider_name"] == "Audit Socket"
+        assert detail["message"] == "Socket message sent via TCP (response: ACK)"
+        assert detail["response"] == "ACK"
+
     async def test_notification_instance_test_endpoint_invokes_provider(
         self, async_client: AsyncClient
     ):
@@ -722,6 +804,7 @@ class TestNotificationDispatcher:
                 return_value={
                     "status": "SUCCESS",
                     "message": "Socket message sent via TCP (response: ACK)",
+                    "response": "ACK",
                 }
             ),
         ):
@@ -741,10 +824,12 @@ class TestNotificationDispatcher:
         audit = audit_logs["items"][0]
         detail = json.loads(audit["detail"])
         assert audit["result"] == "SUCCESS"
-        assert audit["resource_id"] == provider.id
+        assert audit["resource_type"] == "notifications.instances"
+        assert audit["resource_id"] == "TCP Socket"
         assert detail["provider_type"] == "socket"
         assert detail["source_id"] == "source-a"
         assert detail["message"] == "Socket message sent via TCP (response: ACK)"
+        assert detail["response"] == "ACK"
 
 
 class TestSocketNotificationProvider:
@@ -805,7 +890,11 @@ class TestSocketNotificationProvider:
         with patch("core.notification_client.socket.create_connection", return_value=connection):
             result = provider.send_sync(payload)
 
-        assert result == {"status": "SUCCESS", "message": "Socket message sent via TCP (response: ACK)"}
+        assert result == {
+            "status": "SUCCESS",
+            "message": "Socket message sent via TCP (response: ACK)",
+            "response": "ACK",
+        }
         client.settimeout.assert_called_once_with(1.5)
         client.recv.assert_called_once_with(4096)
 
