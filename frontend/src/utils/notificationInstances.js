@@ -41,7 +41,7 @@ export function formatSocketHexBytes(value) {
 export function formatSocketHexInput(value, cursorIndex = null) {
   const rawValue = String(value || '')
   const rawCursorIndex = cursorIndex === null || cursorIndex === undefined ? rawValue.length : Number(cursorIndex)
-  const normalizedCursorIndex = Math.max(0, Math.min(rawCursorIndex || 0, rawValue.length))
+  const normalizedCursorIndex = Math.max(0, Math.min(Number.isFinite(rawCursorIndex) ? rawCursorIndex : 0, rawValue.length))
   const hexCharsBeforeCursor = (rawValue.slice(0, normalizedCursorIndex).match(/[\da-fA-F]/g) || []).length
   const text = formatSocketHexBytes(rawValue)
   let cursor = 0

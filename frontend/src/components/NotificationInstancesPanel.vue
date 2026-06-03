@@ -560,7 +560,7 @@ function getSocketHexTextarea() {
 
 function updateSocketHexText(value) {
   const textarea = getSocketHexTextarea()
-  const { text, cursor } = formatSocketHexInput(value, textarea?.selectionStart ?? String(value || '').length)
+  const { text, cursor } = formatSocketHexInput(value, textarea?.selectionStart ?? null)
   form.value.socket_message_hex = text
   nextTick(() => {
     const target = getSocketHexTextarea()
