@@ -567,14 +567,19 @@
                       @update:model-value="setNumericField(form, 'login_lockout_duration_seconds', $event)"
                     />
                   </el-form-item>
-                  <el-form-item :label="t('settings.loginLockoutTrustProxy')" class="numeric-setting-item">
+                  <el-form-item class="numeric-setting-item">
+                    <template #label>
+                      <ProxyTrustLabel
+                        :label="t('settings.loginLockoutTrustProxy')"
+                        :hint="t('settings.loginLockoutTrustProxyHint')"
+                      />
+                    </template>
                     <div class="field-stack switch-field-stack">
                       <el-switch
                         v-model="form.login_lockout_trust_proxy"
                         active-value="true"
                         inactive-value="false"
                       />
-                      <p class="form-hint">{{ t('settings.loginLockoutTrustProxyHint') }}</p>
                     </div>
                   </el-form-item>
                 </div>
@@ -1114,6 +1119,7 @@ import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
 import { resolveAppUrl } from '../utils/appPath.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
+import ProxyTrustLabel from '../components/ProxyTrustLabel.js'
 import AuditLogs from './AuditLogs.vue'
 
 const { t, locale } = useI18n()
@@ -3036,6 +3042,22 @@ onMounted(async () => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+}
+
+.settings-tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-tooltip-label__text {
+  display: inline-block;
+}
+
+.settings-tooltip-label__icon {
+  font-size: 14px;
+  color: #8f9fbe;
+  cursor: help;
 }
 
 .smoke-threshold-grid {
