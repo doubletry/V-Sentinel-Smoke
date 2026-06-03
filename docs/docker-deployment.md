@@ -64,7 +64,7 @@ This container does **not** start MediaMTX or any other sidecar service.
 - If you need AI inference, configure the V-Engine service addresses in the Settings page. For host-side V-Engine services, prefer `docker.internal`, `host.docker.internal`, or a LAN IP instead of `localhost`.
 - The container startup script now exports merged `NO_PROXY` / `no_proxy` defaults for `localhost`, `127.0.0.1`, `::1`, `host.docker.internal`, `docker.internal`, and private LAN ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`) so local gRPC / RTSP / WebRTC traffic bypasses HTTP proxies by default.
 - When deploying behind nginx under `/sentinel`, also enable `login_lockout_trust_proxy` in Settings so audit logs and IP lockout use the forwarded client IP from nginx.
-- For subpath deployments, `docker run -e VITE_APP_BASE_PATH=/sentinel/ ...` also works; the backend will inject the matching base path at runtime, so the image does not need to be rebuilt when the prefix changes.
+- For subpath deployments, `docker run -e VITE_APP_BASE_PATH=/sentinel ...` also works; the trailing slash is optional. The backend will inject the matching base path at runtime, so the image does not need to be rebuilt when the prefix changes.
 - If you need daily-summary email delivery, configure the email service in the Settings page.
 
 ## Smoke / fire scene operations

@@ -426,10 +426,9 @@ docker run -d \
 - `docker-compose` is no longer required
 - MediaMTX is not bundled into the image; configure any external RTSP/WebRTC gateway in the Settings page if you need live video playback
 - For reverse-proxy deployments under `/sentinel`, use `deploy/nginx/sentinel.conf`
-  and either let nginx send `X-Forwarded-Prefix: /sentinel` or pass
-  `VITE_APP_BASE_PATH=/sentinel/` to `docker run` / `docker compose` so the
-  runtime container serves the frontend under that subpath without rebuilding
-  the image.
+  and pass `VITE_APP_BASE_PATH=/sentinel` to `docker run` / `docker compose`
+  so the runtime container serves the frontend under that subpath without
+  rebuilding the image.
 - The container runtime now merges `NO_PROXY` / `no_proxy` defaults for localhost, Docker host aliases, and private LAN ranges so local service traffic bypasses proxies by default
 
 See [`docs/docker-deployment.md`](docs/docker-deployment.md) for details.

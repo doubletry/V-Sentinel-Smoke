@@ -396,11 +396,10 @@ docker run -d \
 - 前端、REST API、WebSocket 和消息缩略图统一由 `8000` 端口提供
 - 不再需要 `docker-compose`
 - 镜像内不再打包 MediaMTX；如需视频墙播放，请在设置页配置外部 RTSP/WebRTC 网关
-- 容器启动时会自动合并 `NO_PROXY` / `no_proxy` 默认值，覆盖 localhost、Docker 宿主机别名和常见局域网网段，避免本地服务流量被错误走代理
-- 若要通过 `http://mydomain.com/sentinel` 这类子路径反向代理，请使用仓库里的
-  `deploy/nginx/sentinel.conf`，并让 nginx 传入 `X-Forwarded-Prefix: /sentinel`
- ；或者在 `docker run` / `docker compose` 里传入 `VITE_APP_BASE_PATH=/sentinel/`，
-  这样就不需要因为子路径变化而重新构建镜像。
+ - 容器启动时会自动合并 `NO_PROXY` / `no_proxy` 默认值，覆盖 localhost、Docker 宿主机别名和常见局域网网段，避免本地服务流量被错误走代理
+ - 若要通过 `http://mydomain.com/sentinel` 这类子路径反向代理，请使用仓库里的
+   `deploy/nginx/sentinel.conf`，并在 `docker run` / `docker compose` 里传入
+   `VITE_APP_BASE_PATH=/sentinel`，这样就不需要因为子路径变化而重新构建镜像。
 
 详见 [`docs/docker-deployment.md`](docs/docker-deployment.md)。
 

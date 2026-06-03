@@ -12,9 +12,9 @@ import { normalizeAppBasePath } from './utils/appPath.js'
  *   VITE_MEDIAMTX_WEBRTC_URL
  */
 export const appBasePath = normalizeAppBasePath(
-  (typeof document !== 'undefined' && document.baseURI
+  typeof document !== 'undefined' && document.baseURI
     ? new URL(document.baseURI).pathname
-    : import.meta.env.VITE_APP_BASE_PATH || import.meta.env.BASE_URL || '/'),
+    : '/',
 )
 
 function detectApiBase() {

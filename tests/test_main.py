@@ -28,7 +28,7 @@ class TestFrontendFallbackRoutes:
         assert '<base href="/" />' in resp.text
         assert "frontend" in resp.text
 
-    async def test_forwarded_prefix_updates_frontend_base_path(
+    async def test_runtime_base_path_updates_frontend_base_path(
         self,
         async_client: AsyncClient,
         monkeypatch,
@@ -43,8 +43,9 @@ class TestFrontendFallbackRoutes:
 
         monkeypatch.setattr(main_module, "_frontend_dist", dist_dir)
         monkeypatch.setattr(main_module, "_frontend_index", index_path)
+        monkeypatch.setenv("VITE_APP_BASE_PATH", "/sentinel")
 
-        resp = await async_client.get("/settings", headers={"X-Forwarded-Prefix": "/sentinel"})
+        resp = await async_client.get("/settings")
 
         assert resp.status_code == 200
         assert '<base href="/sentinel/" />' in resp.text
