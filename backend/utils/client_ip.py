@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+import ipaddress
+
 from fastapi import Request
+
+
+def _normalize_ip(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return ""
 
 
 def client_ip(request: Request, trust_proxy: bool) -> str:
@@ -8,11 +20,15 @@ def client_ip(request: Request, trust_proxy: bool) -> str:
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
             first = forwarded.split(",")[0].strip()
-            if first:
-                return first
+            normalized = _normalize_ip(first)
+            if normalized:
+                return normalized
         real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip.strip()
+        normalized = _normalize_ip(real_ip)
+        if normalized:
+            return normalized
     if request.client is not None and request.client.host:
-        return str(request.client.host)
+        normalized = _normalize_ip(request.client.host)
+        if normalized:
+            return normalized
     return ""
