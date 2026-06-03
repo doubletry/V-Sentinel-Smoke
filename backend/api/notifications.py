@@ -184,18 +184,16 @@ async def test_instance(
         raise
     except Exception as exc:  # noqa: BLE001 - surface provider errors to the UI
         raise HTTPException(status_code=400, detail=str(exc) or exc.__class__.__name__) from exc
-    _set_notification_audit_context(
-        request,
-        provider,
-        {
-            "provider_id": provider.id,
-            "provider_name": provider.name,
-            "provider_type": provider.type,
-            "status": result.get("status", ""),
-            "message": result.get("message", ""),
-            **({"response": result["response"]} if result.get("response") else {}),
-        },
-    )
+    audit_detail = {
+        "provider_id": provider.id,
+        "provider_name": provider.name,
+        "provider_type": provider.type,
+        "status": result.get("status", ""),
+        "message": result.get("message", ""),
+    }
+    if result.get("response"):
+        audit_detail["response"] = result["response"]
+    _set_notification_audit_context(request, provider, audit_detail)
     return result
 
 
