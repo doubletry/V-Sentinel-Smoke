@@ -21,10 +21,12 @@ export default defineComponent({
         default: () => h('span', {
           class: 'settings-tooltip-label__trigger',
           'aria-label': `${props.label}: ${props.hint}`,
-        }, props.label),
-      }),
-      h(ElIcon, { class: 'settings-tooltip-label__icon', 'aria-hidden': 'true' }, {
-        default: () => h(QuestionFilled),
+        }, [
+          h('span', { class: 'settings-tooltip-label__text' }, props.label),
+          h(ElIcon, { class: 'settings-tooltip-label__icon', 'aria-hidden': 'true' }, {
+            default: () => h(QuestionFilled),
+          }),
+        ]),
       }),
     ])
   },
