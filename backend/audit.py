@@ -174,6 +174,7 @@ def _exception_detail(exc: Exception) -> str:
 
 
 def _state_text(request: Request, name: str) -> str:
+    """Return a stripped string from a request state attribute."""
     value = getattr(request.state, name, "")
     return str(value or "").strip()
 

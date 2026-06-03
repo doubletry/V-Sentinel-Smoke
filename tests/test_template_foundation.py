@@ -318,7 +318,7 @@ class TestNotificationFoundation:
         assert create_resp.status_code == 201, create_resp.text
         instance_id = create_resp.json()["id"]
 
-        async def fake_send(provider, payload):  # noqa: ARG001
+        async def fake_send(_provider, _payload):
             return {
                 "status": "SUCCESS",
                 "message": "Socket message sent via TCP (response: ACK)",

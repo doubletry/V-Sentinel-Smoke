@@ -34,6 +34,7 @@ def _set_audit_context_for_instance(
     provider: NotificationProvider,
     detail: dict[str, object] | None = None,
 ) -> None:
+    """Expose notification instance name and optional detail to audit middleware."""
     request.state.audit_resource_id = provider.name
     if detail is not None:
         request.state.audit_detail = json.dumps(detail, ensure_ascii=False)
