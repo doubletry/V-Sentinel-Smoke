@@ -377,7 +377,14 @@
             class="notification-instance-form-span-full"
           >
             <div class="field-stack">
-              <el-input v-model="socketHexText" type="textarea" :rows="4" placeholder="41-42-43-44" />
+              <el-input
+                ref="socketHexInput"
+                :model-value="socketHexText"
+                type="textarea"
+                :rows="4"
+                placeholder="41-42-43-44"
+                @input="updateSocketHexText"
+              />
               <p class="form-hint">{{ t('settings.notificationSocketHexHint') }}</p>
             </div>
           </el-form-item>
@@ -395,7 +402,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ElMessage from 'element-plus/es/components/message/index'
 import { notificationsApi, settingsApi, sourcesApi } from '../api/index.js'
@@ -408,6 +415,7 @@ import {
   defaultBodyTemplate,
   defaultSubjectTemplate,
   defaultWebhookPayloadTemplate,
+  formatSocketHexInput,
   formatSocketHexBytes,
   normalizeSourceIds,
   serializeNotificationSourceSelection,
@@ -438,6 +446,7 @@ const FIRE_DOOR_SCENE_ID = 'fire_door'
 const SMOKE_PLACEHOLDERS = new Set(['detection_count', 'frame_id', 'active_tracks'])
 const FIRE_DOOR_PLACEHOLDERS = new Set(['roi_id', 'roi_tag', 'roi_index', 'roi_count', 'door_state', 'door_state_label', 'alarm_label', 'open_count', 'closed_count'])
 const form = ref(createDefaultNotificationInstanceForm())
+const socketHexInput = ref(null)
 
 const placeholderGroups = computed(() => {
   const activePluginId = String(appSettingsStore.activePluginId || SMOKE_SCENE_ID)
@@ -543,14 +552,25 @@ const selectedSourceValues = computed({
   },
 })
 
-const socketHexText = computed({
-  get() {
-    return formatSocketHexBytes(form.value.socket_message_hex)
-  },
-  set(value) {
-    form.value.socket_message_hex = formatSocketHexBytes(value)
-  },
-})
+const socketHexText = computed(() => formatSocketHexBytes(form.value.socket_message_hex))
+
+function getSocketHexTextarea() {
+  return socketHexInput.value?.textarea || socketHexInput.value?.$el?.querySelector?.('textarea') || null
+}
+
+function updateSocketHexText(value) {
+  const textarea = getSocketHexTextarea()
+  const { text, cursor } = formatSocketHexInput(value, textarea?.selectionStart ?? String(value || '').length)
+  form.value.socket_message_hex = text
+  nextTick(() => {
+    const target = getSocketHexTextarea()
+    if (!target) return
+    if (target.value !== text) {
+      target.value = text
+    }
+    target.setSelectionRange(cursor, cursor)
+  })
+}
 
 const sourceSelectionSummary = computed(() => {
   if (form.value.apply_to_all_sources) {

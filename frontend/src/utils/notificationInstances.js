@@ -38,6 +38,24 @@ export function formatSocketHexBytes(value) {
   return normalized.match(/.{1,2}/g)?.join('-') || ''
 }
 
+export function formatSocketHexInput(value, cursorIndex = String(value || '').length) {
+  const rawValue = String(value || '')
+  const normalizedCursorIndex = Math.max(0, Math.min(Number(cursorIndex) || 0, rawValue.length))
+  const hexCharsBeforeCursor = (rawValue.slice(0, normalizedCursorIndex).match(/[\da-fA-F]/g) || []).length
+  const text = formatSocketHexBytes(rawValue)
+  let cursor = 0
+  let hexCharsSeen = 0
+
+  while (cursor < text.length && hexCharsSeen < hexCharsBeforeCursor) {
+    if (/[\da-fA-F]/.test(text[cursor])) {
+      hexCharsSeen += 1
+    }
+    cursor += 1
+  }
+
+  return { text, cursor }
+}
+
 export function normalizeSourceIds(value) {
   return [...new Set((Array.isArray(value) ? value : []).map((item) => String(item || '').trim()).filter(Boolean))]
 }

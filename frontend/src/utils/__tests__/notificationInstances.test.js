@@ -6,6 +6,7 @@ import {
   createDefaultNotificationInstanceForm,
   defaultSocketMessageTemplate,
   formatSocketHexBytes,
+  formatSocketHexInput,
   serializeNotificationSourceSelection,
   serializeNotificationInstanceForEdit,
 } from '../notificationInstances.js'
@@ -90,6 +91,17 @@ describe('notification instance helpers', () => {
 
   it('formats socket hex bytes with separators for display', () => {
     expect(formatSocketHexBytes('41 42-4344')).toBe('41-42-43-44')
+  })
+
+  it('keeps socket hex input cursor near the edited byte', () => {
+    expect(formatSocketHexInput('41-4-43-44', 4)).toEqual({
+      text: '41-44-34-4',
+      cursor: 4,
+    })
+    expect(formatSocketHexInput('41-4A2-43-44', 5)).toEqual({
+      text: '41-4A-24-34-4',
+      cursor: 5,
+    })
   })
 
   it('requires at least one source when all-sources is off', () => {
