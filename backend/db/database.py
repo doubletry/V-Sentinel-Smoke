@@ -330,6 +330,7 @@ async def init_db() -> None:
         await db.execute(CREATE_SCENES_TABLE)
         await db.execute(CREATE_VIDEO_GATEWAYS_TABLE)
         await db.execute(CREATE_NOTIFICATION_PROVIDERS_TABLE)
+        await _ensure_notification_provider_type_allows_socket(db)
         await db.execute(CREATE_NOTIFICATION_TEMPLATES_TABLE)
         await db.execute(CREATE_NOTIFICATION_POLICIES_TABLE)
         await db.execute(CREATE_USERS_TABLE)
@@ -411,6 +412,34 @@ async def _ensure_column_exists(
     if any(str(row[1]) == column_name for row in rows):
         return
     await db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
+
+
+async def _ensure_notification_provider_type_allows_socket(db: aiosqlite.Connection) -> None:
+    """Rebuild legacy notification_providers tables whose type CHECK excludes socket.
+    重建旧版 notification_providers 表，以支持 socket 类型。"""
+    async with db.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notification_providers'"
+    ) as cursor:
+        row = await cursor.fetchone()
+    create_sql = str(row[0] or "") if row else ""
+    if "'socket'" in create_sql or '"socket"' in create_sql:
+        return
+
+    async with db.execute("PRAGMA table_info(notification_providers)") as cursor:
+        columns = {str(item[1]) for item in await cursor.fetchall()}
+    source_ids_expr = "source_ids" if "source_ids" in columns else "'[]'"
+    apply_all_expr = "apply_to_all_sources" if "apply_to_all_sources" in columns else "1"
+
+    await db.execute("ALTER TABLE notification_providers RENAME TO notification_providers_legacy")
+    await db.execute(CREATE_NOTIFICATION_PROVIDERS_TABLE)
+    await db.execute(
+        "INSERT INTO notification_providers "
+        "(id, name, type, enabled, config, source_ids, apply_to_all_sources, created_at) "
+        "SELECT id, name, type, enabled, config, "
+        f"{source_ids_expr}, {apply_all_expr}, created_at "
+        "FROM notification_providers_legacy"
+    )
+    await db.execute("DROP TABLE notification_providers_legacy")
 
 
 async def _seed_default_scene(db: aiosqlite.Connection) -> None:

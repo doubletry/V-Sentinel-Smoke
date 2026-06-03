@@ -1,12 +1,15 @@
 """Tests for aiosqlite database operations."""
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from backend.db.database import (
     _get_shared_db,
     build_source_rtsp_url,
     close_db,
+    create_notification_provider,
     create_source,
     delete_source,
     get_rois,
@@ -14,6 +17,7 @@ from backend.db.database import (
     get_source_by_rtsp,
     init_db,
     list_desired_analysis_sources,
+    list_notification_providers,
     list_sources,
     save_rois,
     set_source_desired_analysis_enabled,
@@ -21,7 +25,13 @@ from backend.db.database import (
     update_settings,
     update_source,
 )
-from backend.models.schemas import ROICreate, ROIPoint, VideoSourceCreate, VideoSourceUpdate
+from backend.models.schemas import (
+    NotificationProviderCreate,
+    ROICreate,
+    ROIPoint,
+    VideoSourceCreate,
+    VideoSourceUpdate,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +52,43 @@ class TestInitDb:
             row = await cursor.fetchone()
         assert row is not None
         assert str(row[0]).lower() == "wal"
+
+    async def test_migrates_legacy_notification_provider_type_check(self, _tmp_db):
+        await close_db()
+        with sqlite3.connect(_tmp_db) as db:
+            db.execute("DROP TABLE notification_providers")
+            db.execute(
+                """
+                CREATE TABLE notification_providers (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL CHECK(type IN ('email', 'webhook')),
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    config TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            db.execute(
+                "INSERT INTO notification_providers "
+                "(id, name, type, enabled, config, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                ("legacy-email", "Legacy Email", "email", 1, "{}", "2026-01-01T00:00:00+00:00"),
+            )
+
+        await init_db()
+        provider = await create_notification_provider(
+            NotificationProviderCreate(
+                name="Socket",
+                type="socket",
+                config={"protocol": "tcp", "host": "127.0.0.1", "port": 9000},
+            )
+        )
+
+        assert provider.type == "socket"
+        providers = await list_notification_providers()
+        legacy = next(item for item in providers if item.id == "legacy-email")
+        assert legacy.source_ids == []
+        assert legacy.apply_to_all_sources is True
 
 
 class TestCreateSource:
