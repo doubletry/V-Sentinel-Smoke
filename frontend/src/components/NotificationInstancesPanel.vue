@@ -555,7 +555,7 @@ const selectedSourceValues = computed({
 const socketHexText = computed(() => formatSocketHexBytes(form.value.socket_message_hex))
 
 function getSocketHexTextarea() {
-  return socketHexInput.value?.textarea || socketHexInput.value?.$el?.querySelector?.('textarea') || null
+  return socketHexInput.value?.textarea || null
 }
 
 function updateSocketHexText(value) {
