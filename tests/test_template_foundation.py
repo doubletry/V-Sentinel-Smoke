@@ -290,9 +290,17 @@ class TestNotificationFoundation:
         assert update_resp.status_code == 200, update_resp.text
 
         create_audits = await list_audit_logs(operation_type="notifications.instances.create")
-        assert create_audits["items"][0]["resource_id"] == "Ops Socket"
+        create_audit = create_audits["items"][0]
+        assert create_audit["operation_type"] == "notifications.instances.create"
+        assert create_audit["resource_type"] == "notifications.instances"
+        assert create_audit["path"] == "/api/notifications/instances"
+        assert create_audit["resource_id"] == "Ops Socket"
         update_audits = await list_audit_logs(operation_type="notifications.instances.update")
-        assert update_audits["items"][0]["resource_id"] == "Primary Socket"
+        update_audit = update_audits["items"][0]
+        assert update_audit["operation_type"] == "notifications.instances.update"
+        assert update_audit["resource_type"] == "notifications.instances"
+        assert update_audit["path"] == f"/api/notifications/instances/{instance_id}"
+        assert update_audit["resource_id"] == "Primary Socket"
 
     async def test_notification_instance_test_audit_includes_socket_response(
         self,
@@ -337,7 +345,11 @@ class TestNotificationFoundation:
         audits = await list_audit_logs(operation_type="notifications.instances.test")
         audit = audits["items"][0]
         detail = json.loads(audit["detail"])
+        assert audit["operation_type"] == "notifications.instances.test"
+        assert audit["resource_type"] == "notifications.instances"
+        assert audit["path"] == f"/api/notifications/instances/{instance_id}/test"
         assert audit["resource_id"] == "Audit Socket"
+        assert detail["provider_id"] == instance_id
         assert detail["provider_name"] == "Audit Socket"
         assert detail["message"] == "Socket message sent via TCP (response: ACK)"
         assert detail["response"] == "ACK"
