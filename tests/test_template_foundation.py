@@ -354,6 +354,50 @@ class TestNotificationFoundation:
         assert detail["message"] == "Socket message sent via TCP (response: ACK)"
         assert detail["response"] == "ACK"
 
+    async def test_notification_instance_test_audit_keeps_hex_socket_response(
+        self,
+        async_client: AsyncClient,
+    ):
+        create_resp = await async_client.post(
+            "/api/notifications/instances",
+            json={
+                "name": "Hex Audit Socket",
+                "type": "socket",
+                "enabled": True,
+                "config": {
+                    "protocol": "tcp",
+                    "host": "127.0.0.1",
+                    "port": 9000,
+                    "message_mode": "hex",
+                    "message_hex": "414243",
+                    "encoding": "utf-8",
+                    "wait_for_response": True,
+                },
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        instance_id = create_resp.json()["id"]
+
+        client = MagicMock()
+        client.recv.return_value = b"ACK"
+        connection = MagicMock()
+        connection.__enter__.return_value = client
+        connection.__exit__.return_value = False
+
+        with patch("core.notification_client.socket.create_connection", return_value=connection):
+            test_resp = await async_client.post(
+                f"/api/notifications/instances/{instance_id}/test"
+            )
+
+        assert test_resp.status_code == 200, test_resp.text
+        assert test_resp.json()["response"] == "41434b"
+        audits = await list_audit_logs(operation_type="notifications.instances.test")
+        audit = audits["items"][0]
+        detail = json.loads(audit["detail"])
+        assert audit["resource_id"] == "Hex Audit Socket"
+        assert detail["message"] == "Socket message sent via TCP (response: 41434b)"
+        assert detail["response"] == "41434b"
+
     async def test_notification_instance_test_endpoint_invokes_provider(
         self, async_client: AsyncClient
     ):
@@ -908,6 +952,41 @@ class TestSocketNotificationProvider:
             "response": "ACK",
         }
         client.settimeout.assert_called_once_with(1.5)
+        client.recv.assert_called_once_with(4096)
+
+    def test_socket_provider_formats_tcp_hex_response_as_hex(self):
+        provider = SocketNotificationProvider(
+            {
+                "protocol": "tcp",
+                "host": "127.0.0.1",
+                "port": 9527,
+                "message_mode": "hex",
+                "message_hex": "414243",
+                "encoding": "utf-8",
+                "wait_for_response": True,
+            }
+        )
+        payload = NotificationPayload(
+            subject="ignored",
+            body="fallback",
+            context={"source_name": "Cam A"},
+        )
+
+        client = MagicMock()
+        client.recv.return_value = b"ACK"
+        connection = MagicMock()
+        connection.__enter__.return_value = client
+        connection.__exit__.return_value = False
+
+        with patch("core.notification_client.socket.create_connection", return_value=connection):
+            result = provider.send_sync(payload)
+
+        assert result == {
+            "status": "SUCCESS",
+            "message": "Socket message sent via TCP (response: 41434b)",
+            "response": "41434b",
+        }
+        client.sendall.assert_called_once_with(b"ABC")
         client.recv.assert_called_once_with(4096)
 
     def test_socket_provider_uses_configured_tcp_connect_timeout(self):

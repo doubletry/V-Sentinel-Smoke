@@ -231,9 +231,12 @@ class SocketNotificationProvider:
             raise ValueError("Socket connect_timeout_seconds must be greater than 0")
         return timeout
 
-    def _decode_response(self, data: bytes) -> str:
+    def _format_response(self, data: bytes) -> str:
         if not data:
             return ""
+        message_mode = str(self.config.get("message_mode") or "string").strip().lower()
+        if message_mode == "hex":
+            return data.hex()
         encoding = str(self.config.get("response_encoding") or self.config.get("encoding") or "utf-8").strip() or "utf-8"
         try:
             return data.decode(encoding)
@@ -266,12 +269,12 @@ class SocketNotificationProvider:
                             "status": "SUCCESS",
                             "message": "Socket message sent via TCP (response timeout)",
                         }
-                    decoded = self._decode_response(response)
+                    response_text = self._format_response(response)
                     message_text = "Socket message sent via TCP"
                     result = {"status": "SUCCESS", "message": message_text}
-                    if decoded:
-                        result["message"] = f"{message_text} (response: {decoded})"
-                        result["response"] = decoded
+                    if response_text:
+                        result["message"] = f"{message_text} (response: {response_text})"
+                        result["response"] = response_text
                     return result
             return {"status": "SUCCESS", "message": "Socket message sent via TCP"}
 
