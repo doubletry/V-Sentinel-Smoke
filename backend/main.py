@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import sys
 from contextlib import asynccontextmanager, suppress
+import os
 from pathlib import Path
 from pathlib import PurePosixPath
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from loguru import logger
 
 from backend.audit import audit_request
@@ -146,6 +147,37 @@ _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 _frontend_index = _frontend_dist / "index.html"
 
 
+def _normalize_base_path(value: str | None) -> str:
+    text = str(value or "").strip()
+    if not text or text == "/":
+        return ""
+    prefixed = text if text.startswith("/") else f"/{text}"
+    return prefixed.rstrip("/")
+
+
+def _frontend_base_path(request: Request) -> str:
+    forwarded_prefix = request.headers.get("x-forwarded-prefix", "").split(",", 1)[0].strip()
+    if forwarded_prefix:
+        return _normalize_base_path(forwarded_prefix)
+    return _normalize_base_path(os.environ.get("VITE_APP_BASE_PATH") or os.environ.get("APP_BASE_PATH"))
+
+
+def _render_frontend_index(request: Request) -> str:
+    if not _frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    html = _frontend_index.read_text(encoding="utf-8")
+    base_path = _frontend_base_path(request)
+    base_href = f"{base_path}/" if base_path else "/"
+    base_tag = f'<base href="{base_href}" />'
+    if "<base " in html:
+        html = html.replace("<base href=\"/\" />", base_tag, 1)
+        html = html.replace("<base href=\"./\" />", base_tag, 1)
+    else:
+        html = html.replace("<head>", f"<head>\n    {base_tag}", 1)
+    return html
+
+
 def _resolve_frontend_asset(full_path: str) -> Path | None:
     requested = str(full_path or "").strip()
     if not requested or "\\" in requested:
@@ -169,14 +201,12 @@ if _frontend_index.is_file():
 
 
 @app.get("/", include_in_schema=False)
-async def frontend_index() -> FileResponse:
-    if not _frontend_index.is_file():
-        raise HTTPException(status_code=404, detail="Not Found")
-    return FileResponse(_frontend_index)
+async def frontend_index(request: Request) -> Response:
+    return HTMLResponse(_render_frontend_index(request))
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
-async def frontend_spa(full_path: str) -> FileResponse:
+async def frontend_spa(full_path: str, request: Request) -> Response:
     if full_path in {"docs", "redoc", "openapi.json"} or full_path.startswith(("api/", "ws/")):
         raise HTTPException(status_code=404, detail="Not Found")
     if not _frontend_index.is_file():
@@ -188,4 +218,4 @@ async def frontend_spa(full_path: str) -> FileResponse:
     if "." in Path(full_path).name:
         raise HTTPException(status_code=404, detail="Not Found")
 
-    return FileResponse(_frontend_index)
+    return HTMLResponse(_render_frontend_index(request))

@@ -17,7 +17,7 @@ class TestFrontendFallbackRoutes:
         dist_dir = tmp_path / "dist"
         dist_dir.mkdir()
         index_path = dist_dir / "index.html"
-        index_path.write_text("<html><body>frontend</body></html>", encoding="utf-8")
+        index_path.write_text("<html><head></head><body>frontend</body></html>", encoding="utf-8")
 
         monkeypatch.setattr(main_module, "_frontend_dist", dist_dir)
         monkeypatch.setattr(main_module, "_frontend_index", index_path)
@@ -25,6 +25,29 @@ class TestFrontendFallbackRoutes:
         resp = await async_client.get("/settings")
 
         assert resp.status_code == 200
+        assert '<base href="/" />' in resp.text
+        assert "frontend" in resp.text
+
+    async def test_forwarded_prefix_updates_frontend_base_path(
+        self,
+        async_client: AsyncClient,
+        monkeypatch,
+        tmp_path: Path,
+    ):
+        from backend import main as main_module
+
+        dist_dir = tmp_path / "dist"
+        dist_dir.mkdir()
+        index_path = dist_dir / "index.html"
+        index_path.write_text("<html><head></head><body>frontend</body></html>", encoding="utf-8")
+
+        monkeypatch.setattr(main_module, "_frontend_dist", dist_dir)
+        monkeypatch.setattr(main_module, "_frontend_index", index_path)
+
+        resp = await async_client.get("/settings", headers={"X-Forwarded-Prefix": "/sentinel"})
+
+        assert resp.status_code == 200
+        assert '<base href="/sentinel/" />' in resp.text
         assert "frontend" in resp.text
 
     async def test_docs_routes_are_not_replaced_by_spa_fallback(
@@ -38,7 +61,7 @@ class TestFrontendFallbackRoutes:
         dist_dir = tmp_path / "dist"
         dist_dir.mkdir()
         index_path = dist_dir / "index.html"
-        index_path.write_text("<html><body>frontend</body></html>", encoding="utf-8")
+        index_path.write_text("<html><head></head><body>frontend</body></html>", encoding="utf-8")
 
         monkeypatch.setattr(main_module, "_frontend_dist", dist_dir)
         monkeypatch.setattr(main_module, "_frontend_index", index_path)

@@ -4,7 +4,6 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 ARG RELAX_HTTPS_VERIFICATION=false
-ARG VITE_APP_BASE_PATH="/"
 
 ARG HTTP_PROXY=""
 ARG HTTPS_PROXY=""
@@ -25,7 +24,7 @@ RUN --mount=type=secret,id=build_proxy_ca,required=false \
     fi
 
 COPY frontend/ ./
-RUN VITE_APP_BASE_PATH="${VITE_APP_BASE_PATH}" npm run build
+RUN npm run build
 
 FROM python:3.11-slim
 WORKDIR /app

@@ -11,7 +11,7 @@ const apiProxyPath = appBasePath ? `${appBasePath}/api` : '/api'
 const wsProxyPath = appBasePath ? `${appBasePath}/ws` : '/ws'
 
 export default defineConfig({
-  base: appBasePath ? `${appBasePath}/` : '/',
+  base: './',
   plugins: [vue()],
   build: {
     rollupOptions: {
