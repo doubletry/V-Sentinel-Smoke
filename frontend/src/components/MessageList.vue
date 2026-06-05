@@ -111,9 +111,11 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import config from '../config.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { formatDateTimeWithTimezone, formatWithTimezone } from '../utils/time.js'
+import { resolveAppUrl } from '../utils/appPath.js'
 
 const props = defineProps({
   messages: {
@@ -152,14 +154,14 @@ function levelType(level) {
 }
 
 function originalImageSrc(message) {
-  if (message?.original_image_url) return message.original_image_url
+  if (message?.original_image_url) return resolveAppUrl(message.original_image_url, config.appBasePath)
   if (message?.original_image_base64) return `data:image/jpeg;base64,${message.original_image_base64}`
   return ''
 }
 
 function detectedImageSrc(message) {
-  if (message?.detected_image_url) return message.detected_image_url
-  if (message?.image_url) return message.image_url
+  if (message?.detected_image_url) return resolveAppUrl(message.detected_image_url, config.appBasePath)
+  if (message?.image_url) return resolveAppUrl(message.image_url, config.appBasePath)
   if (message?.detected_image_base64) return `data:image/jpeg;base64,${message.detected_image_base64}`
   if (message?.image_base64) return `data:image/jpeg;base64,${message.image_base64}`
   return ''

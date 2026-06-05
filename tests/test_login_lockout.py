@@ -103,3 +103,39 @@ class TestLoginLockout:
 
         list_resp = await async_client.get("/api/access/blocked-ips")
         assert any(item["ip"] == "192.0.2.99" for item in list_resp.json())
+
+    async def test_login_uses_forwarded_client_ip_when_trusted(
+        self, async_client: AsyncClient
+    ):
+        await async_client.put(
+            "/api/settings",
+            json={
+                "login_lockout_max_attempts": "1",
+                "login_lockout_window_seconds": "300",
+                "login_lockout_duration_seconds": "0",
+                "login_lockout_trust_proxy": "true",
+            },
+        )
+        await async_client.post(
+            "/api/users",
+            json={"username": "proxy-victim", "password": "correct", "role": "operator"},
+        )
+
+        forwarded_ip = "203.0.113.24"
+        resp = await async_client.post(
+            "/api/auth/login",
+            headers={"X-Forwarded-For": f"{forwarded_ip}, 10.0.0.1"},
+            json={"username": "proxy-victim", "password": "wrong"},
+        )
+        assert resp.status_code == 403
+
+        blocked = await async_client.get("/api/access/blocked-ips")
+        assert any(item["ip"] == forwarded_ip for item in blocked.json())
+
+        audit_logs = await async_client.get(
+            "/api/access/audit-logs",
+            params={"operation_type": "auth.login", "result": "FAILURE", "page_size": 10},
+        )
+        items = audit_logs.json()["items"]
+        assert items
+        assert items[0]["ip"] == forwarded_ip

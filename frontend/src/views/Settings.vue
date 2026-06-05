@@ -153,7 +153,7 @@
                   </el-form-item>
                   <el-form-item :label="t('settings.faviconUrl')" class="form-grid-span-full">
                     <div class="icon-upload-group">
-                      <el-avatar :size="32" shape="square" :src="form.favicon_url">
+                      <el-avatar :size="32" shape="square" :src="resolveAppUrl(form.favicon_url, config.appBasePath)">
                         <el-icon><VideoCamera /></el-icon>
                       </el-avatar>
                       <el-upload
@@ -173,6 +173,47 @@
                       <p class="form-hint icon-upload-hint">
                         {{ isEmbeddedFavicon ? t('settings.siteIconUploadedHint') : t('settings.faviconUrlHint') }}
                       </p>
+                    </div>
+                  </el-form-item>
+                </div>
+              </section>
+
+              <section class="settings-section section-card">
+                <div class="section-card__head">
+                  <div>
+                    <h2>{{ t('settings.loginSecurity') }}</h2>
+                    <p class="info-tip">{{ t('settings.loginLockoutTrustProxySectionHint') }}</p>
+                  </div>
+                  <div class="section-card__actions">
+                    <el-button
+                      :loading="activeRestoreSection === 'site-login-security'"
+                      @click="restoreSection('site-login-security', SITE_LOGIN_SECURITY_SETTING_KEYS)"
+                    >
+                      {{ t('settings.restoreSection') }}
+                    </el-button>
+                    <el-button
+                      type="primary"
+                      :loading="activeSaveSection === 'site-login-security'"
+                      @click="saveSection('site-login-security', SITE_LOGIN_SECURITY_SETTING_KEYS)"
+                    >
+                      {{ t('settings.saveSection') }}
+                    </el-button>
+                  </div>
+                </div>
+                <div class="settings-form-grid compact-grid">
+                  <el-form-item class="numeric-setting-item">
+                    <template #label>
+                      <ProxyTrustLabel
+                        :label="t('settings.loginLockoutTrustProxy')"
+                        :hint="t('settings.loginLockoutTrustProxyHint')"
+                      />
+                    </template>
+                    <div class="field-stack switch-field-stack">
+                      <el-switch
+                        v-model="form.login_lockout_trust_proxy"
+                        active-value="true"
+                        inactive-value="false"
+                      />
                     </div>
                   </el-form-item>
                 </div>
@@ -1093,15 +1134,22 @@ import { Bell, Crop, Delete, Document, Edit, Key, Lock, Monitor, Setting, Unlock
 import ElMessage from 'element-plus/es/components/message/index'
 import ElMessageBox from 'element-plus/es/components/message-box/index'
 import { useRoute, useRouter } from 'vue-router'
+import config from '../config.js'
 import { localeOptions } from '../i18n/index.js'
 import { accessApi, scenesApi } from '../api/index.js'
 import { useAppSettingsStore } from '../stores/appSettings.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useSourceStore } from '../stores/source.js'
 import { canViewAuditLogs, getDefaultManagementSection } from '../utils/settingsRoutes.js'
+import {
+  SITE_LOGIN_SECURITY_SETTING_KEYS,
+  USER_LOGIN_SECURITY_SETTING_KEYS,
+} from '../utils/loginSecuritySettings.js'
 import { sceneScopedRoiTagLabel } from '../utils/roiTags.js'
 import { formatSortableDateTimeWithTimezone } from '../utils/time.js'
+import { resolveAppUrl } from '../utils/appPath.js'
 import NotificationInstancesPanel from '../components/NotificationInstancesPanel.vue'
+import ProxyTrustLabel from '../components/ProxyTrustLabel.js'
 import AuditLogs from './AuditLogs.vue'
 
 const { t, locale } = useI18n()
@@ -1433,6 +1481,7 @@ const form = ref({
   login_lockout_max_attempts: '5',
   login_lockout_window_seconds: '300',
   login_lockout_duration_seconds: '900',
+  login_lockout_trust_proxy: 'false',
 })
 const firstAllowedSectionKey = computed(() => {
   return getDefaultManagementSection(canManageSettings.value, authStore.canManageUsers, canViewLogs.value)
@@ -1805,9 +1854,7 @@ async function saveAccountExpirationSettings() {
 
 async function saveLoginSecuritySettings() {
   await saveSection('loginSecurity', [
-    'login_lockout_max_attempts',
-    'login_lockout_window_seconds',
-    'login_lockout_duration_seconds',
+    ...USER_LOGIN_SECURITY_SETTING_KEYS,
   ])
 }
 
@@ -3022,6 +3069,27 @@ onMounted(async () => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+}
+
+.settings-tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-tooltip-label__text {
+  display: inline-block;
+}
+
+.settings-tooltip-label__trigger {
+  display: inline-block;
+  cursor: help;
+}
+
+.settings-tooltip-label__icon {
+  font-size: 14px;
+  color: #8f9fbe;
+  cursor: help;
 }
 
 .smoke-threshold-grid {

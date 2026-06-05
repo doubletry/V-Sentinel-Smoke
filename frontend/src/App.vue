@@ -144,10 +144,12 @@ import ElMessage from 'element-plus/es/components/message/index'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import en from 'element-plus/es/locale/lang/en'
 import { useRoute, useRouter } from 'vue-router'
+import config from './config.js'
 import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
 import { canViewAuditLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
+import { resolveAppUrl } from './utils/appPath.js'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -197,7 +199,7 @@ function syncDocumentTitle(title) {
 function syncFavicon(href) {
   if (typeof document === 'undefined') return
 
-  const iconHref = href || '/favicon.ico'
+  const iconHref = resolveAppUrl(href || '/favicon.ico', config.appBasePath)
   let link = document.querySelector("link[rel*='icon']")
   if (!link) {
     link = document.createElement('link')
