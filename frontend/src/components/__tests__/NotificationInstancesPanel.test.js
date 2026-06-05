@@ -49,9 +49,11 @@ describe('NotificationInstancesPanel template', () => {
     const webhookBlock = formGridBlocks.find((block) => block.condition === "form.type === 'webhook'")
     const socketBlock = formGridBlocks.find((block) => block.condition === "form.type === 'socket'")
 
+    expect(webhookBlock).toBeDefined()
     expect(webhookBlock?.conditionType).toBe('else-if')
     expect(webhookBlock?.node).toSatisfy((node) => nodeContains(node, 'settings.notificationWebhookPayload'))
     expect(webhookBlock?.node).not.toSatisfy((node) => nodeContains(node, 'settings.notificationSocketProtocol'))
+    expect(socketBlock).toBeDefined()
     expect(socketBlock?.conditionType).toBe('else-if')
     expect(socketBlock?.node).toSatisfy((node) => nodeContains(node, 'settings.notificationSocketProtocol'))
     expect(formGridBlocks).not.toContainEqual(expect.objectContaining({ conditionType: 'else' }))
