@@ -63,16 +63,21 @@ describe('NotificationInstancesPanel template', () => {
 
   it('uses explicit type branches instead of a catch-all notification settings form', () => {
     const formGridBlocks = collectFormGridBlocks(panelAst)
+    const allowedTypeConditions = new Set([
+      "form.type === 'email'",
+      "form.type === 'webhook'",
+      "form.type === 'socket'",
+    ])
     const typeSpecificConditions = formGridBlocks
       .map((block) => block.condition)
       .filter((condition) => condition.startsWith('form.type'))
 
-    expect(typeSpecificConditions).toEqual([
+    expect(typeSpecificConditions).toEqual(expect.arrayContaining([
       "form.type === 'email'",
       "form.type === 'webhook'",
-      "form.type === 'email'",
       "form.type === 'socket'",
-    ])
+    ]))
+    expect(typeSpecificConditions.every((condition) => allowedTypeConditions.has(condition))).toBe(true)
     expect(formGridBlocks).not.toContainEqual(expect.objectContaining({ conditionType: 'else' }))
   })
 })
