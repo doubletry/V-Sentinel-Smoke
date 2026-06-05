@@ -299,7 +299,7 @@
           </el-form-item>
         </div>
 
-        <div v-else class="notification-instance-form-grid">
+        <div v-else-if="form.type === 'socket'" class="notification-instance-form-grid">
           <el-form-item :label="t('settings.notificationSocketProtocol')">
             <el-select v-model="form.socket_protocol" style="width: 100%">
               <el-option value="tcp" :label="t('settings.notificationSocketProtocolTcp')" />
