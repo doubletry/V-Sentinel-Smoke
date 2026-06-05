@@ -8,12 +8,12 @@ const panelSource = readFileSync(resolve(__dirname, '../NotificationInstancesPan
 
 describe('NotificationInstancesPanel template', () => {
   it('keeps socket settings out of webhook notification forms', () => {
-    const socketFormBlock = panelSource.match(
-      /<div v-else-if="form\.type === 'socket'" class="notification-instance-form-grid">[\s\S]*?notificationSocketMessageHex[\s\S]*?<\/div>\s*<\/div>\s*<\/el-form>/,
-    )
+    const socketFormBlockIndex = panelSource.indexOf('<div v-else-if="form.type === \'socket\'" class="notification-instance-form-grid">')
+    const firstSocketSettingIndex = panelSource.indexOf('settings.notificationSocketProtocol')
 
     expect(panelSource).toContain('<div v-else-if="form.type === \'webhook\'" class="notification-instance-form-grid">')
-    expect(socketFormBlock).not.toBeNull()
+    expect(socketFormBlockIndex).toBeGreaterThan(-1)
+    expect(firstSocketSettingIndex).toBeGreaterThan(socketFormBlockIndex)
     expect(panelSource).not.toContain('<div v-else class="notification-instance-form-grid">')
   })
 })
