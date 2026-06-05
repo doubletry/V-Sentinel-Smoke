@@ -44,18 +44,35 @@ function collectFormGridBlocks(node, blocks = []) {
 }
 
 describe('NotificationInstancesPanel template', () => {
-  it('keeps socket settings out of webhook notification forms', () => {
-    const formGridBlocks = collectFormGridBlocks(panelAst)
-    const webhookBlock = formGridBlocks.find((block) => block.condition === "form.type === 'webhook'")
-    const socketBlock = formGridBlocks.find((block) => block.condition === "form.type === 'socket'")
+  const getFormGridBlock = (condition) => {
+    const block = collectFormGridBlocks(panelAst).find((item) => item.condition === condition)
+    expect(block, `missing notification form block for ${condition}`).toBeDefined()
+    return block
+  }
 
-    expect(webhookBlock).toBeDefined()
-    expect(webhookBlock?.conditionType).toBe('else-if')
-    expect(webhookBlock?.node).toSatisfy((node) => nodeContains(node, 'settings.notificationWebhookPayload'))
-    expect(webhookBlock?.node).not.toSatisfy((node) => nodeContains(node, 'settings.notificationSocketProtocol'))
-    expect(socketBlock).toBeDefined()
-    expect(socketBlock?.conditionType).toBe('else-if')
-    expect(socketBlock?.node).toSatisfy((node) => nodeContains(node, 'settings.notificationSocketProtocol'))
+  it('keeps socket settings out of webhook notification forms', () => {
+    const webhookBlock = getFormGridBlock("form.type === 'webhook'")
+    const socketBlock = getFormGridBlock("form.type === 'socket'")
+
+    expect(webhookBlock.conditionType).toBe('else-if')
+    expect(nodeContains(webhookBlock.node, 'settings.notificationWebhookPayload')).toBe(true)
+    expect(nodeContains(webhookBlock.node, 'settings.notificationSocketProtocol')).toBe(false)
+    expect(socketBlock.conditionType).toBe('else-if')
+    expect(nodeContains(socketBlock.node, 'settings.notificationSocketProtocol')).toBe(true)
+  })
+
+  it('uses explicit type branches instead of a catch-all notification settings form', () => {
+    const formGridBlocks = collectFormGridBlocks(panelAst)
+    const typeSpecificConditions = formGridBlocks
+      .map((block) => block.condition)
+      .filter((condition) => condition.startsWith('form.type'))
+
+    expect(typeSpecificConditions).toEqual([
+      "form.type === 'email'",
+      "form.type === 'webhook'",
+      "form.type === 'email'",
+      "form.type === 'socket'",
+    ])
     expect(formGridBlocks).not.toContainEqual(expect.objectContaining({ conditionType: 'else' }))
   })
 })
