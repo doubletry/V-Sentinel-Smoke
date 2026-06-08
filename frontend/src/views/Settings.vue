@@ -62,7 +62,7 @@
               </div>
             </section>
 
-            <section v-if="canManageSettings" class="management-expert-toggle">
+            <section v-if="canManageExpertSettings" class="management-expert-toggle">
               <div>
                 <h3>{{ t('settings.configurationMode') }}</h3>
                 <p>{{ t('settings.expertModeHint') }}</p>
@@ -532,7 +532,7 @@
             </section>
 
             <div class="users-management-side">
-              <section v-if="canManageSettings" class="settings-section section-card">
+              <section v-if="canManageSiteSettings" class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.accountExpirationDefaults') }}</h2>
@@ -576,7 +576,7 @@
                 </div>
               </section>
 
-              <section v-if="canManageSettings" class="settings-section section-card">
+              <section v-if="canManageSiteSettings" class="settings-section section-card">
                 <div class="section-card__head">
                   <div>
                     <h2>{{ t('settings.loginSecurity') }}</h2>
@@ -1398,9 +1398,25 @@ const manualBlockForm = ref({
   duration_seconds: '',
   reason: '',
 })
-const canManageSettings = computed(() => authStore.hasPermission('settings:*'))
+const canManageSiteSettings = computed(() => authStore.hasPermission('settings:*'))
+const canManageVengineSettings = computed(() => authStore.hasPermission('settings:*'))
+const canManageNotificationSettings = computed(() => (
+  authStore.hasPermission('settings:notifications') || authStore.hasPermission('settings:*')
+))
+const canManagePluginSettings = computed(() => (
+  authStore.hasPermission('settings:plugins') || authStore.hasPermission('settings:*')
+))
+const canLoadSettings = computed(() => (
+  canManageSiteSettings.value
+  || canManageVengineSettings.value
+  || canManageNotificationSettings.value
+  || canManagePluginSettings.value
+))
+const canManageExpertSettings = computed(() => canManageVengineSettings.value || canManagePluginSettings.value)
 const canViewLogs = computed(() => canViewAuditLogs(authStore.hasPermission('audit:read')))
-const hasSettingsAccess = computed(() => canManageSettings.value || authStore.canManageUsers || canViewLogs.value)
+const hasSettingsAccess = computed(() => (
+  canLoadSettings.value || authStore.canManageUsers || canViewLogs.value
+))
 const form = ref({
   ui_language: 'zh-CN',
   timezone: 'Asia/Shanghai',
@@ -1484,7 +1500,14 @@ const form = ref({
   login_lockout_trust_proxy: 'false',
 })
 const firstAllowedSectionKey = computed(() => {
-  return getDefaultManagementSection(canManageSettings.value, authStore.canManageUsers, canViewLogs.value)
+  return getDefaultManagementSection({
+    canManageSiteSettings: canManageSiteSettings.value,
+    canManageUsers: authStore.canManageUsers,
+    canViewLogs: canViewLogs.value,
+    canManageVengineSettings: canManageVengineSettings.value,
+    canManageNotificationSettings: canManageNotificationSettings.value,
+    canManagePluginSettings: canManagePluginSettings.value,
+  })
 })
 const currentSettingsPage = computed(() => (
   route.name === 'ManagementPlugin'
@@ -1507,7 +1530,7 @@ const isPluginPage = computed(() => currentSettingsPage.value === 'plugins')
 const isEmbeddedFavicon = computed(() => String(form.value.favicon_url || '').startsWith('data:'))
 const settingsNavItems = computed(() => {
   const items = []
-  if (canManageSettings.value) {
+  if (canManageSiteSettings.value) {
     items.push(
       { key: 'site', label: t('management.siteSettings'), hint: t('management.siteSettingsHint'), icon: Setting },
     )
@@ -1518,10 +1541,18 @@ const settingsNavItems = computed(() => {
   if (canViewLogs.value) {
     items.push({ key: 'logs', label: t('management.auditLogs'), hint: t('auditLogs.subtitle'), icon: Document })
   }
-  if (canManageSettings.value) {
+  if (canManageVengineSettings.value) {
     items.push(
       { key: 'vengine', label: t('management.vengineSettings'), hint: t('settings.serviceToggleTip'), icon: Monitor },
+    )
+  }
+  if (canManageNotificationSettings.value) {
+    items.push(
       { key: 'notifications', label: t('management.notificationSettings'), hint: t('settings.subtitle'), icon: Bell },
+    )
+  }
+  if (canManagePluginSettings.value) {
+    items.push(
       { key: 'plugins', label: t('management.pluginSettings'), hint: t('settings.pluginSectionHint'), icon: Crop },
     )
   }
@@ -1633,7 +1664,7 @@ function ensureValidSettingsRoute() {
   }
 
   if (route.name === 'ManagementPlugin') {
-    if (!canManageSettings.value) {
+    if (!canManagePluginSettings.value) {
       replaceSettingsRoute(fallback)
       return
     }
@@ -1645,7 +1676,13 @@ function ensureValidSettingsRoute() {
   }
 
   const section = route.params.section || ''
-  if ((section === 'site' || section === 'vengine' || section === 'notifications') && canManageSettings.value) {
+  if (section === 'site' && canManageSiteSettings.value) {
+    return
+  }
+  if (section === 'vengine' && canManageVengineSettings.value) {
+    return
+  }
+  if (section === 'notifications' && canManageNotificationSettings.value) {
     return
   }
   if (section === 'users' && authStore.canManageUsers) {
@@ -1654,7 +1691,7 @@ function ensureValidSettingsRoute() {
   if (section === 'logs' && canViewLogs.value) {
     return
   }
-  if (section === 'plugins' && canManageSettings.value) {
+  if (section === 'plugins' && canManagePluginSettings.value) {
     return
   }
   replaceSettingsRoute(fallback)
@@ -1663,7 +1700,7 @@ function ensureValidSettingsRoute() {
 async function reload() {
   loading.value = true
   try {
-    if (canManageSettings.value) {
+    if (canLoadSettings.value) {
       const [data, scenes] = await Promise.all([
         appSettingsStore.fetchSettings(true),
         scenesApi.list(),
@@ -2086,7 +2123,10 @@ async function resetSmokeAdvancedThresholds() {
 watch(
   [
     () => route.fullPath,
-    canManageSettings,
+    canManageSiteSettings,
+    canManageVengineSettings,
+    canManageNotificationSettings,
+    canManagePluginSettings,
     () => authStore.canManageUsers,
     () => sceneDefinitions.value.length,
   ],

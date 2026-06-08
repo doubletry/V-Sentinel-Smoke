@@ -2,15 +2,41 @@ export function canViewAuditLogs(hasAuditReadPermission) {
   return Boolean(hasAuditReadPermission)
 }
 
-export function getDefaultManagementSection(canManageSettings, canManageUsers, canViewLogs = false) {
-  if (canManageSettings) return 'site'
-  if (canManageUsers) return 'users'
-  if (canViewLogs) return 'logs'
+function normalizeManagementAccess(accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
+  if (typeof accessOrCanManageSettings === 'object' && accessOrCanManageSettings !== null) {
+    return {
+      canManageSiteSettings: Boolean(accessOrCanManageSettings.canManageSiteSettings),
+      canManageUsers: Boolean(accessOrCanManageSettings.canManageUsers),
+      canViewLogs: Boolean(accessOrCanManageSettings.canViewLogs),
+      canManageVengineSettings: Boolean(accessOrCanManageSettings.canManageVengineSettings),
+      canManageNotificationSettings: Boolean(accessOrCanManageSettings.canManageNotificationSettings),
+      canManagePluginSettings: Boolean(accessOrCanManageSettings.canManagePluginSettings),
+    }
+  }
+  const canManageSettings = Boolean(accessOrCanManageSettings)
+  return {
+    canManageSiteSettings: canManageSettings,
+    canManageUsers: Boolean(canManageUsers),
+    canViewLogs: Boolean(canViewLogs),
+    canManageVengineSettings: canManageSettings,
+    canManageNotificationSettings: canManageSettings,
+    canManagePluginSettings: canManageSettings,
+  }
+}
+
+export function getDefaultManagementSection(accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
+  const access = normalizeManagementAccess(accessOrCanManageSettings, canManageUsers, canViewLogs)
+  if (access.canManageSiteSettings) return 'site'
+  if (access.canManageUsers) return 'users'
+  if (access.canViewLogs) return 'logs'
+  if (access.canManageNotificationSettings) return 'notifications'
+  if (access.canManagePluginSettings) return 'plugins'
+  if (access.canManageVengineSettings) return 'vengine'
   return null
 }
 
-export function getDefaultManagementPath(canManageSettings, canManageUsers, canViewLogs = false) {
-  const section = getDefaultManagementSection(canManageSettings, canManageUsers, canViewLogs)
+export function getDefaultManagementPath(accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
+  const section = getDefaultManagementSection(accessOrCanManageSettings, canManageUsers, canViewLogs)
   return section ? `/management/${section}` : null
 }
 
@@ -38,6 +64,32 @@ export function userRoleRedirect(role, toPath) {
   if (String(role || '').toLowerCase() !== 'user') return null
   if (toPath === '/messages' || toPath === '/auth') return null
   return '/messages'
+}
+
+export function getManagementSectionFromPath(toPath) {
+  const normalizedPath = String(toPath || '').split('?')[0].split('#')[0]
+  const match = normalizedPath.match(/^\/management(?:\/([^/]+))?/)
+  return match ? (match[1] || '') : null
+}
+
+export function canOpenManagementSection(section, accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
+  const access = normalizeManagementAccess(accessOrCanManageSettings, canManageUsers, canViewLogs)
+  if (section === 'site') return access.canManageSiteSettings
+  if (section === 'users') return access.canManageUsers
+  if (section === 'logs') return access.canViewLogs
+  if (section === 'vengine') return access.canManageVengineSettings
+  if (section === 'notifications') return access.canManageNotificationSettings
+  if (section === 'plugins') return access.canManagePluginSettings
+  return false
+}
+
+export function managementRouteRedirect(toPath, accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
+  const section = getManagementSectionFromPath(toPath)
+  if (section === null) return null
+  const fallback = getDefaultManagementPath(accessOrCanManageSettings, canManageUsers, canViewLogs)
+  if (!section) return fallback
+  if (canOpenManagementSection(section, accessOrCanManageSettings, canManageUsers, canViewLogs)) return null
+  return fallback
 }
 
 export function legacySettingsSectionToManagement(section) {
