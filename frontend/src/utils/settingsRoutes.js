@@ -2,6 +2,10 @@ export function canViewAuditLogs(hasAuditReadPermission) {
   return Boolean(hasAuditReadPermission)
 }
 
+/**
+ * Accepts the current object shape, or the legacy
+ * (canManageSettings, canManageUsers, canViewLogs) boolean arguments.
+ */
 function normalizeManagementAccess(accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
   if (typeof accessOrCanManageSettings === 'object' && accessOrCanManageSettings !== null) {
     return {
@@ -66,11 +70,13 @@ export function userRoleRedirect(role, toPath) {
   return '/messages'
 }
 
-export function getManagementSectionFromPath(toPath) {
+function getManagementPathInfo(toPath) {
   const normalizedPath = String(toPath || '').split('?')[0].split('#')[0]
   const match = normalizedPath.match(/^\/management(?:\/([^/]+))?/)
-  // Returns null for non-management paths, empty string for management root.
-  return match ? (match[1] || '') : null
+  return {
+    isManagementPath: Boolean(match),
+    section: match?.[1] || null,
+  }
 }
 
 export function canOpenManagementSection(section, accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
@@ -85,10 +91,10 @@ export function canOpenManagementSection(section, accessOrCanManageSettings, can
 }
 
 export function managementRouteRedirect(toPath, accessOrCanManageSettings, canManageUsers, canViewLogs = false) {
-  const section = getManagementSectionFromPath(toPath)
-  if (section === null) return null
+  const { isManagementPath, section } = getManagementPathInfo(toPath)
+  if (!isManagementPath) return null
   const fallback = getDefaultManagementPath(accessOrCanManageSettings, canManageUsers, canViewLogs)
-  if (!section) return fallback
+  if (section === null) return fallback
   if (canOpenManagementSection(section, accessOrCanManageSettings, canManageUsers, canViewLogs)) return null
   return fallback
 }
