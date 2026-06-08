@@ -83,7 +83,9 @@ class TestAuthBootstrapAndUsers:
         )
         assert me_resp.status_code == 200
         assert me_resp.json()["role"] == "operator"
-        assert "sources:operate" in me_resp.json()["permissions"]
+        assert "sources:*" in me_resp.json()["permissions"]
+        assert "settings:*" not in me_resp.json()["permissions"]
+        assert "users:*" not in me_resp.json()["permissions"]
 
     async def test_registered_user_can_change_password(self, async_client: AsyncClient):
         register_resp = await async_client.post(
