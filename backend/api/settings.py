@@ -80,7 +80,7 @@ def _ensure_settings_update_allowed(updates: dict[str, str], user: CurrentUser) 
     if denied_keys:
         raise HTTPException(
             status_code=403,
-            detail=f"Insufficient role permission for settings keys: {', '.join(denied_keys)}",
+            detail="Insufficient role permission to update some settings",
         )
 
 

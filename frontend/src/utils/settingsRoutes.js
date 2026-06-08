@@ -69,6 +69,8 @@ export function userRoleRedirect(role, toPath) {
 export function getManagementSectionFromPath(toPath) {
   const normalizedPath = String(toPath || '').split('?')[0].split('#')[0]
   const match = normalizedPath.match(/^\/management(?:\/([^/]+))?/)
+  // Return null for non-management paths, and an empty string for the
+  // management root so callers can redirect it to the first allowed section.
   return match ? (match[1] || '') : null
 }
 
