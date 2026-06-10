@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import config from '../config.js'
 import { messagesApi } from '../api/index.js'
+import { AUTH_TOKEN_STORAGE_KEY } from '../utils/authStorage.js'
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.js'
 
 function timestampDay(timestamp) {
@@ -76,7 +77,9 @@ export const useMessageStore = defineStore('message', () => {
       wsBase = `${proto}//${window.location.host}`
     }
     const url = `${wsBase}/ws/messages`
-    _ws = new WebSocket(url)
+    const token = window.localStorage?.getItem(AUTH_TOKEN_STORAGE_KEY)
+    const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url
+    _ws = new WebSocket(wsUrl)
 
     _ws.onopen = () => {
       wsConnected.value = true
