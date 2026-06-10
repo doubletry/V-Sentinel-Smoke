@@ -160,9 +160,26 @@ app.include_router(ws_module.router)
 
 @app.get("/api/health")
 async def health() -> dict:
-    """Health check endpoint.
-    健康检查端点。"""
-    return {"status": "ok", "app": app.title}
+    """Health check endpoint with dependency status.
+    带依赖状态的健康检查端点。"""
+    result: dict = {"status": "ok", "app": app.title}
+
+    # ── Database / 数据库 ──
+    try:
+        await get_all_settings()
+        result["db"] = "ok"
+    except Exception as exc:
+        result["status"] = "degraded"
+        result["db"] = f"error: {exc}"
+
+    # ── V-Engine services / V-Engine 服务 ──
+    try:
+        connected_services = list(getattr(vengine_client, "_stubs", {}).keys())
+        result["vengine_services"] = connected_services or ["none"]
+    except Exception:
+        result["vengine_services"] = ["unknown"]
+
+    return result
 
 
 # ── Static files (production: serve built frontend) / 静态文件（生产环境：托管构建后的前端） ──
