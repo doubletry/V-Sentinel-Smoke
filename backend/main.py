@@ -113,10 +113,23 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+# NOTE: allow_credentials=True cannot be combined with allow_origins=["*"] per
+# the Fetch spec.  When origins are unrestricted, credentials must be off.
+# Production deployments should restrict origins via V_SENTINEL_CORS_ORIGINS.
+# 注意：根据 Fetch 规范，allow_credentials=True 不能与 allow_origins=["*"] 同时使用。
+# 生产部署应通过 V_SENTINEL_CORS_ORIGINS 限制来源。
+_cors_origins_raw = os.environ.get("V_SENTINEL_CORS_ORIGINS", "").strip()
+_cors_origins: list[str] = (
+    [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+    if _cors_origins_raw
+    else ["*"]
+)
+_cors_allow_credentials = _cors_origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

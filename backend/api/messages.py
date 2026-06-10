@@ -28,6 +28,7 @@ async def get_messages(
     false_positive_only: bool = Query(default=False),
     start_date: str | None = Query(default=None, description="Inclusive YYYY-MM-DD lower bound (UTC)."),
     end_date: str | None = Query(default=None, description="Inclusive YYYY-MM-DD upper bound (UTC)."),
+    _role: str = Depends(require_permission("messages:read")),
 ) -> PaginatedMessagesResponse:
     """Return persisted analysis messages ordered newest-first.
     返回按时间倒序排列的持久化分析消息。
@@ -146,7 +147,10 @@ async def batch_delete_messages(
 
 
 @router.get("/{message_id}/image", include_in_schema=False)
-async def get_message_image(message_id: str) -> FileResponse:
+async def get_message_image(
+    message_id: str,
+    _role: str = Depends(require_permission("messages:read")),
+) -> FileResponse:
     """Backward-compatible detected-image endpoint.
     向后兼容的检测图接口。"""
     file_path = await get_analysis_message_image_path(message_id, kind="detected")
@@ -156,7 +160,11 @@ async def get_message_image(message_id: str) -> FileResponse:
 
 
 @router.get("/{message_id}/images/{image_kind}", include_in_schema=False)
-async def get_message_image_by_kind(message_id: str, image_kind: str) -> FileResponse:
+async def get_message_image_by_kind(
+    message_id: str,
+    image_kind: str,
+    _role: str = Depends(require_permission("messages:read")),
+) -> FileResponse:
     """Serve one persisted original/detected analysis image from disk.
     从磁盘提供单条消息的原图或检测图。"""
     file_path = await get_analysis_message_image_path(message_id, kind=image_kind)

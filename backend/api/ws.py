@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 
+from backend.auth.security import verify_access_token
 from backend.db.database import build_analysis_message_image_url, materialize_message_image
 from backend.models.schemas import AnalysisMessage
 
@@ -103,8 +104,27 @@ class WSManager:
 @router.websocket("/ws/messages")
 async def ws_messages_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time analysis message streaming.
-    用于实时分析消息推送的 WebSocket 端点。"""
+    用于实时分析消息推送的 WebSocket 端点。
+
+    Requires a valid Bearer token passed as the ``token`` query parameter.
+    需要通过 ``token`` 查询参数传递有效的 Bearer 令牌。
+
+    Example / 示例::
+
+        ws://host/ws/messages?token=<access_token>
+    """
     from backend.main import ws_manager  # avoid circular imports / 避免循环导入
+
+    # ── Authenticate via query parameter / 通过查询参数认证 ──
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing token")
+        return
+    try:
+        verify_access_token(token)
+    except Exception:
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
 
     await ws_manager.connect(websocket)
     try:
