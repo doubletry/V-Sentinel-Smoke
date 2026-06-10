@@ -55,6 +55,15 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting {} ...", settings.app_name)
 
+    # Warn if auth secret is not set (tokens will be invalidated on restart)
+    # 警告未设置认证密钥（重启后所有 token 将失效）
+    if not os.environ.get("V_SENTINEL_AUTH_SECRET"):
+        logger.warning(
+            "V_SENTINEL_AUTH_SECRET is not set – using a process-local random secret. "
+            "All tokens will be invalidated when the process restarts. "
+            "Set V_SENTINEL_AUTH_SECRET in your environment for stable tokens."
+        )
+
     # Initialize WebSocket manager / 初始化 WebSocket 管理器
     async def _persist_message(message) -> str:
         return await save_analysis_message(message.model_dump())

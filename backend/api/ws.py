@@ -44,26 +44,42 @@ class WSManager:
             "WebSocket client disconnected. Total: {}", len(self._connections)
         )
 
-    async def broadcast(self, message: AnalysisMessage) -> None:
-        """Send a message to all connected WebSocket clients.
-        向所有已连接的 WebSocket 客户端发送消息。"""
-        if message.image_url and not message.detected_image_url:
-            message.detected_image_url = message.image_url
-        if message.detected_image_base64 and not message.detected_image_url:
-            message.detected_image_url = materialize_message_image(
-                message.detected_image_base64,
-                timestamp=message.timestamp,
-            )
-            if message.detected_image_url:
-                message.detected_image_base64 = None
-        if message.image_base64 and not message.detected_image_base64 and not message.detected_image_url:
-            message.detected_image_base64 = message.image_base64
-            message.detected_image_url = materialize_message_image(
-                message.detected_image_base64,
-                timestamp=message.timestamp,
-            )
-            if message.detected_image_url:
-                message.detected_image_base64 = None
+    @staticmethod
+    def _resolve_image_urls(message: AnalysisMessage) -> None:
+        """Normalise incoming image fields into the canonical ``*_url`` fields.
+        将传入的多种图片字段归一化为标准 ``*_url`` 字段。
+
+        Supports three input shapes from different processors:
+        支持不同处理器的三种输入格式：
+
+        1. ``detected_image_url``  (already a URL)
+        2. ``detected_image_base64``  (inline base64)
+        3. ``image_base64`` / ``image_url``  (legacy fallback)
+
+        After this call, base64 fields are cleared once materialised.
+        """
+        # ── Detected image: prefer explicit URL, then base64, then legacy fallback ──
+        # 检测图：优先使用显式 URL，其次 base64，最后从旧版字段回退
+        if not message.detected_image_url:
+            if message.detected_image_base64:
+                message.detected_image_url = materialize_message_image(
+                    message.detected_image_base64,
+                    timestamp=message.timestamp,
+                )
+            elif message.image_base64:
+                message.detected_image_base64 = message.image_base64
+                message.detected_image_url = materialize_message_image(
+                    message.detected_image_base64,
+                    timestamp=message.timestamp,
+                )
+            elif message.image_url:
+                message.detected_image_url = message.image_url
+
+        # Clear base64 once materialised / URL 化后清除 base64
+        if message.detected_image_url:
+            message.detected_image_base64 = None
+
+        # ── Original image / 原图 ──
         if message.original_image_base64 and not message.original_image_url:
             message.original_image_url = materialize_message_image(
                 message.original_image_base64,
@@ -71,14 +87,27 @@ class WSManager:
             )
             if message.original_image_url:
                 message.original_image_base64 = None
+
+        # ── Canonical shortcuts / 标准快捷字段 ──
         message.image_url = message.detected_image_url or message.image_url
-        message.image_base64 = None if message.detected_image_url else (message.detected_image_base64 or message.image_base64)
+        message.image_base64 = (
+            None if message.detected_image_url
+            else (message.detected_image_base64 or message.image_base64)
+        )
+
+    async def broadcast(self, message: AnalysisMessage) -> None:
+        """Send a message to all connected WebSocket clients.
+        向所有已连接的 WebSocket 客户端发送消息。"""
+        self._resolve_image_urls(message)
+
+        # Persist to DB / 持久化到数据库
+        message_id: str | None = None
         if self._persist_message is not None:
             message_id = await self._persist_message(message)
-        else:
-            message_id = None
         if message_id:
             message.id = message_id
+
+        # Override URLs with public API URLs / 用公共 API URL 覆盖
         if message_id and message.detected_image_url:
             public_url = build_analysis_message_image_url(message_id)
             message.detected_image_url = public_url
@@ -88,6 +117,8 @@ class WSManager:
                 message_id,
                 kind="original",
             )
+
+        # Broadcast to all clients / 广播到所有客户端
         payload = message.model_dump_json()
         dead: list[WebSocket] = []
         async with self._lock:
