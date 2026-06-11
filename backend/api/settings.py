@@ -3,14 +3,85 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
-from backend.auth.dependencies import require_permission
+from backend.auth.dependencies import current_user, has_permission, require_any_permission
 from backend.db import database as db
-from backend.models.schemas import AppSettingsUpdate, EmailTestRequest
+from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest
 from backend.notifications.email_config import build_email_settings_smtp_config
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+NOTIFICATION_SETTING_KEYS = {
+    "email_from_address",
+    "email_smtp_password",
+    "email_to_addresses",
+    "email_cc_addresses",
+    "email_smtp_host",
+    "email_smtp_port",
+    "email_smtp_use_tls",
+    "email_event_enabled",
+    "email_timed_enabled",
+    "email_event_subject_template",
+    "email_event_body_template",
+    "message_retention_days",
+}
+
+PLUGIN_SETTING_KEYS = {
+    "smoke_detection_model_name",
+    "smoke_detection_model_version",
+    "smoke_detection_confidence",
+    "smoke_detection_nms",
+    "smoke_min_confidence_smoke",
+    "smoke_min_confidence_fire",
+    "smoke_temporal_confirm_frames",
+    "smoke_temporal_confirm_window",
+    "smoke_max_miss_frames",
+    "smoke_min_bbox_area_ratio",
+    "smoke_max_bbox_area_ratio",
+    "smoke_min_aspect_ratio",
+    "smoke_max_aspect_ratio",
+    "smoke_motion_blur_max_speed",
+    "smoke_motion_blur_min_confidence",
+    "smoke_enable_appearance_filter",
+    "smoke_appearance_min_score",
+    "smoke_appearance_min_history",
+    "smoke_appearance_high_confidence_bypass",
+    "smoke_overexposed_ratio_threshold",
+    "smoke_white_object_ratio_threshold",
+    "smoke_hard_boundary_density_threshold",
+    "smoke_hard_laplacian_threshold",
+    "smoke_fast_motion_energy_threshold",
+    "smoke_static_confirm_frames",
+    "smoke_static_max_center_shift",
+    "smoke_static_max_area_change_ratio",
+    "smoke_iou_threshold",
+    "smoke_alarm_hold_time",
+    "fire_door_classification_model_name",
+    "fire_door_classification_confidence",
+    "fire_door_open_labels",
+    "fire_door_closed_labels",
+    "fire_door_alarm_labels",
+    "fire_door_temporal_confirm_frames",
+    "fire_door_temporal_confirm_window",
+    "fire_door_alarm_hold_time",
+}
+
+
+def _ensure_settings_update_allowed(updates: dict[str, str], user: CurrentUser) -> None:
+    if has_permission(user.role, "settings:*"):
+        return
+    allowed_keys: set[str] = set()
+    if has_permission(user.role, "settings:notifications"):
+        allowed_keys.update(NOTIFICATION_SETTING_KEYS)
+    if has_permission(user.role, "settings:plugins"):
+        allowed_keys.update(PLUGIN_SETTING_KEYS)
+    denied_keys = sorted(set(updates) - allowed_keys)
+    if denied_keys:
+        raise HTTPException(
+            status_code=403,
+            detail="Insufficient role permission to update some settings",
+        )
 
 
 def _ensure_legacy_mediamtx_credentials_are_consistent(updates: dict[str, str]) -> None:
@@ -50,7 +121,8 @@ async def get_settings() -> dict[str, str]:
 async def update_settings(
     data: AppSettingsUpdate,
     request: Request,
-    _role: str = Depends(require_permission("settings:*")),
+    me: CurrentUser = Depends(current_user),
+    _role: str = Depends(require_any_permission("settings:*", "settings:notifications", "settings:plugins")),
 ) -> dict[str, str]:
     """Update application settings.
     更新应用设置。
@@ -64,6 +136,7 @@ async def update_settings(
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
     if not updates:
         return await db.get_all_settings()
+    _ensure_settings_update_allowed(updates, me)
     _ensure_legacy_mediamtx_credentials_are_consistent(updates)
     if "active_plugin_id" in updates:
         plugin_id = str(updates["active_plugin_id"] or "").strip()
@@ -120,7 +193,7 @@ async def update_settings(
 async def test_email_settings(
     data: EmailTestRequest,
     request: Request,
-    _role: str = Depends(require_permission("settings:*")),
+    _role: str = Depends(require_any_permission("settings:*", "settings:notifications")),
 ) -> dict[str, str]:
     """Send a test email using current or provided settings.
     使用当前或传入的设置发送测试邮件。"""

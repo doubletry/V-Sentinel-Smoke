@@ -482,7 +482,9 @@ class TestRbacFoundation:
         assert "messages:read" in roles["user"]["permissions"]
         assert "video:watch" not in roles["user"]["permissions"]
         assert "video:watch" in roles["operator"]["permissions"]
-        assert "sources:operate" in roles["operator"]["permissions"]
+        assert "sources:*" in roles["operator"]["permissions"]
+        assert "settings:*" not in roles["operator"]["permissions"]
+        assert "users:*" not in roles["operator"]["permissions"]
         assert "users:*" in roles["admin"]["permissions"]
 
     async def test_user_cannot_update_admin_settings(self, async_client: AsyncClient):
@@ -527,13 +529,15 @@ class TestRbacFoundation:
             "username": "operator1",
             "role": "operator",
             "permissions": [
-                "sources:read",
-                "sources:operate",
                 "audit:read",
+                "sources:*",
+                "scenes:*",
+                "gateways:*",
+                "notifications:*",
+                "settings:notifications",
+                "settings:plugins",
                 "video:watch",
-                "messages:read",
-                "messages:annotate",
-                "messages:delete",
+                "messages:*",
             ],
             "expires_at": None,
             "expired": False,

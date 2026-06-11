@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { canViewAuditLogs, defaultLandingFor, userRoleRedirect } from '../settingsRoutes.js'
+import {
+  canOpenManagementSection,
+  canViewAuditLogs,
+  defaultLandingFor,
+  getDefaultManagementPath,
+  managementRouteRedirect,
+  userRoleRedirect,
+} from '../settingsRoutes.js'
 
 describe('canViewAuditLogs', () => {
   it('only allows explicit audit read permission', () => {
@@ -46,5 +53,36 @@ describe('userRoleRedirect', () => {
     expect(userRoleRedirect('operator', '/')).toBeNull()
     expect(userRoleRedirect('admin', '/management/users')).toBeNull()
     expect(userRoleRedirect('', '/management/users')).toBeNull()
+  })
+})
+
+describe('operator management routing', () => {
+  const operatorAccess = {
+    canManageSiteSettings: false,
+    canManageUsers: false,
+    canViewLogs: true,
+    canManageVengineSettings: false,
+    canManageNotificationSettings: true,
+    canManagePluginSettings: true,
+  }
+
+  it('defaults operators to audit logs before other allowed management pages', () => {
+    expect(getDefaultManagementPath(operatorAccess)).toBe('/management/logs')
+  })
+
+  it('blocks operators from site, users, and V-Engine pages', () => {
+    expect(canOpenManagementSection('site', operatorAccess)).toBe(false)
+    expect(canOpenManagementSection('users', operatorAccess)).toBe(false)
+    expect(canOpenManagementSection('vengine', operatorAccess)).toBe(false)
+    expect(managementRouteRedirect('/management/site', operatorAccess)).toBe('/management/logs')
+    expect(managementRouteRedirect('/management/users', operatorAccess)).toBe('/management/logs')
+    expect(managementRouteRedirect('/management/vengine', operatorAccess)).toBe('/management/logs')
+  })
+
+  it('allows operators to open logs, notifications, and plugin pages', () => {
+    expect(managementRouteRedirect('/management/logs', operatorAccess)).toBeNull()
+    expect(managementRouteRedirect('/management/notifications', operatorAccess)).toBeNull()
+    expect(managementRouteRedirect('/management/plugins', operatorAccess)).toBeNull()
+    expect(managementRouteRedirect('/management/plugins/smoke', operatorAccess)).toBeNull()
   })
 })

@@ -18,7 +18,7 @@ def _extract_bearer_token(authorization: str | None) -> str:
     return token.strip()
 
 
-def _has_permission(role: str, permission: str) -> bool:
+def has_permission(role: str, permission: str) -> bool:
     permissions = ROLE_PERMISSIONS.get(role, [])
     namespace = permission.split(":", 1)[0]
     return permission in permissions or f"{namespace}:*" in permissions
@@ -51,7 +51,21 @@ def require_permission(permission: str) -> Callable[[str | None], str]:
     async def dependency(authorization: str | None = Header(default=None, alias="Authorization")) -> str:
         payload = await _resolve_token_payload(authorization)
         role = str(payload["role"])
-        if not _has_permission(role, permission):
+        if not has_permission(role, permission):
+            raise HTTPException(status_code=403, detail="Insufficient role permission")
+        return role
+
+    return dependency
+
+
+def require_any_permission(*permissions: str) -> Callable[[str | None], str]:
+    """Return a FastAPI dependency requiring at least one role permission.
+    返回要求角色至少拥有其中一个权限的 FastAPI 依赖。"""
+
+    async def dependency(authorization: str | None = Header(default=None, alias="Authorization")) -> str:
+        payload = await _resolve_token_payload(authorization)
+        role = str(payload["role"])
+        if not any(has_permission(role, permission) for permission in permissions):
             raise HTTPException(status_code=403, detail="Insufficient role permission")
         return role
 

@@ -7,6 +7,7 @@ import {
   defaultLandingFor,
   getDefaultManagementPath,
   legacySettingsSectionToManagement,
+  managementRouteRedirect,
   userRoleRedirect,
 } from '../utils/settingsRoutes.js'
 
@@ -133,13 +134,21 @@ router.beforeEach(async (to) => {
     if (userRedirect) {
       return { path: userRedirect, replace: true }
     }
+    const canViewLogs = canViewAuditLogs(authStore.hasPermission('audit:read'))
+    const managementAccess = {
+      canManageSiteSettings: authStore.hasPermission('settings:*'),
+      canManageUsers: authStore.canManageUsers,
+      canViewLogs,
+      canManageVengineSettings: authStore.hasPermission('settings:*'),
+      canManageNotificationSettings: authStore.hasPermission('settings:notifications') || authStore.hasPermission('settings:*'),
+      canManagePluginSettings: authStore.hasPermission('settings:plugins') || authStore.hasPermission('settings:*'),
+    }
+    const managementRedirect = managementRouteRedirect(to.path, managementAccess)
+    if (managementRedirect) {
+      return { path: managementRedirect, replace: true }
+    }
     if (to.path === '/management') {
-      const canViewLogs = canViewAuditLogs(authStore.hasPermission('audit:read'))
-      const defaultSettingsPath = getDefaultManagementPath(
-        authStore.hasPermission('settings:*'),
-        authStore.canManageUsers,
-        canViewLogs,
-      )
+      const defaultSettingsPath = getDefaultManagementPath(managementAccess)
       if (!defaultSettingsPath) {
         return true
       }
