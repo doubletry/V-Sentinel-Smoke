@@ -199,7 +199,9 @@ async def test_instance(
 
 
 @router.get("/templates", response_model=list[NotificationTemplate])
-async def list_templates() -> list[NotificationTemplate]:
+async def list_templates(
+    _role: str = Depends(require_permission("notifications:*")),
+) -> list[NotificationTemplate]:
     """List notification templates.
     列出通知模板。"""
     return await db.list_notification_templates()
@@ -230,7 +232,9 @@ async def update_template(
 
 
 @router.get("/policies", response_model=list[NotificationPolicy])
-async def list_policies() -> list[NotificationPolicy]:
+async def list_policies(
+    _role: str = Depends(require_permission("notifications:*")),
+) -> list[NotificationPolicy]:
     """List notification policies.
     列出通知策略。"""
     return await db.list_notification_policies()

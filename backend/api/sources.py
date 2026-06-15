@@ -105,7 +105,10 @@ async def delete_source(
 
 
 @router.get("/{source_id}/rois/export")
-async def export_rois_yaml(source_id: str) -> Response:
+async def export_rois_yaml(
+    source_id: str,
+    _role: str = Depends(require_permission("sources:read")),
+) -> Response:
     """Export ROIs for a video source as a downloadable YAML file.
     将视频源的 ROI 导出为可下载的 YAML 文件。"""
     source = await db.get_source(source_id)

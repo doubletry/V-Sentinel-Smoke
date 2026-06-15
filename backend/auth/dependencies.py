@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Query
 
 from backend.auth.roles import ROLE_PERMISSIONS
 from backend.auth.security import _is_account_expired, verify_access_token
@@ -66,6 +66,31 @@ def require_any_permission(*permissions: str) -> Callable[[str | None], str]:
         payload = await _resolve_token_payload(authorization)
         role = str(payload["role"])
         if not any(has_permission(role, permission) for permission in permissions):
+            raise HTTPException(status_code=403, detail="Insufficient role permission")
+        return role
+
+    return dependency
+
+
+def require_permission_for_image(permission: str) -> Callable[..., str]:
+    """Return a FastAPI dependency that accepts token via Authorization header
+    OR ``?token=...`` query parameter (for <img> tags that can't set headers).
+    返回 FastAPI 依赖，支持通过 Authorization 头或 ``?token=...`` 查询参数
+    传递 token（用于 <img> 标签无法设置请求头的场景）。"""
+
+    async def dependency(
+        authorization: str | None = Header(default=None, alias="Authorization"),
+        token: str | None = Query(default=None),
+    ) -> str:
+        # Prefer Authorization header; fall back to query param
+        if authorization:
+            payload = await _resolve_token_payload(authorization)
+        elif token:
+            payload = await _resolve_token_payload(f"Bearer {token}")
+        else:
+            raise HTTPException(status_code=401, detail="Missing bearer token")
+        role = str(payload["role"])
+        if not has_permission(role, permission):
             raise HTTPException(status_code=403, detail="Insufficient role permission")
         return role
 

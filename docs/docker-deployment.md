@@ -1,5 +1,48 @@
 # Docker Deployment
 
+## Configuration
+
+The application reads environment variables from a `.env` file at startup (via `pydantic-settings`). Copy `.env.example` to `.env` and adjust values for your deployment:
+
+```bash
+cp .env.example .env
+```
+
+Key environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `BACKEND_PORT` | `8000` | Backend HTTP server port |
+| `DB_PATH` | `./v_sentinel.db` | SQLite database path |
+| `V_SENTINEL_AUTH_SECRET` | (random) | HMAC secret for API token signing. **Must be set in production**, otherwise tokens are invalidated on restart. |
+| `V_SENTINEL_ADMIN_PASSWORD` | `admin` | Default admin password (first bootstrap) |
+| `V_SENTINEL_CORS_ORIGINS` | `*` | Comma-separated allowed CORS origins |
+| `VITE_APP_BASE_PATH` | `/` | Frontend SPA base path for sub-path reverse proxy |
+| `VITE_API_BASE_URL` | (auto) | Explicit API base URL |
+| `VITE_WS_BASE_URL` | (auto) | Explicit WebSocket base URL |
+| `VITE_MEDIAMTX_WEBRTC_URL` | `http://localhost:8889` | MediaMTX WebRTC URL for frontend player |
+
+When running with Docker, you can either:
+
+1. **Mount a `.env` file** into the container (recommended for production):
+   ```bash
+   docker run -d \
+     --name v-sentinel \
+     -v "$(pwd)/.env:/app/.env:ro" \
+     ...
+   ```
+
+2. **Pass variables directly** via `-e` flags:
+   ```bash
+   docker run -d \
+     --name v-sentinel \
+     -e V_SENTINEL_AUTH_SECRET=your-secret-here \
+     -e V_SENTINEL_CORS_ORIGINS=https://your-domain.com \
+     ...
+   ```
+
+> **Note**: `V_SENTINEL_AUTH_SECRET` is critical for production. Without it, all API tokens become invalid on every container restart, forcing users to re-login.
+
 ## Build
 
 ```bash
@@ -27,6 +70,21 @@ IMAGE_NAME=my-registry/v-sentinel IMAGE_TAG=2026.04.03 ./scripts/build_docker.sh
 
 The application is packaged as a **single container**. It serves the built frontend, the REST API, the WebSocket endpoint, and the persisted message thumbnails from the same process.
 
+**Recommended: mount `.env` file (production)**
+
+```bash
+docker run -d \
+  --name v-sentinel \
+  --add-host=host.docker.internal:host-gateway \
+  --add-host=docker.internal:host-gateway \
+  -p 8000:8000 \
+  -v "$(pwd)/.env:/app/.env:ro" \
+  -v "$(pwd)/data:/app/data" \
+  v-sentinel:latest
+```
+
+**Alternative: pass variables via `-e` flags**
+
 ```bash
 docker run -d \
   --name v-sentinel \
@@ -35,6 +93,7 @@ docker run -d \
   -p 8000:8000 \
   -e BACKEND_PORT=8000 \
   -e DB_PATH=/app/data/v_sentinel.db \
+  -e V_SENTINEL_AUTH_SECRET=your-secret-here \
   -v "$(pwd)/data:/app/data" \
   v-sentinel:latest
 ```
@@ -52,6 +111,10 @@ Mount `/app/data` so the following are retained:
 - `false_positives/`
 
 Message thumbnails are written to the filesystem and are no longer stored inside SQLite.
+
+Mount `.env` (read-only) for production configuration:
+
+- `.env` — environment variables for auth secrets, CORS, ports, etc. (see `.env.example`)
 
 ## External services
 
@@ -88,8 +151,7 @@ docker run -d \
   --add-host=host.docker.internal:host-gateway \
   --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
-  -e BACKEND_PORT=8000 \
-  -e DB_PATH=/app/data/v_sentinel.db \
+  -v "$(pwd)/.env:/app/.env:ro" \
   -v "$(pwd)/data:/app/data" \
   <your-image>
 ```

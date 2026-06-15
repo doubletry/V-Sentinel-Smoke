@@ -44,7 +44,9 @@ async def stop_processor(
 
 
 @router.get("/status", response_model=list[ProcessorStatus])
-async def get_status() -> list[ProcessorStatus]:
+async def get_status(
+    _role: str = Depends(require_permission("sources:read")),
+) -> list[ProcessorStatus]:
     """Get status of all running processors.
     获取所有运行中处理器的状态。"""
     from backend.main import processor_manager

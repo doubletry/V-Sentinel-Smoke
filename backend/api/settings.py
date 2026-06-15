@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
-from backend.auth.dependencies import current_user, has_permission, require_any_permission
+from backend.auth.dependencies import current_user, has_permission, require_any_permission, require_permission
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest
 from backend.notifications.email_config import build_email_settings_smtp_config
@@ -215,7 +215,9 @@ async def test_email_settings(
 
 
 @router.get("/email/template-placeholders")
-async def get_email_template_placeholders() -> dict[str, list[str]]:
+async def get_email_template_placeholders(
+    _role: str = Depends(require_any_permission("settings:*", "settings:notifications")),
+) -> dict[str, list[str]]:
     """Return supported notification template placeholders.
     返回通知模板支持的占位符。"""
     return {"placeholders": list(NOTIFICATION_TEMPLATE_PLACEHOLDERS)}

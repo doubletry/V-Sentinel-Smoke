@@ -10,7 +10,9 @@ router = APIRouter(prefix="/api/video-gateways", tags=["video-gateways"])
 
 
 @router.get("", response_model=list[VideoGateway])
-async def list_video_gateways() -> list[VideoGateway]:
+async def list_video_gateways(
+    _role: str = Depends(require_permission("gateways:*")),
+) -> list[VideoGateway]:
     """List configured video gateways.
     列出已配置视频网关。"""
     return await db.list_video_gateways()

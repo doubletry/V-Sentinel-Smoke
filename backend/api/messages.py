@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from backend.auth.dependencies import require_permission
+from backend.auth.dependencies import require_permission, require_permission_for_image
 from backend.db.database import (
     delete_analysis_message,
     delete_analysis_messages,
@@ -149,7 +149,7 @@ async def batch_delete_messages(
 @router.get("/{message_id}/image", include_in_schema=False)
 async def get_message_image(
     message_id: str,
-    _role: str = Depends(require_permission("messages:read")),
+    _role: str = Depends(require_permission_for_image("messages:read")),
 ) -> FileResponse:
     """Backward-compatible detected-image endpoint.
     向后兼容的检测图接口。"""
@@ -163,7 +163,7 @@ async def get_message_image(
 async def get_message_image_by_kind(
     message_id: str,
     image_kind: str,
-    _role: str = Depends(require_permission("messages:read")),
+    _role: str = Depends(require_permission_for_image("messages:read")),
 ) -> FileResponse:
     """Serve one persisted original/detected analysis image from disk.
     从磁盘提供单条消息的原图或检测图。"""
