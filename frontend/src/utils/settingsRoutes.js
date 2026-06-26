@@ -32,9 +32,9 @@ export function getDefaultManagementSection(accessOrCanManageSettings, canManage
   const access = normalizeManagementAccess(accessOrCanManageSettings, canManageUsers, canViewLogs)
   if (access.canManageSiteSettings) return 'site'
   if (access.canManageUsers) return 'users'
-  if (access.canViewLogs) return 'logs'
   if (access.canManageNotificationSettings) return 'notifications'
   if (access.canManagePluginSettings) return 'plugins'
+  if (access.canViewLogs) return 'logs'
   if (access.canManageVengineSettings) return 'vengine'
   return null
 }

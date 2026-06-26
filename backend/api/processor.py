@@ -7,6 +7,7 @@ from backend.models.schemas import (
     ProcessorStartRequest,
     ProcessorStatus,
     ProcessorStopRequest,
+    ProcessorPushToggleRequest,
 )
 
 router = APIRouter(prefix="/api/processor", tags=["processor"])
@@ -52,3 +53,22 @@ async def get_status(
     from backend.main import processor_manager
 
     return processor_manager.get_all_status()
+
+
+@router.post("/{source_id}/push-result-stream", status_code=200)
+async def toggle_push_result_stream(
+    source_id: str,
+    request: ProcessorPushToggleRequest,
+    _role: str = Depends(require_permission("sources:operate")),
+) -> dict:
+    """Enable or disable push at runtime without restarting analysis.
+    运行时启用或禁用推流，无需重启分析进程。"""
+    from backend.main import processor_manager
+
+    try:
+        result = await processor_manager.toggle_push_result_stream(source_id, request.enabled)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

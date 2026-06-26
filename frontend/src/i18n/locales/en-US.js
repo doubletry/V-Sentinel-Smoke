@@ -123,6 +123,7 @@ export default {
     failedToLoadSources: 'Failed to load sources: {message}',
     failedToStart: 'Failed to start: {message}',
     failedToStop: 'Failed to stop: {message}',
+    failedToTogglePush: 'Failed to toggle push: {message}',
     deleteConfirmTitle: 'Confirm',
     deleteConfirmMessage: 'Delete "{name}"?',
   },

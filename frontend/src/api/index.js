@@ -94,6 +94,8 @@ export const processorApi = {
   start: (sourceId) => api.post('/api/processor/start', { source_id: sourceId }),
   stop: (sourceId) => api.post('/api/processor/stop', { source_id: sourceId }),
   status: () => api.get('/api/processor/status'),
+  togglePushResultStream: (sourceId, enabled) =>
+    api.post(`/api/processor/${encodeURIComponent(sourceId)}/push-result-stream`, { enabled }),
 }
 
 export const messagesApi = {

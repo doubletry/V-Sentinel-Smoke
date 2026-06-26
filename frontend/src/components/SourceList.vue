@@ -25,6 +25,7 @@
             source.push_result_stream,
             source.alarm_confidence_threshold,
             store.isRunning(source.id),
+            store.isPushActive(source.id),
             actionLoading[source.id],
             activePluginLabel,
             activePluginAlarmConfidenceThreshold,
@@ -44,7 +45,14 @@
             <div class="source-scene">{{ t('sourceList.activePlugin') }}: {{ activePluginLabel }}</div>
             <div class="source-settings-line">
               {{ t('sourceList.pushResultStream') }}:
-              {{ source.push_result_stream === false ? t('common.no') : t('common.yes') }}
+              <el-switch
+                :model-value="source.push_result_stream !== false"
+                size="small"
+                :loading="pushToggleLoading[source.id]"
+                :disabled="!store.isRunning(source.id) || !canOperateSources"
+                style="--el-switch-on-color: #67c23a; margin-left: 4px;"
+                @change="onTogglePush(source)"
+              />
               <span class="settings-separator">·</span>
               {{ t('sourceList.alarmConfidenceThresholdShort') }}:
               {{ formatAlarmThreshold(source.alarm_confidence_threshold) }}
@@ -256,6 +264,7 @@ const showEditDialog = ref(false)
 const addLoading = ref(false)
 const editLoading = ref(false)
 const actionLoading = reactive({})
+const pushToggleLoading = reactive({})
 const editingSourceId = ref('')
 const scenes = ref([])
 const DEFAULT_SCENE_ID = 'smoke'
@@ -309,7 +318,7 @@ function sceneLabel(sceneId) {
 const resultStreams = computed(() => {
   return store.sources
     .map((source, index) => ({ source, sourceIndex: index + 1 }))
-    .filter(({ source }) => store.isRunning(source.id) && source.push_result_stream !== false)
+    .filter(({ source }) => store.isRunning(source.id) && store.isPushActive(source.id))
     .map(({ source: s, sourceIndex }) => {
       const route = getSourceRoute(s)
       return {
@@ -384,6 +393,16 @@ async function toggleAnalysis(source) {
     }
   } finally {
     delete actionLoading[source.id]
+  }
+}
+
+async function onTogglePush(source) {
+  const newValue = source.push_result_stream === false
+  pushToggleLoading[source.id] = true
+  try {
+    await store.togglePushResultStream(source.id, newValue)
+  } finally {
+    delete pushToggleLoading[source.id]
   }
 }
 
@@ -482,6 +501,7 @@ onMounted(async () => {
     })
   }
   scenes.value = await scenesApi.list().catch(() => [])
+  await store.syncProcessorStatus()
 })
 </script>
 

@@ -196,6 +196,18 @@ class ProcessorManager:
                     rtsp_url=proc.rtsp_url,
                     status=proc.status,
                     started_at=proc.started_at,
+                    push_result_stream=proc.push_result_stream,
+                    push_active=proc.push_active,
                 )
             )
         return statuses
+
+    async def toggle_push_result_stream(self, source_id: str, enabled: bool) -> dict:
+        """Enable or disable push at runtime without restarting analysis.
+        运行时启用或禁用推流，无需重启分析进程。"""
+        async with self._lock:
+            proc = self._processors.get(source_id)
+            if proc is None:
+                raise ValueError(f"Processor not found: {source_id}")
+            proc.set_push_result_stream(enabled)
+        return {"source_id": source_id, "push_result_stream": enabled}

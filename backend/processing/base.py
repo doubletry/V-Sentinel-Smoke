@@ -132,3 +132,12 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
                     )
                 await self.ws_manager.broadcast(msg)
         await super()._handle_result(frame, result)
+
+    @property
+    def push_active(self) -> bool:
+        """Return whether the ffmpeg push process is currently alive."""
+        return super().push_active
+
+    def set_push_result_stream(self, enabled: bool) -> None:
+        """Enable or disable push at runtime without restarting analysis."""
+        super().set_push_result_stream(enabled)

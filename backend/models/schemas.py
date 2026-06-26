@@ -438,6 +438,13 @@ class ProcessorStopRequest(BaseModel):
     source_id: str
 
 
+class ProcessorPushToggleRequest(BaseModel):
+    """Request body to enable/disable push at runtime for a running processor.
+    在运行时对运行中的处理器启用或禁用推流的请求体。"""
+
+    enabled: bool
+
+
 class ProcessorStatus(BaseModel):
     """Status of a running or stopped processor.
     处理器的运行或停止状态。"""
@@ -447,6 +454,8 @@ class ProcessorStatus(BaseModel):
     rtsp_url: str
     status: str  # "running", "stopped", "error" / 运行中、已停止、错误
     started_at: str | None = None
+    push_result_stream: bool = False
+    push_active: bool = False
 
 
 class AnalysisMessage(BaseModel):

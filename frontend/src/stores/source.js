@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { sourcesApi, processorApi } from '../api/index.js'
 import ElMessage from 'element-plus/es/components/message/index'
 import { i18n } from '../i18n/index.js'
@@ -14,12 +14,43 @@ function friendlyOperationError(message) {
 export const useSourceStore = defineStore('source', () => {
   const sources = ref([])
   const loading = ref(false)
-  const runningSourceIds = ref(new Set())
+
+  // Map: sourceId → { status, push_result_stream, push_active }
+  const processorStatusMap = ref(new Map())
+
+  // Polling interval handle
+  let _pollTimer = null
+  const POLL_INTERVAL_MS = 5000
 
   // Grid cell assignments: cellIndex -> source
   const gridAssignments = ref({})
 
-  const isRunning = computed(() => (sourceId) => runningSourceIds.value.has(sourceId))
+  function _startPolling() {
+    if (_pollTimer) return
+    _pollTimer = setInterval(syncProcessorStatus, POLL_INTERVAL_MS)
+  }
+
+  function _stopPolling() {
+    if (_pollTimer) {
+      clearInterval(_pollTimer)
+      _pollTimer = null
+    }
+  }
+
+  // Clean up polling on store disposal
+  if (typeof onUnmounted === 'function') {
+    try { onUnmounted(_stopPolling) } catch (_) { /* ignore */ }
+  }
+
+  const isRunning = computed(() => (sourceId) => {
+    const status = processorStatusMap.value.get(sourceId)
+    return status?.status === 'running'
+  })
+
+  const isPushActive = computed(() => (sourceId) => {
+    const status = processorStatusMap.value.get(sourceId)
+    return status?.push_active === true
+  })
 
   function syncAssignedSourceReferences() {
     const latestById = new Map(sources.value.map((source) => [source.id, source]))
@@ -68,13 +99,14 @@ export const useSourceStore = defineStore('source', () => {
     for (const [cell, src] of Object.entries(gridAssignments.value)) {
       if (src.id === id) delete gridAssignments.value[cell]
     }
-    runningSourceIds.value.delete(id)
+    processorStatusMap.value.delete(id)
   }
 
   async function startProcessing(sourceId) {
     try {
       await processorApi.start(sourceId)
-      runningSourceIds.value.add(sourceId)
+      _startPolling()
+      await syncProcessorStatus()
       ElMessage.success(i18n.global.t('sourceList.analysisStarted'))
     } catch (err) {
       ElMessage.error(i18n.global.t('sourceList.failedToStart', { message: friendlyOperationError(err.message) }))
@@ -84,7 +116,7 @@ export const useSourceStore = defineStore('source', () => {
   async function stopProcessing(sourceId) {
     try {
       await processorApi.stop(sourceId)
-      runningSourceIds.value.delete(sourceId)
+      processorStatusMap.value.delete(sourceId)
       ElMessage.success(i18n.global.t('sourceList.analysisStopped'))
     } catch (err) {
       ElMessage.error(i18n.global.t('sourceList.failedToStop', { message: friendlyOperationError(err.message) }))
@@ -94,17 +126,24 @@ export const useSourceStore = defineStore('source', () => {
   async function syncProcessorStatus() {
     try {
       const statuses = await processorApi.status()
-      const running = new Set(
-        statuses.filter((s) => s.status === 'running').map((s) => s.source_id)
-      )
-      runningSourceIds.value = running
+      const map = new Map()
+      for (const s of statuses) {
+        map.set(s.source_id, {
+          status: s.status,
+          push_result_stream: s.push_result_stream,
+          push_active: s.push_active,
+        })
+      }
+      processorStatusMap.value = map
     } catch (_) {
-      // Ignore
+      // Ignore poll failures
     }
   }
 
   function getRunningSourceIdsSnapshot() {
-    return Array.from(runningSourceIds.value)
+    return Array.from(processorStatusMap.value.entries())
+      .filter(([_, p]) => p.status === 'running')
+      .map(([id]) => id)
   }
 
   async function restartProcessing(sourceIds) {
@@ -129,7 +168,7 @@ export const useSourceStore = defineStore('source', () => {
       try {
         await processorApi.stop(sourceId)
         stoppedIds.push(sourceId)
-        runningSourceIds.value.delete(sourceId)
+        processorStatusMap.value.delete(sourceId)
       } catch (err) {
         failed.push({
           source_id: sourceId,
@@ -144,7 +183,6 @@ export const useSourceStore = defineStore('source', () => {
         const result = await processorApi.start(sourceId)
         if (result.status === 'started' || result.status === 'already_running') {
           restarted += 1
-          runningSourceIds.value.add(sourceId)
         } else {
           failed.push({
             source_id: sourceId,
@@ -161,6 +199,7 @@ export const useSourceStore = defineStore('source', () => {
       }
     }
 
+    _startPolling()
     await syncProcessorStatus()
 
     return {
@@ -168,6 +207,27 @@ export const useSourceStore = defineStore('source', () => {
       restarted,
       stopped: stoppedIds.length,
       failed,
+    }
+  }
+
+  async function togglePushResultStream(sourceId, enabled) {
+    try {
+      const result = await processorApi.togglePushResultStream(sourceId, enabled)
+      // Update local map immediately
+      const entry = processorStatusMap.value.get(sourceId)
+      if (entry) {
+        processorStatusMap.value = new Map(processorStatusMap.value).set(sourceId, {
+          ...entry,
+          push_result_stream: result.push_result_stream,
+        })
+      }
+      // Update the source's local push_result_stream so the switch reflects it
+      const source = sources.value.find((s) => s.id === sourceId)
+      if (source) {
+        source.push_result_stream = result.push_result_stream
+      }
+    } catch (err) {
+      ElMessage.error(i18n.global.t('sourceList.failedToTogglePush', { message: friendlyOperationError(err.message) }))
     }
   }
 
@@ -182,9 +242,10 @@ export const useSourceStore = defineStore('source', () => {
   return {
     sources,
     loading,
-    runningSourceIds,
+    processorStatusMap,
     gridAssignments,
     isRunning,
+    isPushActive,
     fetchSources,
     createSource,
     updateSource,
@@ -195,6 +256,7 @@ export const useSourceStore = defineStore('source', () => {
     syncProcessorStatus,
     getRunningSourceIdsSnapshot,
     restartProcessing,
+    togglePushResultStream,
     assignToCell,
     removeFromCell,
   }

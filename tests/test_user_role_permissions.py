@@ -53,6 +53,7 @@ class TestOperatorRolePermissions:
 
         assert "users:*" not in operator_permissions
         assert "settings:*" not in operator_permissions
+        assert "settings:mediamtx" in operator_permissions
         assert {"settings:notifications", "settings:plugins"} <= operator_permissions
         assert {
             "sources:*",
@@ -71,6 +72,19 @@ class TestOperatorRolePermissions:
             headers={"Authorization": " ".join(("Bearer", token))},
         )
         assert resp.status_code == 403
+
+    async def test_operator_can_read_settings(self, async_client):
+        token = create_access_token(username="operator", role="operator")["access_token"]
+        resp = await async_client.get(
+            "/api/settings",
+            headers={"Authorization": " ".join(("Bearer", token))},
+        )
+        assert resp.status_code == 200
+        settings = resp.json()
+        assert "mediamtx_webrtc_addr" in settings
+        assert "mediamtx_rtsp_addr" in settings
+        assert "mediamtx_username" in settings
+        assert "mediamtx_password" in settings
 
     async def test_operator_cannot_update_site_or_vengine_settings(
         self,

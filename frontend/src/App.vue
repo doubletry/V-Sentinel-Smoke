@@ -171,15 +171,22 @@ const canSeeVideoWall = computed(() =>
 )
 const canSeeMessages = computed(() => authStore.hasPermission('messages:read'))
 const canSeeAuditLogs = computed(() => canViewAuditLogs(authStore.hasPermission('audit:read')))
-const canSeeManagement = computed(() => (
-  authStore.hasPermission('settings:*') || authStore.hasPermission('users:*') || canSeeAuditLogs.value
-))
+const managementAccess = computed(() => ({
+  canManageSiteSettings: authStore.hasPermission('settings:*'),
+  canManageUsers: authStore.hasPermission('users:*'),
+  canViewLogs: canSeeAuditLogs.value,
+  canManageVengineSettings: authStore.hasPermission('settings:*'),
+  canManageNotificationSettings: authStore.hasPermission('settings:notifications') || authStore.hasPermission('settings:*'),
+  canManagePluginSettings: authStore.hasPermission('settings:plugins') || authStore.hasPermission('settings:*'),
+}))
+const canSeeManagement = computed(() => {
+  const access = managementAccess.value
+  return access.canManageSiteSettings || access.canManageUsers || access.canViewLogs
+    || access.canManageNotificationSettings || access.canManagePluginSettings
+    || access.canManageVengineSettings
+})
 const isAuthRoute = computed(() => route.path === '/auth')
-const managementEntryPath = computed(() => getDefaultManagementPath(
-  authStore.hasPermission('settings:*'),
-  authStore.hasPermission('users:*'),
-  canSeeAuditLogs.value,
-))
+const managementEntryPath = computed(() => getDefaultManagementPath(managementAccess.value))
 const activeHeaderPath = computed(() => (
   route.path === '/' || route.path === '/messages' ? route.path : ''
 ))

@@ -56,7 +56,8 @@ OBSERVED_FPS_ESTIMATE_WINDOW_SEC = 5.0
 OBSERVED_FPS_MIN_FRAMES = 20
 FPS_CHANGE_THRESHOLD = 0.01
 GOP_DIVISOR = 2
-PUSH_STARTUP_CHECK_DELAY = 0.3
+PUSH_STARTUP_CHECK_DELAY = 2.0
+PUSH_STARTUP_POLL_INTERVAL = 0.5
 PUSH_RETRY_BASE_COOLDOWN = 2.0
 PUSH_RETRY_MAX_COOLDOWN = 30.0
 MAX_STDERR_LOG_CHARS = 500
@@ -1187,6 +1188,21 @@ class BaseVideoProcessor(ABC):
                         self._close_push_process()
                         self._record_push_failure()
                         return
+                    for _ in range(int(PUSH_STARTUP_CHECK_DELAY / PUSH_STARTUP_POLL_INTERVAL)):
+                        time.sleep(PUSH_STARTUP_POLL_INTERVAL)
+                        if self._push_proc.poll() is None:
+                            break
+                    else:
+                        stderr_text = self._read_push_stderr()
+                        logger.warning(
+                            "ffmpeg exited during startup for {} (code {}): {}",
+                            rtsp_url,
+                            self._push_proc.returncode,
+                            stderr_text,
+                        )
+                        self._close_push_process()
+                        self._record_push_failure()
+                        return
 
                 if self._push_proc is not None and self._push_proc.stdin is not None:
                     self._push_proc.stdin.write(frame.tobytes())
@@ -1355,3 +1371,18 @@ class BaseVideoProcessor(ABC):
             ]
             result.append(pts)
         return result
+
+    @property
+    def push_active(self) -> bool:
+        """Return whether the ffmpeg push process is currently alive.
+        返回 ffmpeg 推流进程是否正在运行。"""
+        return self._push_proc is not None and self._push_proc.poll() is None
+
+    def set_push_result_stream(self, enabled: bool) -> None:
+        """Enable or disable push at runtime without restarting analysis.
+        运行时启用或禁用推流，无需重启分析进程。"""
+        self.push_result_stream = bool(enabled)
+        if self.push_result_stream:
+            self._start_output_worker()
+        else:
+            self._stop_output_worker()

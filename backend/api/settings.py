@@ -112,7 +112,7 @@ def _ensure_legacy_mediamtx_credentials_are_consistent(updates: dict[str, str]) 
 
 @router.get("")
 async def get_settings(
-    _role: str = Depends(require_permission("settings:*")),
+    _role: str = Depends(require_any_permission("settings:*", "settings:mediamtx")),
 ) -> dict[str, str]:
     """Get all application settings.
     获取所有应用设置。"""
