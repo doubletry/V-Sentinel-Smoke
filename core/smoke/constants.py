@@ -9,3 +9,10 @@ LABEL_TO_ZH = {
     SMOKE_LABEL: "烟雾",
     FIRE_LABEL: "火焰",
 }
+
+DEFAULT_VL_CONFIRM_PROMPT = (
+    "This image was flagged as containing smoke or fire. Verify the detection. "
+    "Only confirm if you can clearly see smoke or fire in the image. "
+    'Reply with ONLY: {"smoke": true} or {"smoke": false}.'
+)
+DEFAULT_VL_CONFIRM_RESPONSE_KEY = "smoke"

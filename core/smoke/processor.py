@@ -10,9 +10,17 @@ import cv2
 import numpy as np
 
 from core.base_processor import AnalysisResult, BaseVideoProcessor
-from core.smoke.constants import DEFAULT_DETECTION_MODEL, FIRE_LABEL, SMOKE_FIRE_LABELS, SMOKE_LABEL
+from core.smoke.constants import (
+    DEFAULT_DETECTION_MODEL,
+    DEFAULT_VL_CONFIRM_PROMPT,
+    DEFAULT_VL_CONFIRM_RESPONSE_KEY,
+    FIRE_LABEL,
+    SMOKE_FIRE_LABELS,
+    SMOKE_LABEL,
+)
 from core.smoke.email import build_smoke_email_event
 from core.smoke.post_processor import Detection, DetectionClass, PostProcessorConfig, SmokeFirePostProcessor
+from core.vl_confirm import VLConfirmClient, crop_roi_image
 
 
 class SmokeFireProcessor(BaseVideoProcessor):
@@ -107,6 +115,12 @@ class SmokeFireProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         if post_result.has_alarm and confirmed:
+            if self._vl_confirm_enabled():
+                vl_result = await self._vl_confirm_alert(frame, primary_roi)
+                if vl_result is False:
+                    confirmed = []
+                # True or None (fail-open) → keep alerts
+        if post_result.has_alarm and confirmed:
             labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
             confidence = max(float(det.get("confidence", 0.0)) for det in confirmed)
             original_image_base64 = self._encode_thumbnail(frame)
@@ -136,6 +150,36 @@ class SmokeFireProcessor(BaseVideoProcessor):
             result.extra["email_event"] = event
             result.extra["smoke_event"] = event
         return result
+
+    def _vl_confirm_enabled(self) -> bool:
+        return str(self.app_settings.get("vl_confirm_enabled") or "false").lower() == "true"
+
+    async def _vl_confirm_alert(
+        self,
+        frame: np.ndarray,
+        primary_roi: list[dict] | None,
+    ) -> bool | None:
+        """Ask the VL model to verify a smoke/fire alarm. Returns True/False/None."""
+        image_data_url = crop_roi_image(frame, primary_roi)
+        prompt = str(
+            self.app_settings.get("smoke_vl_confirm_prompt")
+            or DEFAULT_VL_CONFIRM_PROMPT
+        )
+        response_key = str(
+            self.app_settings.get("smoke_vl_confirm_response_key")
+            or DEFAULT_VL_CONFIRM_RESPONSE_KEY
+        )
+
+        client = VLConfirmClient(
+            base_url=str(
+                self.app_settings.get("vl_confirm_base_url")
+                or "http://localhost:30000/v1"
+            ),
+            api_key=str(self.app_settings.get("vl_confirm_api_key") or "EMPTY"),
+            model=str(self.app_settings.get("vl_confirm_model") or "/models/Mage-VL"),
+            timeout=self._setting_int("vl_confirm_timeout", 60),
+        )
+        return await client.confirm(image_data_url, prompt, response_key)
 
     def _to_post_detection(self, det: dict[str, Any], timestamp: float) -> Detection:
         label = str(det.get("label", "")).lower()

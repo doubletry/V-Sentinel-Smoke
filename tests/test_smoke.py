@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
 from core.smoke.email import build_event_label, build_event_type
 from core.smoke.post_processor import Detection, DetectionClass, PostProcessorConfig, SmokeFirePostProcessor
 from core.smoke.processor import SmokeFireProcessor
+from core.vl_confirm import VLConfirmClient
 
 
 class TestSmokePostProcessor:
@@ -118,3 +119,100 @@ class TestSmokeProcessor:
         await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
 
         assert vengine.detect.await_args.kwargs["conf"] == 0.62
+
+
+def _vl_processor(vengine) -> SmokeFireProcessor:
+    return SmokeFireProcessor(
+        source_id="s1",
+        source_name="Cam1",
+        rtsp_url="",
+        rois=[],
+        vengine_client=vengine,
+        app_settings={
+            "smoke_temporal_confirm_frames": "1",
+            "smoke_enable_appearance_filter": "false",
+            "vl_confirm_enabled": "true",
+            "vl_confirm_base_url": "http://localhost:30000/v1",
+            "vl_confirm_api_key": "EMPTY",
+            "vl_confirm_model": "/models/Mage-VL",
+            "smoke_vl_confirm_prompt": "Verify",
+            "smoke_vl_confirm_response_key": "smoke",
+        },
+    )
+
+
+async def test_vl_confirm_suppresses_alarm_when_model_returns_false():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=False)
+
+    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+        result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+    assert result.messages == []
+
+
+async def test_vl_confirm_allows_alarm_when_model_returns_true():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+        result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+    assert result.messages
+
+
+async def test_vl_confirm_fail_open_when_model_returns_none():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=None)
+
+    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+        result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+    assert result.messages
+
+
+async def test_vl_confirm_skipped_when_disabled():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = SmokeFireProcessor(
+        source_id="s1",
+        source_name="Cam1",
+        rtsp_url="",
+        rois=[],
+        vengine_client=vengine,
+        app_settings={
+            "smoke_temporal_confirm_frames": "1",
+            "smoke_enable_appearance_filter": "false",
+            "vl_confirm_enabled": "false",
+        },
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    with patch("core.smoke.processor.VLConfirmClient") as mock_cls:
+        result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+    mock_cls.assert_not_called()
+    assert result.messages
