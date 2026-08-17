@@ -818,6 +818,41 @@
                       </div>
                     </section>
                   </section>
+
+                  <section class="settings-section section-card">
+                    <div class="section-card__head">
+                      <div>
+                        <h2>{{ t('settings.vlConfirmTitle') }}</h2>
+                        <p class="info-tip">{{ t('settings.vlConfirmHint') }}</p>
+                      </div>
+                    </div>
+                    <div class="settings-form-grid wide-grid">
+                      <el-form-item :label="t('settings.vlConfirmEnabled')" class="form-grid-span-full">
+                        <div class="field-stack switch-field-stack">
+                          <el-switch v-model="form.vl_confirm_enabled" active-value="true" inactive-value="false" />
+                          <p class="form-hint">{{ t('settings.vlConfirmEnabledHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmBaseUrl')">
+                        <el-input v-model="form.vl_confirm_base_url" placeholder="http://localhost:30000/v1" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmApiKey')">
+                        <el-input v-model="form.vl_confirm_api_key" type="password" show-password placeholder="EMPTY" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmModel')">
+                        <el-input v-model="form.vl_confirm_model" placeholder="/models/Mage-VL" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmTimeout')">
+                        <el-input v-model="form.vl_confirm_timeout" placeholder="60" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmPrompt')" class="form-grid-span-full">
+                        <el-input v-model="form.smoke_vl_confirm_prompt" type="textarea" :rows="4" :placeholder="t('settings.vlConfirmPromptPlaceholder')" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmResponseKey')">
+                        <el-input v-model="form.smoke_vl_confirm_response_key" placeholder="smoke" />
+                      </el-form-item>
+                    </div>
+                  </section>
                 </template>
                 <template v-else-if="currentPluginScene.id === FIRE_DOOR_SCENE_ID">
                   <section class="settings-section section-card">
@@ -891,6 +926,41 @@
                           <el-input v-model="form.fire_door_alarm_hold_time" placeholder="3.0" />
                           <p class="form-hint">{{ t('settings.fireDoorAlarmHoldTimeHint') }}</p>
                         </div>
+                      </el-form-item>
+                    </div>
+                  </section>
+
+                  <section class="settings-section section-card">
+                    <div class="section-card__head">
+                      <div>
+                        <h2>{{ t('settings.vlConfirmTitle') }}</h2>
+                        <p class="info-tip">{{ t('settings.vlConfirmHint') }}</p>
+                      </div>
+                    </div>
+                    <div class="settings-form-grid wide-grid">
+                      <el-form-item :label="t('settings.vlConfirmEnabled')" class="form-grid-span-full">
+                        <div class="field-stack switch-field-stack">
+                          <el-switch v-model="form.vl_confirm_enabled" active-value="true" inactive-value="false" />
+                          <p class="form-hint">{{ t('settings.vlConfirmEnabledHint') }}</p>
+                        </div>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmBaseUrl')">
+                        <el-input v-model="form.vl_confirm_base_url" placeholder="http://localhost:30000/v1" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmApiKey')">
+                        <el-input v-model="form.vl_confirm_api_key" type="password" show-password placeholder="EMPTY" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmModel')">
+                        <el-input v-model="form.vl_confirm_model" placeholder="/models/Mage-VL" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmTimeout')">
+                        <el-input v-model="form.vl_confirm_timeout" placeholder="60" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmPrompt')" class="form-grid-span-full">
+                        <el-input v-model="form.fire_door_vl_confirm_prompt" type="textarea" :rows="4" :placeholder="t('settings.vlConfirmPromptPlaceholder')" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmResponseKey')">
+                        <el-input v-model="form.fire_door_vl_confirm_response_key" placeholder="open" />
                       </el-form-item>
                     </div>
                   </section>
@@ -1224,6 +1294,13 @@ const SMOKE_ADVANCED_DEFAULTS = {
   smoke_iou_threshold: '0.3',
 }
 const ACTIVE_PLUGIN_SETTING_KEYS = ['active_plugin_id']
+const VL_CONFIRM_GLOBAL_KEYS = [
+  'vl_confirm_enabled',
+  'vl_confirm_base_url',
+  'vl_confirm_api_key',
+  'vl_confirm_model',
+  'vl_confirm_timeout',
+]
 const PROCESSOR_RESTART_SETTING_KEYS = [
   ...ACTIVE_PLUGIN_SETTING_KEYS,
   'smoke_detection_model_name',
@@ -1242,6 +1319,11 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'fire_door_temporal_confirm_frames',
   'fire_door_temporal_confirm_window',
   'fire_door_alarm_hold_time',
+  ...VL_CONFIRM_GLOBAL_KEYS,
+  'fire_door_vl_confirm_prompt',
+  'fire_door_vl_confirm_response_key',
+  'smoke_vl_confirm_prompt',
+  'smoke_vl_confirm_response_key',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
 const emailTemplatePlaceholderGroups = computed(() => {
@@ -1330,6 +1412,9 @@ const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_alarm_hold_time',
   'smoke_enable_appearance_filter',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
+  ...VL_CONFIRM_GLOBAL_KEYS,
+  'smoke_vl_confirm_prompt',
+  'smoke_vl_confirm_response_key',
 ]
 const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
   'fire_door_classification_model_name',
@@ -1340,6 +1425,9 @@ const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
   'fire_door_temporal_confirm_frames',
   'fire_door_temporal_confirm_window',
   'fire_door_alarm_hold_time',
+  ...VL_CONFIRM_GLOBAL_KEYS,
+  'fire_door_vl_confirm_prompt',
+  'fire_door_vl_confirm_response_key',
 ]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
@@ -1487,6 +1575,15 @@ const form = ref({
   fire_door_temporal_confirm_frames: '1',
   fire_door_temporal_confirm_window: '2.0',
   fire_door_alarm_hold_time: '3.0',
+  vl_confirm_enabled: 'false',
+  vl_confirm_base_url: 'http://localhost:30000/v1',
+  vl_confirm_api_key: 'EMPTY',
+  vl_confirm_model: '/models/Mage-VL',
+  vl_confirm_timeout: '60',
+  fire_door_vl_confirm_prompt: '',
+  fire_door_vl_confirm_response_key: 'open',
+  smoke_vl_confirm_prompt: '',
+  smoke_vl_confirm_response_key: 'smoke',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
