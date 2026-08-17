@@ -6,12 +6,19 @@ import {
   parseOfferData,
 } from './webrtcHelpers.js'
 
+function _encodePath(streamPath) {
+  return String(streamPath || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+}
+
 function _whepOfferUrl(streamPath) {
-  return `${config.apiBaseUrl}/api/video/${encodeURIComponent(streamPath)}/whep-offer`
+  return `${config.apiBaseUrl}/api/video/${_encodePath(streamPath)}/whep-offer`
 }
 
 function _whepSessionUrl(streamPath, sessionId) {
-  return `${config.apiBaseUrl}/api/video/${encodeURIComponent(streamPath)}/whep-session/${encodeURIComponent(sessionId)}`
+  return `${config.apiBaseUrl}/api/video/${_encodePath(streamPath)}/whep-session/${encodeURIComponent(sessionId)}`
 }
 
 function _authHeaders() {

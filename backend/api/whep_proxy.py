@@ -14,7 +14,9 @@ from backend.models.schemas import CurrentUser
 router = APIRouter(prefix="/api/video", tags=["whep-proxy"])
 
 _MEDIAMTX_TIMEOUT = 15.0
-_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+# MediaMTX path segments may contain dots (e.g. IP-address segments such as
+# "10.37.192.5"). Disallow the traversal-only segments "." and "..".
+_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _build_mediamtx_creds(settings: dict[str, str]) -> tuple[str, str, str]:
@@ -26,18 +28,19 @@ def _build_mediamtx_creds(settings: dict[str, str]) -> tuple[str, str, str]:
 
 def _build_whep_url(webrtc_base: str, stream_path: str) -> str:
     base = webrtc_base.rstrip("/")
-    return f"{base}/{quote(stream_path, safe='')}/whep"
+    encoded = "/".join(quote(segment, safe="") for segment in stream_path.split("/") if segment)
+    return f"{base}/{encoded}/whep"
 
 
 def _validate_stream_path(stream_path: str) -> str:
     segments = [s for s in stream_path.split("/") if s]
-    if len(segments) != 3:
+    if not segments:
         raise HTTPException(
             status_code=400,
-            detail="stream_path must be three segments: owner/machine/channel",
+            detail="stream_path must contain at least one path segment",
         )
     for segment in segments:
-        if not _PATH_SEGMENT_RE.match(segment):
+        if segment in {".", ".."} or not _PATH_SEGMENT_RE.match(segment):
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid path segment: {segment}",
@@ -149,6 +152,8 @@ async def whep_patch(
         logger.warning("WHEP proxy PATCH {}/{} failed: {}", normalized_path, session_id, exc)
         raise HTTPException(status_code=502, detail="Upstream WHEP PATCH failed")
 
+    if upstream.status_code in (204, 304):
+        return Response(status_code=upstream.status_code)
     return Response(content=upstream.content, status_code=upstream.status_code)
 
 
@@ -182,4 +187,4 @@ async def whep_delete(
         logger.warning("WHEP proxy DELETE {}/{} failed: {}", normalized_path, session_id, exc)
         raise HTTPException(status_code=502, detail="Upstream WHEP DELETE failed")
 
-    return Response(content=upstream.content, status_code=204)
+    return Response(status_code=204)

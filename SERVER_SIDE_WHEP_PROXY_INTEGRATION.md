@@ -87,7 +87,7 @@ v=0
 
 1. 从第三方系统登录态中识别当前用户。
 2. 校验该用户是否有权观看 `{stream_path}`。
-3. 规范化并校验 `{stream_path}`，只允许 W2W 的三级路径格式，例如 `username/machine/channel`。
+3. 规范化并校验 `{stream_path}`，只允许 W2W 的三级路径格式，例如 `username/machine/channel`。路径段由字母、数字、点、下划线、连字符组成（点用于 IP 地址等段，如 `10.37.192.5`）。
 4. 读取请求体中的 SDP offer。
 5. 请求 MediaMTX WHEP 端点。
 6. 将 MediaMTX 的 SDP answer 原样返回给前端。
@@ -117,7 +117,7 @@ handle POST /api/videos/{owner}/{machine}/{channel}/whep-offer:
   current_user = authenticate_current_business_user(request)
   stream_path = join(owner, machine, channel)
 
-  if any path segment is not /^[A-Za-z0-9_-]+$/:
+  if any path segment is not /^[A-Za-z0-9._-]+$/ or segment is "." or "..":
     return 400
 
   if current_user cannot watch stream_path:
