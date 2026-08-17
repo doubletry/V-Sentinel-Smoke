@@ -27,7 +27,6 @@ export const useMessageStore = defineStore('message', () => {
   const lastUpdatedAt = ref('')
   const pendingCount = ref(0)
   const selectedIds = ref({})
-  const maxPageWindow = 20
   let _ws = null
   let _reconnectTimer = null
 
@@ -255,7 +254,6 @@ export const useMessageStore = defineStore('message', () => {
     totalPages,
     lastUpdatedAt,
     pendingCount,
-    maxPageWindow,
     pageSizeOptions,
     wsConnected,
     filterSource,

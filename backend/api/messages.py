@@ -19,6 +19,13 @@ router = APIRouter(prefix="/api/messages", tags=["messages"])
 
 MAX_BATCH_DELETE_IDS = 500
 
+# Message thumbnails are immutable once persisted, so the browser can cache
+# them for a long time and skip revalidation entirely.
+# 消息缩略图一旦持久化即不可变，浏览器可长时间缓存并跳过重新校验。
+MESSAGE_IMAGE_CACHE_HEADERS = {
+    "Cache-Control": "private, max-age=31536000, immutable",
+}
+
 
 @router.get("", response_model=PaginatedMessagesResponse)
 async def get_messages(
@@ -156,7 +163,7 @@ async def get_message_image(
     file_path = await get_analysis_message_image_path(message_id, kind="detected")
     if file_path is None or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Message image not found")
-    return FileResponse(file_path)
+    return FileResponse(file_path, headers=MESSAGE_IMAGE_CACHE_HEADERS)
 
 
 @router.get("/{message_id}/images/{image_kind}", include_in_schema=False)
@@ -170,5 +177,5 @@ async def get_message_image_by_kind(
     file_path = await get_analysis_message_image_path(message_id, kind=image_kind)
     if file_path is None or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Message image not found")
-    return FileResponse(file_path)
+    return FileResponse(file_path, headers=MESSAGE_IMAGE_CACHE_HEADERS)
 

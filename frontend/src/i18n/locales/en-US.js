@@ -205,7 +205,6 @@ export default {
     newMessages: '{count} new message(s)',
     lastUpdated: 'Last updated: {time}',
     notUpdatedYet: 'Not refreshed yet',
-    latestPageWindow: 'Showing at most the latest {count} pages',
     resendNotificationSuccess: 'Notification triggered again: {status}',
     resendNotificationFailed: 'Failed to resend notification: {message}',
     clearConfirmTitle: 'Clear current message list',

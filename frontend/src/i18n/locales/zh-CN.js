@@ -205,7 +205,6 @@ export default {
     newMessages: '有 {count} 条新消息',
     lastUpdated: '上次刷新：{time}',
     notUpdatedYet: '尚未刷新',
-    latestPageWindow: '最多保留最新 {count} 页消息',
     resendNotificationSuccess: '通知已再次触发：{status}',
     resendNotificationFailed: '再次发送通知失败：{message}',
     clearConfirmTitle: '清空当前消息列表',

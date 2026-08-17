@@ -100,9 +100,6 @@
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
       />
-      <span v-if="store.totalPages >= store.maxPageWindow" class="messages-pagination__hint">
-        {{ t('messages.latestPageWindow', { count: store.maxPageWindow }) }}
-      </span>
     </div>
   </div>
 </template>
@@ -122,8 +119,8 @@ const store = useMessageStore()
 const sourceStore = useSourceStore()
 const authStore = useAuthStore()
 const { t } = useI18n()
-const filterSource = ref('')
-const filterDateRange = ref([])
+const filterSource = ref(store.filterSource)
+const filterDateRange = ref(store.startDate && store.endDate ? [store.startDate, store.endDate] : [])
 const scrollbar = ref(null)
 const refreshing = ref(false)
 const resendingMessageIds = ref({})
@@ -134,9 +131,10 @@ const lastUpdatedLabel = computed(() => {
 const canDeleteMessages = computed(() => authStore.hasPermission('messages:delete'))
 const selectedCount = computed(() => Object.keys(store.selectedIds || {}).length)
 
-// Auto-scroll to top (newest first)
+// Auto-scroll to top (newest first) on page/size change and when new messages
+// arrive, so pagination never leaves the user stuck at the bottom.
 watch(
-  () => store.messages.length,
+  () => [store.page, store.pageSize, store.messages.length],
   async () => {
     await nextTick()
     scrollbar.value?.setScrollTop(0)
