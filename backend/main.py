@@ -24,6 +24,7 @@ from backend.api import settings as settings_router
 from backend.api import sources as sources_router
 from backend.api import users as users_router
 from backend.api import video_gateways as video_gateways_router
+from backend.api import whep_proxy as whep_proxy_router
 from backend.api import ws as ws_module
 from backend.config import settings
 from backend.db.database import (
@@ -155,6 +156,7 @@ app.include_router(users_router.router)
 app.include_router(processor_router.router)
 app.include_router(messages_router.router)
 app.include_router(settings_router.router)
+app.include_router(whep_proxy_router.router)
 app.include_router(ws_module.router)
 
 

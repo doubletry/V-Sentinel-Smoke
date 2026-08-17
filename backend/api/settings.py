@@ -112,11 +112,16 @@ def _ensure_legacy_mediamtx_credentials_are_consistent(updates: dict[str, str]) 
 
 @router.get("")
 async def get_settings(
+    me: CurrentUser = Depends(current_user),
     _role: str = Depends(require_any_permission("settings:*", "settings:mediamtx")),
 ) -> dict[str, str]:
     """Get all application settings.
     获取所有应用设置。"""
-    return await db.get_all_settings()
+    result = await db.get_all_settings()
+    if not has_permission(me.role, "settings:*"):
+        # Do not expose MediaMTX password to users without full settings access.
+        result.pop("mediamtx_password", None)
+    return result
 
 
 @router.put("")

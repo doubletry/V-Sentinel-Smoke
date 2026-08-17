@@ -84,7 +84,9 @@ class TestOperatorRolePermissions:
         assert "mediamtx_webrtc_addr" in settings
         assert "mediamtx_rtsp_addr" in settings
         assert "mediamtx_username" in settings
-        assert "mediamtx_password" in settings
+        # Operator has settings:mediamtx but NOT settings:* —
+        # password is stripped for security.
+        assert "mediamtx_password" not in settings
 
     async def test_operator_cannot_update_site_or_vengine_settings(
         self,
