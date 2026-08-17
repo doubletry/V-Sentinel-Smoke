@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
 from core.base_processor import ROI, ROIPoint
 from core.fire_door.processor import FireDoorProcessor
 from core.notification_template import build_template_context
+from core.vl_confirm import VLConfirmClient
 
 
 def _roi(roi_id: str = "r1", tag: str = "fire_door") -> ROI:
@@ -228,3 +229,87 @@ def test_fire_door_email_template_context_has_images_source_and_roi_fields():
     assert context["has_detected_image"] == "true"
     assert "<img" in context["original_image"]
     assert "<img" in context["detected_image"]
+
+
+def _vl_processor(vengine) -> FireDoorProcessor:
+    return _processor(
+        vengine,
+        settings={
+            "vl_confirm_enabled": "true",
+            "vl_confirm_base_url": "http://localhost:30000/v1",
+            "vl_confirm_api_key": "EMPTY",
+            "vl_confirm_model": "/models/Mage-VL",
+            "fire_door_vl_confirm_prompt": "Verify",
+            "fire_door_vl_confirm_response_key": "open",
+        },
+    )
+
+
+async def test_vl_confirm_suppresses_alarm_when_model_returns_false():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=False)
+
+    with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
+        result = await processor.process_frame(
+            frame, b"frame", frame.shape,
+            [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+        )
+
+    assert result.messages == []
+
+
+async def test_vl_confirm_allows_alarm_when_model_returns_true():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
+        result = await processor.process_frame(
+            frame, b"frame", frame.shape,
+            [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+        )
+
+    assert result.messages
+
+
+async def test_vl_confirm_fail_open_when_model_returns_none():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=None)
+
+    with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
+        result = await processor.process_frame(
+            frame, b"frame", frame.shape,
+            [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+        )
+
+    assert result.messages
+
+
+async def test_vl_confirm_skipped_when_disabled():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _processor(vengine, settings={"vl_confirm_enabled": "false"})
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    with patch("core.fire_door.processor.VLConfirmClient") as mock_cls:
+        result = await processor.process_frame(
+            frame, b"frame", frame.shape,
+            [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+        )
+
+    mock_cls.assert_not_called()
+    assert result.messages

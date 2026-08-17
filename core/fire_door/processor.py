@@ -16,9 +16,12 @@ from core.fire_door.constants import (
     DEFAULT_CLASSIFICATION_MODEL,
     DEFAULT_CLOSED_LABELS,
     DEFAULT_OPEN_LABELS,
+    DEFAULT_VL_CONFIRM_PROMPT,
+    DEFAULT_VL_CONFIRM_RESPONSE_KEY,
     FIRE_DOOR_ROI_TAG,
 )
 from core.fire_door.email import build_fire_door_email_event
+from core.vl_confirm import VLConfirmClient, crop_roi_image
 
 
 class FireDoorProcessor(BaseVideoProcessor):
@@ -166,6 +169,11 @@ class FireDoorProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         alert_items = [item for item in classifications if item.get("alarm")]
+        if alert_items and self._vl_confirm_enabled():
+            vl_result = await self._vl_confirm_alert(frame, alert_items, roi_pixel_points)
+            if vl_result is False:
+                alert_items = []
+            # True or None (fail-open) → keep alerts
         if alert_items:
             best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
             open_count = sum(1 for item in classifications if item.get("door_state") == "open")
@@ -212,6 +220,45 @@ class FireDoorProcessor(BaseVideoProcessor):
             result.extra["email_event"] = event
             result.extra["fire_door_event"] = event
         return result
+
+    def _vl_confirm_enabled(self) -> bool:
+        return str(self.app_settings.get("vl_confirm_enabled") or "false").lower() == "true"
+
+    async def _vl_confirm_alert(
+        self,
+        frame: np.ndarray,
+        alert_items: list[dict[str, Any]],
+        roi_pixel_points: list[list[dict]],
+    ) -> bool | None:
+        """Ask the VL model to verify an alarm. Returns True/False/None."""
+        best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
+        roi_index = int(best.get("roi_index", 1)) - 1
+        roi_points = (
+            roi_pixel_points[roi_index]
+            if 0 <= roi_index < len(roi_pixel_points)
+            else None
+        )
+
+        image_data_url = crop_roi_image(frame, roi_points)
+        prompt = str(
+            self.app_settings.get("fire_door_vl_confirm_prompt")
+            or DEFAULT_VL_CONFIRM_PROMPT
+        )
+        response_key = str(
+            self.app_settings.get("fire_door_vl_confirm_response_key")
+            or DEFAULT_VL_CONFIRM_RESPONSE_KEY
+        )
+
+        client = VLConfirmClient(
+            base_url=str(
+                self.app_settings.get("vl_confirm_base_url")
+                or "http://localhost:30000/v1"
+            ),
+            api_key=str(self.app_settings.get("vl_confirm_api_key") or "EMPTY"),
+            model=str(self.app_settings.get("vl_confirm_model") or "/models/Mage-VL"),
+            timeout=self._setting_int("vl_confirm_timeout", 60),
+        )
+        return await client.confirm(image_data_url, prompt, response_key)
 
     def _draw_fire_door_rois(
         self,
