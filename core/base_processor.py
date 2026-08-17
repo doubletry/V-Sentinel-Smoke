@@ -861,6 +861,7 @@ class BaseVideoProcessor(ABC):
         """Start the unified output worker thread if it is not running."""
         if self._output_thread is not None and self._output_thread.is_alive():
             return
+        self._output_stop.clear()
         self._output_thread = threading.Thread(
             target=self._output_worker,
             name=f"output-{self.source_id}",
@@ -1386,3 +1387,4 @@ class BaseVideoProcessor(ABC):
             self._start_output_worker()
         else:
             self._stop_output_worker()
+            self._close_push_process()
