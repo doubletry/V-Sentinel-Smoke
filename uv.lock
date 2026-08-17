@@ -803,7 +803,7 @@ wheels = [
 
 [[package]]
 name = "v-sentinel"
-version = "0.1.0"
+version = "2.7.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
