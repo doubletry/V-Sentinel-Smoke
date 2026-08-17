@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 from unittest.mock import AsyncMock, MagicMock
 
+import cv2
 import numpy as np
 
 from core.vl_confirm import VLConfirmClient, crop_roi_image, parse_vl_response
@@ -54,13 +56,26 @@ def test_crop_roi_image_rectangle_crop():
     points = [{"x": 50, "y": 20}, {"x": 150, "y": 80}]
     result = crop_roi_image(frame, points)
     assert result.startswith("data:image/jpeg;base64,")
+    decoded = _decode_data_url(result)
+    assert decoded.shape[0] == 61
+    assert decoded.shape[1] == 101
 
 
-def test_crop_roi_image_polygon_with_gray_fill():
+def test_crop_roi_image_polygon_crops_bounding_box():
     frame = np.full((100, 200, 3), 255, dtype=np.uint8)
     points = [{"x": 50, "y": 20}, {"x": 150, "y": 20}, {"x": 100, "y": 80}]
     result = crop_roi_image(frame, points)
     assert result.startswith("data:image/jpeg;base64,")
+    decoded = _decode_data_url(result)
+    # Bounding box spans x in [50, 150], y in [20, 80] → 101 x 61
+    assert decoded.shape[0] == 61
+    assert decoded.shape[1] == 101
+
+
+def _decode_data_url(data_url: str) -> np.ndarray:
+    encoded = data_url.split(",", 1)[1]
+    buf = np.frombuffer(base64.b64decode(encoded), dtype=np.uint8)
+    return cv2.imdecode(buf, cv2.IMREAD_COLOR)
 
 
 async def test_vl_confirm_client_returns_true_on_json_confirm():

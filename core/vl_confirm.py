@@ -80,14 +80,12 @@ def _encode_frame_as_data_url(frame: np.ndarray) -> str:
 def crop_roi_image(
     frame: np.ndarray,
     roi_points: list[dict[str, Any]] | None,
-    bg_color: tuple[int, int, int] = (128, 128, 128),
 ) -> str:
-    """Crop ``frame`` to a ROI region and return a JPEG data URL.
+    """Crop ``frame`` to a ROI's axis-aligned bounding box and return a JPEG data URL.
 
     - ``roi_points`` is ``None`` or empty → encode the full frame.
-    - 2 points → treat as a rectangle and crop it directly.
-    - 3+ points → crop the bounding box and mask the polygon, filling
-      everything outside the polygon with ``bg_color``.
+    - Rectangle (2 points) or polygon (3+ points) → crop the smallest
+      axis-aligned bounding box that encloses all points.
     """
     if not roi_points:
         return _encode_frame_as_data_url(frame)
@@ -103,20 +101,7 @@ def crop_roi_image(
     if max_x <= min_x or max_y <= min_y:
         return _encode_frame_as_data_url(frame)
 
-    if len(roi_points) == 2:
-        cropped = frame[min_y:max_y + 1, min_x:max_x + 1]
-        return _encode_frame_as_data_url(cropped)
-
-    cropped = frame[min_y:max_y + 1, min_x:max_x + 1].copy()
-    local_pts = np.array(
-        [[int(p["x"]) - min_x, int(p["y"]) - min_y] for p in roi_points],
-        dtype=np.int32,
-    )
-    mask = np.zeros(cropped.shape[:2], dtype=np.uint8)
-    cv2.fillPoly(mask, [local_pts], 255)
-    bg = np.full_like(cropped, bg_color)
-    mask3 = np.stack([mask] * 3, axis=-1) > 0
-    cropped = np.where(mask3, cropped, bg)
+    cropped = frame[min_y:max_y + 1, min_x:max_x + 1]
     return _encode_frame_as_data_url(cropped)
 
 
