@@ -123,6 +123,7 @@ export default {
     failedToLoadSources: '加载视频源失败：{message}',
     failedToStart: '启动失败：{message}',
     failedToStop: '停止失败：{message}',
+    failedToTogglePush: '推流切换失败：{message}',
     deleteConfirmTitle: '确认删除',
     deleteConfirmMessage: '确认删除 "{name}" 吗？',
   },

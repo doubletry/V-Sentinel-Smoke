@@ -616,6 +616,44 @@ class TestCoreBaseVideoProcessorPipeline:
         assert pushed
         assert any(frame.sum() == frame.size * 255 for frame in pushed)
 
+    async def test_set_push_result_stream_reenable_resumes_pushing(self):
+        proc = DummyCoreProcessor(
+            source_id="s1",
+            source_name="cam",
+            rtsp_url="rtsp://localhost:8554/cam1",
+            app_settings={"mediamtx_rtsp_addr": "rtsp://localhost:8554"},
+        )
+        pushed: list[tuple[np.ndarray, str]] = []
+        proc._push_frame = lambda frame, path: pushed.append((frame.copy(), path))
+        proc._update_publish_fps(TEST_SOURCE_FPS)
+
+        proc.set_push_result_stream(True)
+        frame = np.zeros((64, 64, 3), dtype=np.uint8)
+        proc._enqueue_output(frame, AnalysisResult(), "cam1_processed")
+        await asyncio.sleep(TEST_PUBLISH_WAIT)
+        assert len(pushed) >= 1
+
+        proc.set_push_result_stream(False)
+        pushed.clear()
+
+        proc.set_push_result_stream(True)
+        proc._enqueue_output(frame, AnalysisResult(), "cam1_processed")
+        await asyncio.sleep(TEST_PUBLISH_WAIT)
+        assert len(pushed) >= 1
+
+        proc._stop_output_worker()
+
+    def test_set_push_result_stream_disable_closes_push_process(self):
+        proc = DummyCoreProcessor(
+            source_id="s1",
+            source_name="cam",
+            rtsp_url="rtsp://localhost:8554/cam1",
+            app_settings={"mediamtx_rtsp_addr": "rtsp://localhost:8554"},
+        )
+        proc._close_push_process = MagicMock()
+        proc.set_push_result_stream(False)
+        proc._close_push_process.assert_called_once()
+
     def test_update_publish_fps_tracks_sampled_input_rate(self):
         proc = DummyCoreProcessor(
             source_id="s1",

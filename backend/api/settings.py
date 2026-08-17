@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
-from backend.auth.dependencies import current_user, has_permission, require_any_permission
+from backend.auth.dependencies import current_user, has_permission, require_any_permission, require_permission
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest
 from backend.notifications.email_config import build_email_settings_smtp_config
@@ -111,10 +111,17 @@ def _ensure_legacy_mediamtx_credentials_are_consistent(updates: dict[str, str]) 
 
 
 @router.get("")
-async def get_settings() -> dict[str, str]:
+async def get_settings(
+    me: CurrentUser = Depends(current_user),
+    _role: str = Depends(require_any_permission("settings:*", "settings:mediamtx")),
+) -> dict[str, str]:
     """Get all application settings.
     获取所有应用设置。"""
-    return await db.get_all_settings()
+    result = await db.get_all_settings()
+    if not has_permission(me.role, "settings:*"):
+        # Do not expose MediaMTX password to users without full settings access.
+        result.pop("mediamtx_password", None)
+    return result
 
 
 @router.put("")
@@ -213,7 +220,9 @@ async def test_email_settings(
 
 
 @router.get("/email/template-placeholders")
-async def get_email_template_placeholders() -> dict[str, list[str]]:
+async def get_email_template_placeholders(
+    _role: str = Depends(require_any_permission("settings:*", "settings:notifications")),
+) -> dict[str, list[str]]:
     """Return supported notification template placeholders.
     返回通知模板支持的占位符。"""
     return {"placeholders": list(NOTIFICATION_TEMPLATE_PLACEHOLDERS)}

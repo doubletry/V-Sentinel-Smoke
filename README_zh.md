@@ -138,7 +138,13 @@ npm run build
 
 ## 配置
 
-只有少量运行参数通过环境变量配置；如需覆盖，可在项目根目录创建 `.env`：
+只有少量运行参数通过环境变量配置；如需覆盖，复制 `.env.example` 为 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+关键变量：
 
 ```dotenv
 # HTTP 服务端口
@@ -146,6 +152,12 @@ BACKEND_PORT=8000
 
 # 数据库
 DB_PATH=./v_sentinel.db
+
+# API token 签名密钥（生产环境必须设置）
+V_SENTINEL_AUTH_SECRET=change-me-to-a-random-string
+
+# CORS 允许来源（逗号分隔，默认：*）
+V_SENTINEL_CORS_ORIGINS=https://your-domain.com
 ```
 
 大部分业务配置会保存在数据库中，并在系统启动后通过**设置**页面维护，包括：
@@ -382,13 +394,15 @@ class MyProcessor(BaseVideoProcessor):
 仓库现已改为**单容器**部署方式。
 
 ```bash
+cp .env.example .env
+# 编辑 .env，设置 V_SENTINEL_AUTH_SECRET（生产环境必须）
 ./scripts/build_docker.sh
 docker run -d \
   --name v-sentinel \
   --add-host=host.docker.internal:host-gateway \
   --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
-  -e DB_PATH=/app/data/v_sentinel.db \
+  -v "$(pwd)/.env:/app/.env:ro" \
   -v "$(pwd)/data:/app/data" \
   v-sentinel:latest
 ```

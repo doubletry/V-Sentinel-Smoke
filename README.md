@@ -139,8 +139,14 @@ FastAPI automatically serves the built frontend from `/` when `frontend/dist/` e
 
 ## Configuration
 
-Only a small set of runtime options are environment-based. Create a `.env` file
-in the project root if you need to override them:
+Only a small set of runtime options are environment-based. Copy `.env.example`
+to `.env` in the project root if you need to override them:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
 
 ```dotenv
 # HTTP service port
@@ -148,6 +154,12 @@ BACKEND_PORT=8000
 
 # Database
 DB_PATH=./v_sentinel.db
+
+# HMAC secret for API token signing (MUST set in production)
+V_SENTINEL_AUTH_SECRET=change-me-to-a-random-string
+
+# CORS allowed origins (comma-separated, default: *)
+V_SENTINEL_CORS_ORIGINS=https://your-domain.com
 ```
 
 Most operational settings are stored in the database and edited in the **Settings**
@@ -411,13 +423,15 @@ Brute-force login protection (admin-only):
 This repository now ships a **single-container** deployment flow.
 
 ```bash
+cp .env.example .env
+# Edit .env and set V_SENTINEL_AUTH_SECRET (required for production)
 ./scripts/build_docker.sh
 docker run -d \
   --name v-sentinel \
   --add-host=host.docker.internal:host-gateway \
   --add-host=docker.internal:host-gateway \
   -p 8000:8000 \
-  -e DB_PATH=/app/data/v_sentinel.db \
+  -v "$(pwd)/.env:/app/.env:ro" \
   -v "$(pwd)/data:/app/data" \
   v-sentinel:latest
 ```

@@ -154,17 +154,23 @@ function levelType(level) {
 }
 
 function originalImageSrc(message) {
-  if (message?.original_image_url) return resolveAppUrl(message.original_image_url, config.appBasePath)
+  if (message?.original_image_url) return appendAuthToken(resolveAppUrl(message.original_image_url, config.appBasePath))
   if (message?.original_image_base64) return `data:image/jpeg;base64,${message.original_image_base64}`
   return ''
 }
 
 function detectedImageSrc(message) {
-  if (message?.detected_image_url) return resolveAppUrl(message.detected_image_url, config.appBasePath)
-  if (message?.image_url) return resolveAppUrl(message.image_url, config.appBasePath)
+  if (message?.detected_image_url) return appendAuthToken(resolveAppUrl(message.detected_image_url, config.appBasePath))
+  if (message?.image_url) return appendAuthToken(resolveAppUrl(message.image_url, config.appBasePath))
   if (message?.detected_image_base64) return `data:image/jpeg;base64,${message.detected_image_base64}`
   if (message?.image_base64) return `data:image/jpeg;base64,${message.image_base64}`
   return ''
+}
+
+function appendAuthToken(url) {
+  if (!url || !authStore.token) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${encodeURIComponent(authStore.token)}`
 }
 
 function hasAnyImage(message) {

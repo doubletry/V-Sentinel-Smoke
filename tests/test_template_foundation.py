@@ -534,6 +534,7 @@ class TestRbacFoundation:
                 "scenes:*",
                 "gateways:*",
                 "notifications:*",
+                "settings:mediamtx",
                 "settings:notifications",
                 "settings:plugins",
                 "video:watch",

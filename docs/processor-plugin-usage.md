@@ -65,6 +65,15 @@ eight hours.
 Production deployments must configure:
 
 ```bash
+# Option 1: .env file (recommended)
+cp .env.example .env
+# Edit .env and set the following:
+#   V_SENTINEL_AUTH_SECRET=<long-random-secret>
+#   V_SENTINEL_ADMIN_PASSWORD=<admin-password>
+#   V_SENTINEL_OPERATOR_PASSWORD=<operator-password>
+#   V_SENTINEL_USER_PASSWORD=<user-password>
+
+# Option 2: export directly
 export V_SENTINEL_AUTH_SECRET='<long-random-secret>'
 export V_SENTINEL_ADMIN_PASSWORD='<admin-password>'
 export V_SENTINEL_OPERATOR_PASSWORD='<operator-password>'

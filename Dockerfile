@@ -46,7 +46,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libturbojpeg0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md README_zh.md /app/
+COPY pyproject.toml README.md README_zh.md .env.example /app/
 COPY backend /app/backend
 COPY core /app/core
 COPY frontend /app/frontend

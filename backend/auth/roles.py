@@ -13,6 +13,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "scenes:*",
         "gateways:*",
         "notifications:*",
+        "settings:mediamtx",
         "settings:notifications",
         "settings:plugins",
         "video:watch",

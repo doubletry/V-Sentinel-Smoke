@@ -24,6 +24,7 @@ from backend.api import settings as settings_router
 from backend.api import sources as sources_router
 from backend.api import users as users_router
 from backend.api import video_gateways as video_gateways_router
+from backend.api import whep_proxy as whep_proxy_router
 from backend.api import ws as ws_module
 from backend.config import settings
 from backend.db.database import (
@@ -54,6 +55,15 @@ async def lifespan(app: FastAPI):
     global ws_manager, vengine_client, notification_dispatcher, processor_manager
 
     logger.info("Starting {} ...", settings.app_name)
+
+    # Warn if auth secret is not set (tokens will be invalidated on restart)
+    # 警告未设置认证密钥（重启后所有 token 将失效）
+    if not os.environ.get("V_SENTINEL_AUTH_SECRET"):
+        logger.warning(
+            "V_SENTINEL_AUTH_SECRET is not set – using a process-local random secret. "
+            "All tokens will be invalidated when the process restarts. "
+            "Set V_SENTINEL_AUTH_SECRET in your environment for stable tokens."
+        )
 
     # Initialize WebSocket manager / 初始化 WebSocket 管理器
     async def _persist_message(message) -> str:
@@ -113,10 +123,23 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+# NOTE: allow_credentials=True cannot be combined with allow_origins=["*"] per
+# the Fetch spec.  When origins are unrestricted, credentials must be off.
+# Production deployments should restrict origins via V_SENTINEL_CORS_ORIGINS.
+# 注意：根据 Fetch 规范，allow_credentials=True 不能与 allow_origins=["*"] 同时使用。
+# 生产部署应通过 V_SENTINEL_CORS_ORIGINS 限制来源。
+_cors_origins_raw = os.environ.get("V_SENTINEL_CORS_ORIGINS", "").strip()
+_cors_origins: list[str] = (
+    [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+    if _cors_origins_raw
+    else ["*"]
+)
+_cors_allow_credentials = _cors_origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -133,14 +156,32 @@ app.include_router(users_router.router)
 app.include_router(processor_router.router)
 app.include_router(messages_router.router)
 app.include_router(settings_router.router)
+app.include_router(whep_proxy_router.router)
 app.include_router(ws_module.router)
 
 
 @app.get("/api/health")
 async def health() -> dict:
-    """Health check endpoint.
-    健康检查端点。"""
-    return {"status": "ok", "app": app.title}
+    """Health check endpoint with dependency status.
+    带依赖状态的健康检查端点。"""
+    result: dict = {"status": "ok", "app": app.title}
+
+    # ── Database / 数据库 ──
+    try:
+        await get_all_settings()
+        result["db"] = "ok"
+    except Exception as exc:
+        result["status"] = "degraded"
+        result["db"] = f"error: {exc}"
+
+    # ── V-Engine services / V-Engine 服务 ──
+    try:
+        connected_services = list(getattr(vengine_client, "_stubs", {}).keys())
+        result["vengine_services"] = connected_services or ["none"]
+    except Exception:
+        result["vengine_services"] = ["unknown"]
+
+    return result
 
 
 # ── Static files (production: serve built frontend) / 静态文件（生产环境：托管构建后的前端） ──

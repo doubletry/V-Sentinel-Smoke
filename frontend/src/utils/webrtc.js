@@ -1,24 +1,54 @@
+import config from '../config.js'
+import { AUTH_TOKEN_STORAGE_KEY } from './authStorage.js'
 import {
-  buildWhepEndpointHeaders,
   buildWhepPatchHeaders,
-  buildWhepUrl,
   generateSdpFragment,
   parseOfferData,
 } from './webrtcHelpers.js'
 
-async function sendOffer(whepUrl, offerSdp, authHeaders) {
+function _encodePath(streamPath) {
+  return String(streamPath || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+}
+
+function _whepOfferUrl(streamPath) {
+  return `${config.apiBaseUrl}/api/video/${_encodePath(streamPath)}/whep-offer`
+}
+
+function _whepSessionUrl(streamPath, sessionId) {
+  return `${config.apiBaseUrl}/api/video/${_encodePath(streamPath)}/whep-session/${encodeURIComponent(sessionId)}`
+}
+
+function _authHeaders() {
+  const token = window.localStorage?.getItem(AUTH_TOKEN_STORAGE_KEY)
+  const headers = {}
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  return headers
+}
+
+async function sendOffer(whepUrl, offerSdp) {
   const response = await fetch(whepUrl, {
     method: 'POST',
-    headers: authHeaders,
+    headers: {
+      ..._authHeaders(),
+      'Content-Type': 'application/sdp',
+    },
     body: offerSdp,
   })
 
   switch (response.status) {
-    case 201:
+    case 200: {
+      const sessionLocation = response.headers.get('X-Whep-Session-Location') || ''
+      const sessionId = _extractSessionId(sessionLocation)
       return {
         answerSdp: await response.text(),
-        sessionUrl: new URL(response.headers.get('location'), whepUrl).toString(),
+        sessionId,
       }
+    }
     case 404: {
       const error = new Error('stream not found')
       error.name = 'WHEPError'
@@ -26,7 +56,7 @@ async function sendOffer(whepUrl, offerSdp, authHeaders) {
       throw error
     }
     default: {
-      const error = new Error(`WHEP error: ${response.status} ${response.statusText}`)
+      const error = new Error(`WHEP error: ${response.status}`)
       error.name = 'WHEPError'
       error.status = response.status
       throw error
@@ -34,62 +64,58 @@ async function sendOffer(whepUrl, offerSdp, authHeaders) {
   }
 }
 
-async function patchLocalCandidates(sessionUrl, offerData, candidates, authHeaders = {}) {
-  if (!sessionUrl || !candidates.length) return
+function _extractSessionId(location) {
+  if (!location) return ''
+  try {
+    const url = new URL(location, 'http://localhost')
+    const segments = url.pathname.split('/').filter(Boolean)
+    return segments[segments.length - 1] || ''
+  } catch (_) {
+    const segments = location.split('/').filter(Boolean)
+    return segments[segments.length - 1] || ''
+  }
+}
 
+async function patchLocalCandidates(streamPath, sessionId, offerData, candidates) {
+  if (!streamPath || !sessionId || !candidates.length) return
+
+  const sessionUrl = _whepSessionUrl(streamPath, sessionId)
   await fetch(sessionUrl, {
     method: 'PATCH',
     headers: {
+      ..._authHeaders(),
       ...buildWhepPatchHeaders(),
-      ...authHeaders,
     },
     body: generateSdpFragment(offerData, candidates),
   })
 }
 
-function deleteSession(sessionUrl, authHeaders = {}) {
-  if (!sessionUrl) return
+function deleteSession(streamPath, sessionId) {
+  if (!streamPath || !sessionId) return
 
+  const sessionUrl = _whepSessionUrl(streamPath, sessionId)
   fetch(sessionUrl, {
     method: 'DELETE',
-    headers: authHeaders,
+    headers: _authHeaders(),
   }).catch(() => {
     // Ignore cleanup failures.
   })
 }
 
 /**
- * Connect to a MediaMTX stream via its documented WHEP browser flow.
+ * Connect to a MediaMTX stream via the backend WHEP proxy.
  * @param {string} streamPath
  * @param {HTMLVideoElement} videoEl
- * @param {string} webrtcBaseUrl
- * @param {string} webrtcUsername
- * @param {string} webrtcPassword
  * @returns {object} - { pc, stop }
  */
-export async function connectWebRTC(
-  streamPath,
-  videoEl,
-  webrtcBaseUrl,
-  webrtcUsername = '',
-  webrtcPassword = ''
-) {
-  const whepUrl = buildWhepUrl(webrtcBaseUrl, streamPath)
-  if (!whepUrl) {
-    throw new Error('Missing WebRTC gateway address')
-  }
+export async function connectWebRTC(streamPath, videoEl) {
+  const whepUrl = _whepOfferUrl(streamPath)
 
-  const authHeaders = buildWhepEndpointHeaders(webrtcUsername, webrtcPassword)
-  const offerHeaders = buildWhepEndpointHeaders(webrtcUsername, webrtcPassword, {
-    'Content-Type': 'application/sdp',
-  })
   const pc = new RTCPeerConnection({
-    // MediaMTX can return server-side ICE candidates inside the WHEP answer and
-    // this flow incrementally PATCHes the browser's local candidates afterward.
     iceServers: [],
   })
 
-  let sessionUrl = null
+  let sessionId = null
   let stopped = false
   const queuedCandidates = []
   const pendingPatchCandidates = []
@@ -99,8 +125,6 @@ export async function connectWebRTC(
 
   pc.addTransceiver('video', { direction: transceiverDirection })
   pc.addTransceiver('audio', { direction: transceiverDirection })
-  // MediaMTX's documented browser WHEP flow creates a local data channel so
-  // the peer connection can receive server-side data channels when available.
   pc.createDataChannel('')
 
   pc.ontrack = (event) => {
@@ -110,12 +134,12 @@ export async function connectWebRTC(
   }
 
   async function patchPendingCandidates() {
-    if (patchInFlight || stopped || !sessionUrl || !offerData || !pendingPatchCandidates.length) return
+    if (patchInFlight || stopped || !streamPath || !sessionId || !offerData || !pendingPatchCandidates.length) return
 
     patchInFlight = true
     const candidatesToPatch = pendingPatchCandidates.splice(0)
     try {
-      await patchLocalCandidates(sessionUrl, offerData, candidatesToPatch, authHeaders)
+      await patchLocalCandidates(streamPath, sessionId, offerData, candidatesToPatch)
     } catch (error) {
       console.warn(
         'Failed to send ICE candidates to WHEP session (connection quality may be affected):',
@@ -136,7 +160,7 @@ export async function connectWebRTC(
   pc.onicecandidate = (event) => {
     if (stopped || !event.candidate) return
 
-    if (!sessionUrl) {
+    if (!sessionId) {
       queuedCandidates.push(event.candidate)
       return
     }
@@ -147,8 +171,8 @@ export async function connectWebRTC(
 
   let answerSdp
   try {
-    const result = await sendOffer(whepUrl, offer.sdp, offerHeaders)
-    sessionUrl = result.sessionUrl
+    const result = await sendOffer(whepUrl, offer.sdp)
+    sessionId = result.sessionId
     answerSdp = result.answerSdp
   } catch (error) {
     pc.close()
@@ -171,7 +195,7 @@ export async function connectWebRTC(
     stop: () => {
       if (stopped) return
       stopped = true
-      deleteSession(sessionUrl, authHeaders)
+      deleteSession(streamPath, sessionId)
       pc.close()
     },
   }

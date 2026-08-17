@@ -1,4 +1,41 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _load_dotenv_to_os_environ() -> None:
+    """Load .env file into os.environ so code that reads os.environ directly
+    (e.g. V_SENTINEL_AUTH_SECRET, VITE_APP_BASE_PATH) can see the values.
+    将 .env 文件加载到 os.environ，使直接读取 os.environ 的代码能获取到值。"""
+    # Try multiple locations: same dir as this file, CWD, and /app (Docker)
+    candidates = [
+        Path(__file__).resolve().parent.parent / ".env",  # project root (relative to backend/)
+        Path(".env"),  # CWD
+        Path("/app/.env"),  # Docker WORKDIR
+    ]
+    env_file = None
+    for candidate in candidates:
+        if candidate.is_file():
+            env_file = candidate
+            break
+    if env_file is None:
+        return
+    with open(env_file, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+_load_dotenv_to_os_environ()
 
 
 class Settings(BaseSettings):
@@ -10,7 +47,7 @@ class Settings(BaseSettings):
     所有服务地址（V-Engine、MediaMTX）存储在数据库中，通过 Web UI 设置页面管理。
     """
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Server ports (env-only) / 服务端口（仅环境变量）
     backend_port: int = 8000

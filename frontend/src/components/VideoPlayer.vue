@@ -24,7 +24,6 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { connectWebRTC } from '../utils/webrtc.js'
-import { useAppSettingsStore } from '../stores/appSettings.js'
 
 const props = defineProps({
   streamPath: {
@@ -41,7 +40,6 @@ const videoEl = ref(null)
 const connected = ref(false)
 const error = ref('')
 const { t } = useI18n()
-const appSettingsStore = useAppSettingsStore()
 let _conn = null
 let _reconnectTimer = null
 let _reconnectAttempts = 0
@@ -83,9 +81,6 @@ async function connect() {
     _conn = await connectWebRTC(
       props.streamPath,
       videoEl.value,
-      appSettingsStore.mediamtxWebrtcAddr,
-      appSettingsStore.mediamtxUsername,
-      appSettingsStore.mediamtxPassword
     )
     if (!_shouldReconnect) {
       _conn?.stop?.()
@@ -134,25 +129,7 @@ watch(() => props.streamPath, (newPath) => {
   if (newPath) connect()
 })
 
-watch(
-  () => [
-    appSettingsStore.mediamtxWebrtcAddr,
-    appSettingsStore.mediamtxUsername,
-    appSettingsStore.mediamtxPassword,
-  ],
-  () => {
-    disconnect()
-    if (props.streamPath) connect()
-  }
-)
-
 onMounted(() => {
-  if (!appSettingsStore.loaded) {
-    appSettingsStore.fetchSettings().catch(() => {
-      // Keep fallback defaults when settings API is unavailable.
-    })
-  }
-
   if (props.streamPath) connect()
 })
 

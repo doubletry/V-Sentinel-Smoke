@@ -38,14 +38,19 @@ async def create_source(
 
 
 @router.get("", response_model=list[VideoSource])
-async def list_sources() -> list[VideoSource]:
+async def list_sources(
+    _role: str = Depends(require_permission("sources:read")),
+) -> list[VideoSource]:
     """List all video sources.
     列出所有视频源。"""
     return await db.list_sources()
 
 
 @router.get("/by-rtsp", response_model=VideoSource)
-async def get_source_by_rtsp(rtsp_url: str) -> VideoSource:
+async def get_source_by_rtsp(
+    rtsp_url: str,
+    _role: str = Depends(require_permission("sources:read")),
+) -> VideoSource:
     """Get a video source by its RTSP URL.
     按 RTSP URL 获取视频源。"""
     source = await db.get_source_by_rtsp(rtsp_url)
@@ -55,7 +60,10 @@ async def get_source_by_rtsp(rtsp_url: str) -> VideoSource:
 
 
 @router.get("/{source_id}", response_model=VideoSource)
-async def get_source(source_id: str) -> VideoSource:
+async def get_source(
+    source_id: str,
+    _role: str = Depends(require_permission("sources:read")),
+) -> VideoSource:
     """Get a single video source with its ROIs.
     获取单个视频源及其 ROI。"""
     source = await db.get_source(source_id)
@@ -97,7 +105,10 @@ async def delete_source(
 
 
 @router.get("/{source_id}/rois/export")
-async def export_rois_yaml(source_id: str) -> Response:
+async def export_rois_yaml(
+    source_id: str,
+    _role: str = Depends(require_permission("sources:read")),
+) -> Response:
     """Export ROIs for a video source as a downloadable YAML file.
     将视频源的 ROI 导出为可下载的 YAML 文件。"""
     source = await db.get_source(source_id)
