@@ -142,6 +142,28 @@ DEFAULT_APP_SETTINGS: dict[str, str] = {
     "fire_door_temporal_confirm_frames": "1",
     "fire_door_temporal_confirm_window": "2.0",
     "fire_door_alarm_hold_time": "3.0",
+    # VL secondary confirmation (global) / VL 二次确认（全局）
+    "vl_confirm_enabled": "false",
+    "vl_confirm_base_url": "http://localhost:30000/v1",
+    "vl_confirm_api_key": "EMPTY",
+    "vl_confirm_model": "/models/Mage-VL",
+    "vl_confirm_timeout": "60",
+    # VL secondary confirmation (per-scene) / VL 二次确认（场景级）
+    "fire_door_vl_confirm_prompt": (
+        "This image was flagged as a potential OPEN door. Verify the detection. "
+        "A door is OPEN if the door panel is visibly separated from the frame, "
+        "showing a clear gap or opening (you can see a darker space behind/beside the panel). "
+        "A door is CLOSED if the panel is flush within the frame with no visible opening. "
+        "Only confirm OPEN if you can clearly see the gap. "
+        'Reply with ONLY: {"open": true} or {"open": false}.'
+    ),
+    "fire_door_vl_confirm_response_key": "open",
+    "smoke_vl_confirm_prompt": (
+        "This image was flagged as containing smoke or fire. Verify the detection. "
+        "Only confirm if you can clearly see smoke or fire in the image. "
+        'Reply with ONLY: {"smoke": true} or {"smoke": false}.'
+    ),
+    "smoke_vl_confirm_response_key": "smoke",
     # Thread pool sizes / 线程池大小
     "max_pull_workers": "20",
     "max_push_workers": "10",
