@@ -105,6 +105,10 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     return settingsApi.testEmail(payload)
   }
 
+  async function testVl(payload) {
+    return settingsApi.testVl(payload)
+  }
+
   function patchSettings(partial) {
     settings.value = withDefaults({
       ...settings.value,
@@ -135,6 +139,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     fetchSettings,
     updateSettings,
     testEmail,
+    testVl,
     patchSettings,
     applyLanguage,
   }

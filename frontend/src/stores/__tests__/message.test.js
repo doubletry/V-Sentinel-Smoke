@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 const listMock = vi.fn()
+const vlReviewMock = vi.fn()
 const deleteMock = vi.fn()
 const batchDeleteMock = vi.fn()
 
@@ -11,6 +12,7 @@ vi.mock('../../api/index.js', () => ({
     markFalsePositive: vi.fn(),
     unmarkFalsePositive: vi.fn(),
     resendNotification: vi.fn(),
+    vlReview: (...args) => vlReviewMock(...args),
     delete: (...args) => deleteMock(...args),
     batchDelete: (...args) => batchDeleteMock(...args),
   },
@@ -23,6 +25,7 @@ import { useMessageStore } from '../message.js'
 beforeEach(() => {
   setActivePinia(createPinia())
   listMock.mockReset()
+  vlReviewMock.mockReset()
   deleteMock.mockReset()
   batchDeleteMock.mockReset()
 })
@@ -145,5 +148,15 @@ describe('message store — false positive filter modes', () => {
     ]
     await store.unmarkFalsePositive('a')
     expect(store.messages.map((m) => m.id)).toEqual(['b'])
+  })
+})
+
+describe('message store — vl review', () => {
+  it('vlReviewMessage calls the API and returns the result', async () => {
+    const store = useMessageStore()
+    vlReviewMock.mockResolvedValue({ result: 'confirmed', raw_response: '{"smoke": true}', latency_ms: 120, model: '/models/Mage-VL' })
+    const result = await store.vlReviewMessage('id-9')
+    expect(vlReviewMock).toHaveBeenCalledWith('id-9')
+    expect(result.result).toBe('confirmed')
   })
 })

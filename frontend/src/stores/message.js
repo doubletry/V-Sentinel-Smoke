@@ -189,6 +189,10 @@ export const useMessageStore = defineStore('message', () => {
     return messagesApi.resendNotification(messageId)
   }
 
+  async function vlReviewMessage(messageId) {
+    return messagesApi.vlReview(messageId)
+  }
+
   function toggleSelection(messageId, value) {
     if (!messageId) return
     const next = { ...selectedIds.value }
@@ -277,6 +281,7 @@ export const useMessageStore = defineStore('message', () => {
     markFalsePositive,
     unmarkFalsePositive,
     resendNotification,
+    vlReviewMessage,
     toggleSelection,
     setSelection,
     clearSelection,
