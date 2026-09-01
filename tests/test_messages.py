@@ -3,6 +3,9 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
+
+import cv2
+import numpy as np
 from httpx import AsyncClient
 
 from backend.db.database import (
@@ -702,4 +705,93 @@ class TestMessageDeletion:
             headers={"Authorization": f"Bearer {operator_token}"},
         )
         assert resp.status_code == 200
+
+
+VL_REVIEW_JPEG_B64 = base64.b64encode(
+    cv2.imencode(".jpg", np.zeros((32, 48, 3), dtype=np.uint8))[1].tobytes()
+).decode("ascii")
+
+
+class TestVlReviewEndpoint:
+    async def _save_message_with_image(self, source_id: str) -> str:
+        return await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": source_id,
+                "level": "alert",
+                "message": "smoke detected",
+                "image_base64": VL_REVIEW_JPEG_B64,
+            }
+        )
+
+    async def _create_source(self):
+        from backend.db.database import create_source
+        from backend.models.schemas import VideoSourceCreate
+
+        return await create_source(VideoSourceCreate(name="Cam1", rtsp_url="rtsp://x/1"))
+
+    async def test_vl_review_confirmed(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await self._save_message_with_image(source.id)
+        await update_settings({"smoke_vl_confirm_enabled": "true"})
+
+        with patch("core.vl_confirm.VLConfirmClient.complete", new=AsyncMock(return_value='{"smoke": true}')):
+            resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result"] == "confirmed"
+        assert data["raw_response"] == '{"smoke": true}'
+        assert isinstance(data["latency_ms"], int)
+        # 复盘不得改变消息状态
+        rows = await list_analysis_messages(limit=10)
+        assert rows["items"][0]["false_positive"] is False
+
+    async def test_vl_review_unknown_verdict(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await self._save_message_with_image(source.id)
+        await update_settings({"smoke_vl_confirm_enabled": "true"})
+
+        with patch("core.vl_confirm.VLConfirmClient.complete", new=AsyncMock(return_value="cannot tell")):
+            resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+        assert resp.status_code == 200
+        assert resp.json()["result"] == "unknown"
+
+    async def test_vl_review_disabled_scene_422(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await self._save_message_with_image(source.id)
+
+        resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+        assert resp.status_code == 422
+
+    async def test_vl_review_missing_message_404(self, async_client: AsyncClient, init_db):
+        resp = await async_client.post("/api/messages/no-such-id/vl-review")
+        assert resp.status_code == 404
+
+    async def test_vl_review_missing_image_404(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": source.id,
+                "level": "alert",
+                "message": "smoke detected",
+                "image_base64": None,
+            }
+        )
+        await update_settings({"smoke_vl_confirm_enabled": "true"})
+
+        resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+        assert resp.status_code == 404
+
+    async def test_vl_review_upstream_error_502(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await self._save_message_with_image(source.id)
+        await update_settings({"smoke_vl_confirm_enabled": "true"})
+
+        with patch("core.vl_confirm.VLConfirmClient.complete", new=AsyncMock(side_effect=Exception("conn refused"))):
+            resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+        assert resp.status_code == 502
+        assert "conn refused" in resp.json()["detail"]
 

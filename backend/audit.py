@@ -22,6 +22,7 @@ AUDIT_OPERATION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/messages/{message_id}/false-positive"): ("messages.mark_false_positive", "messages"),
     ("DELETE", "/api/messages/{message_id}/false-positive"): ("messages.unmark_false_positive", "messages"),
     ("POST", "/api/messages/{message_id}/resend-notification"): ("messages.resend_notification", "messages"),
+    ("POST", "/api/messages/{message_id}/vl-review"): ("messages.vl_review", "messages"),
     ("POST", "/api/notifications/instances"): ("notifications.instances.create", "notifications.instances"),
     ("PUT", "/api/notifications/instances/{provider_id}"): ("notifications.instances.update", "notifications.instances"),
     ("POST", "/api/notifications/instances/{instance_id}/test"): ("notifications.instances.test", "notifications.instances"),

@@ -1,19 +1,33 @@
 from __future__ import annotations
 
+import time
+
+import cv2
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from backend.auth.dependencies import require_permission, require_permission_for_image
+from backend.db import database as db
 from backend.db.database import (
     delete_analysis_message,
     delete_analysis_messages,
     get_analysis_message_image_path,
     get_analysis_message_for_notification,
+    get_analysis_message_review_context,
     list_analysis_messages,
     mark_analysis_message_false_positive,
     unmark_analysis_message_false_positive,
 )
 from backend.models.schemas import AnalysisMessage, PaginatedMessagesResponse
+from core.fire_door.constants import (
+    DEFAULT_VL_CONFIRM_PROMPT as FIRE_DOOR_DEFAULT_VL_PROMPT,
+    DEFAULT_VL_CONFIRM_RESPONSE_KEY as FIRE_DOOR_DEFAULT_VL_RESPONSE_KEY,
+)
+from core.smoke.constants import (
+    DEFAULT_VL_CONFIRM_PROMPT as SMOKE_DEFAULT_VL_PROMPT,
+    DEFAULT_VL_CONFIRM_RESPONSE_KEY as SMOKE_DEFAULT_VL_RESPONSE_KEY,
+)
+from core.vl_confirm import VLConfirmClient, encode_frame_as_data_url, parse_vl_response
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
 
@@ -98,6 +112,85 @@ async def resend_message_notification(
         "id": message_id,
         "status": "sent" if has_success else ("failed" if results else "no_enabled_provider"),
         "results": results,
+    }
+
+
+SCENE_VL_DEFAULTS = {
+    "smoke": (SMOKE_DEFAULT_VL_PROMPT, SMOKE_DEFAULT_VL_RESPONSE_KEY),
+    "fire_door": (FIRE_DOOR_DEFAULT_VL_PROMPT, FIRE_DOOR_DEFAULT_VL_RESPONSE_KEY),
+}
+
+
+@router.post("/{message_id}/vl-review")
+async def review_message_with_vl(
+    message_id: str,
+    _role: str = Depends(require_permission("messages:annotate")),
+) -> dict[str, object]:
+    """Re-run VL confirmation on a persisted message. Display-only.
+    对一条已持久化消息重跑 VL 复盘（只展示结果，不修改消息状态）。"""
+    context = await get_analysis_message_review_context(message_id)
+    if context is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    scene_id = context["scene_id"]
+    settings_map = await db.get_all_settings()
+    enabled = str(settings_map.get(f"{scene_id}_vl_confirm_enabled") or "false").strip().lower()
+    if enabled != "true":
+        raise HTTPException(
+            status_code=422,
+            detail=f"VL confirmation is not enabled for scene '{scene_id}'",
+        )
+    base_url = str(settings_map.get("vl_confirm_base_url") or "").strip()
+    model = str(settings_map.get("vl_confirm_model") or "").strip()
+    if not base_url or not model:
+        raise HTTPException(status_code=422, detail="VL base URL and model are required")
+    try:
+        timeout = max(1, int(float(settings_map.get("vl_confirm_timeout") or 60)))
+    except ValueError:
+        timeout = 60
+
+    image_source = str(settings_map.get(f"{scene_id}_vl_confirm_image_source") or "original").strip().lower()
+    kind = "detected" if image_source == "annotated" else "original"
+    # Fall back to the other kind when the configured one is missing; 404 only if both are absent.
+    # 配置的图缺失时回退到另一种 kind；两种都取不到才 404（消息已无任何可用图片）。
+    fallback_kind = "original" if kind == "detected" else "detected"
+    file_path = await get_analysis_message_image_path(message_id, kind=kind)
+    if file_path is None or not file_path.is_file():
+        file_path = await get_analysis_message_image_path(message_id, kind=fallback_kind)
+    if file_path is None or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Message image not found")
+    frame_bgr = cv2.imread(str(file_path), cv2.IMREAD_COLOR)
+    if frame_bgr is None:
+        raise HTTPException(status_code=404, detail="Message image not found")
+    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    image_data_url = encode_frame_as_data_url(frame_rgb)
+
+    prompt = str(settings_map.get(f"{scene_id}_vl_confirm_prompt") or "").strip()
+    response_key = str(settings_map.get(f"{scene_id}_vl_confirm_response_key") or "").strip()
+    default_prompt, default_response_key = SCENE_VL_DEFAULTS.get(
+        scene_id, (SMOKE_DEFAULT_VL_PROMPT, SMOKE_DEFAULT_VL_RESPONSE_KEY)
+    )
+    prompt = prompt or default_prompt
+    response_key = response_key or default_response_key
+
+    client = VLConfirmClient(
+        base_url=base_url,
+        api_key=str(settings_map.get("vl_confirm_api_key") or "EMPTY").strip() or "EMPTY",
+        model=model,
+        timeout=timeout,
+    )
+    started = time.monotonic()
+    try:
+        raw = await client.complete(image_data_url, prompt)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"VL request failed: {exc}")
+    latency_ms = int((time.monotonic() - started) * 1000)
+    verdict = parse_vl_response(raw, response_key)
+    result = "confirmed" if verdict is True else ("rejected" if verdict is False else "unknown")
+    return {
+        "result": result,
+        "raw_response": raw,
+        "latency_ms": latency_ms,
+        "model": model,
     }
 
 
