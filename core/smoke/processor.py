@@ -142,6 +142,7 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 "timestamp": timestamp,
                 "source_name": self.source_name,
                 "source_id": self.source_id,
+                "scene_id": "smoke",
                 "level": "alert",
                 "message": message,
                 "image_base64": detected_image_base64,

@@ -292,6 +292,7 @@ async def test_vl_confirm_allows_alarm_when_model_returns_true():
     assert len(result.messages) == 1
     assert result.messages[0]["false_positive"] is False
     assert "email_event" in result.extra
+    assert result.messages[0]["scene_id"] == "fire_door"
 
 
 async def test_vl_confirm_fail_open_when_model_returns_none():

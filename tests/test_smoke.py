@@ -55,6 +55,7 @@ class TestSmokeProcessor:
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         assert result.messages
         assert result.messages[0]["level"] == "alert"
+        assert result.messages[0]["scene_id"] == "smoke"
         assert result.extra["email_event"]["event_type"] == "smoke"
         assert result.extra["email_event"]["image_base64"]
 

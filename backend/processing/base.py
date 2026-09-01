@@ -120,6 +120,7 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
                         ),
                         source_name=msg.get("source_name", self.source_name),
                         source_id=msg.get("source_id", self.source_id),
+                        scene_id=msg.get("scene_id", "smoke"),
                         level=msg.get("level", "info"),
                         message=msg.get("message", ""),
                         image_url=msg.get("image_url"),

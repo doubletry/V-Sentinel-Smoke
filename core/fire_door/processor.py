@@ -207,6 +207,7 @@ class FireDoorProcessor(BaseVideoProcessor):
                     "timestamp": timestamp,
                     "source_name": self.source_name,
                     "source_id": self.source_id,
+                    "scene_id": "fire_door",
                     "level": "alert",
                     "message": (
                         f"Fire door open on {self.source_name} "
