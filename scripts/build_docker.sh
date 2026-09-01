@@ -4,6 +4,8 @@ set -euo pipefail
 IMAGE_NAME="${IMAGE_NAME:-v-sentinel}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 DOCKER_BIN="${DOCKER_BIN:-docker}"
+BASE_IMAGE="${BASE_IMAGE:-v-sentinel-base:py311}"
+REBUILD_BASE="${REBUILD_BASE:-0}"
 
 build_args=()
 extra_args=()
@@ -133,6 +135,40 @@ fi
 if [[ -n "$BUILD_CA_CERT_PATH" ]]; then
   secret_args+=(--secret "id=build_proxy_ca,src=${BUILD_CA_CERT_PATH}")
 fi
+
+base_build_args=()
+for key in HTTP_PROXY http_proxy; do
+  if [[ -n "$HTTP_PROXY_VALUE" ]]; then
+    base_build_args+=(--build-arg "${key}=${HTTP_PROXY_VALUE}")
+  fi
+done
+
+for key in HTTPS_PROXY https_proxy; do
+  if [[ -n "$HTTPS_PROXY_VALUE" ]]; then
+    base_build_args+=(--build-arg "${key}=${HTTPS_PROXY_VALUE}")
+  fi
+done
+
+for key in NO_PROXY no_proxy; do
+  if [[ -n "$NO_PROXY_VALUE" ]]; then
+    base_build_args+=(--build-arg "${key}=${NO_PROXY_VALUE}")
+  fi
+done
+
+if [[ "$REBUILD_BASE" == "1" ]] || ! "${DOCKER_BIN}" image inspect "${BASE_IMAGE}" >/dev/null 2>&1; then
+  echo "[build_docker] base image ${BASE_IMAGE} missing or REBUILD_BASE=1, building it first..."
+  base_cmd=("${DOCKER_BIN}" build)
+  if [[ ${#extra_args[@]} -gt 0 ]]; then
+    base_cmd+=("${extra_args[@]}")
+  fi
+  if [[ ${#base_build_args[@]} -gt 0 ]]; then
+    base_cmd+=("${base_build_args[@]}")
+  fi
+  base_cmd+=(-f Dockerfile.base -t "${BASE_IMAGE}" .)
+  "${base_cmd[@]}"
+fi
+
+build_args+=(--build-arg "BASE_IMAGE=${BASE_IMAGE}")
 
 docker_cmd=("${DOCKER_BIN}" build)
 if [[ ${#extra_args[@]} -gt 0 ]]; then
