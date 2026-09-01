@@ -211,6 +211,48 @@ class TestSettingsAPI:
         assert captured_config["smtp_password"] == "test-password-do-not-use"
         assert captured_config["use_tls"] is True
 
+    async def test_vl_test_endpoint_ok(self, async_client: AsyncClient):
+        with patch(
+            "core.vl_confirm.VLConfirmClient.complete",
+            new=AsyncMock(return_value='{"connected": true}'),
+        ) as mock_complete:
+            resp = await async_client.post(
+                "/api/settings/vl/test",
+                json={
+                    "vl_confirm_base_url": "http://vl.example.com/v1",
+                    "vl_confirm_api_key": "test-key",
+                    "vl_confirm_model": "/models/test-vl",
+                    "vl_confirm_timeout": "30",
+                },
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+        assert data["model"] == "/models/test-vl"
+        assert data["response"] == '{"connected": true}'
+        assert isinstance(data["latency_ms"], int)
+        assert mock_complete.await_count == 1
+
+    async def test_vl_test_endpoint_missing_model_rejected(self, async_client: AsyncClient):
+        await update_settings({"vl_confirm_model": ""})
+        resp = await async_client.post("/api/settings/vl/test", json={"vl_confirm_base_url": "http://x/v1"})
+        assert resp.status_code == 422
+
+    async def test_vl_test_endpoint_upstream_error_502(self, async_client: AsyncClient):
+        with patch(
+            "core.vl_confirm.VLConfirmClient.complete",
+            new=AsyncMock(side_effect=Exception("401 unauthorized")),
+        ):
+            resp = await async_client.post(
+                "/api/settings/vl/test",
+                json={
+                    "vl_confirm_base_url": "http://vl.example.com/v1",
+                    "vl_confirm_model": "/models/test-vl",
+                },
+            )
+        assert resp.status_code == 502
+        assert "401 unauthorized" in resp.json()["detail"]
+
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,
         async_client: AsyncClient,

@@ -618,3 +618,13 @@ class EmailTestRequest(BaseModel):
     email_smtp_host: str | None = None
     email_smtp_port: str | None = None
     email_smtp_use_tls: str | None = None
+
+
+class VlTestRequest(BaseModel):
+    """Payload for testing the VL backend without saving first.
+    用于在不先保存的情况下测试 VL 后端的载荷。"""
+
+    vl_confirm_base_url: str | None = None
+    vl_confirm_api_key: str | None = None
+    vl_confirm_model: str | None = None
+    vl_confirm_timeout: str | None = None

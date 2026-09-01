@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
 from backend.auth.dependencies import current_user, has_permission, require_any_permission, require_permission
 from backend.db import database as db
-from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest
+from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest, VlTestRequest
 from backend.notifications.email_config import build_email_settings_smtp_config
+from core.vl_confirm import VLConfirmClient, VL_TEST_PROMPT, build_vl_test_image_data_url
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
@@ -231,6 +234,38 @@ async def test_email_settings(
             body=f"这是一封来自 {site_title} 的 SMTP 测试邮件，用于验证邮件配置是否正确。",
         )
     )
+
+
+@router.post("/vl/test")
+async def test_vl_settings(
+    data: VlTestRequest,
+    _role: str = Depends(require_any_permission("settings:*", "settings:plugins")),
+) -> dict[str, object]:
+    """Run a full connection test against the configured VL backend.
+    使用当前或传入的设置对 VL 后端做一次全链路连接测试。"""
+    app_settings = await db.get_all_settings()
+    base_url = str(data.vl_confirm_base_url or app_settings.get("vl_confirm_base_url") or "").strip()
+    api_key = str(data.vl_confirm_api_key or app_settings.get("vl_confirm_api_key") or "").strip()
+    model = str(data.vl_confirm_model or app_settings.get("vl_confirm_model") or "").strip()
+    timeout_raw = str(data.vl_confirm_timeout or app_settings.get("vl_confirm_timeout") or "60")
+    if not base_url or not model:
+        raise HTTPException(status_code=422, detail="VL base URL and model are required")
+    try:
+        timeout = max(1, int(float(timeout_raw)))
+    except ValueError:
+        timeout = 60
+    client = VLConfirmClient(base_url=base_url, api_key=api_key or "EMPTY", model=model, timeout=timeout)
+    started = time.monotonic()
+    try:
+        raw = await client.complete(build_vl_test_image_data_url(), VL_TEST_PROMPT)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"VL request failed: {exc}")
+    return {
+        "status": "ok",
+        "model": model,
+        "latency_ms": int((time.monotonic() - started) * 1000),
+        "response": raw,
+    }
 
 
 @router.get("/email/template-placeholders")

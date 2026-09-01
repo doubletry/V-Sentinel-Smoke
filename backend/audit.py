@@ -34,6 +34,7 @@ AUDIT_OPERATION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("POST", "/api/processor/start"): ("processor.start", "processor"),
     ("POST", "/api/processor/stop"): ("processor.stop", "processor"),
     ("POST", "/api/settings/email/test"): ("settings.email_test", "settings"),
+    ("POST", "/api/settings/vl/test"): ("settings.vl_test", "settings"),
     ("PUT", "/api/settings"): ("settings.update", "settings"),
     ("POST", "/api/sources"): ("sources.create", "sources"),
     ("PUT", "/api/sources/{source_id}"): ("sources.update", "sources"),
