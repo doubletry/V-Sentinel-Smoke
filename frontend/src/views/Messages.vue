@@ -83,6 +83,8 @@
         @mark-false-positive="handleMarkFalsePositive"
         @unmark-false-positive="handleUnmarkFalsePositive"
         @resend-notification="handleResendNotification"
+        :reviewing-message-ids="reviewingMessageIds"
+        @vl-review="handleVlReview"
         @delete-message="handleDeleteMessage"
         @toggle-select="handleToggleSelect"
         @toggle-select-group="handleToggleSelectGroup"
@@ -126,6 +128,7 @@ const filterDateRange = ref(store.startDate && store.endDate ? [store.startDate,
 const scrollbar = ref(null)
 const refreshing = ref(false)
 const resendingMessageIds = ref({})
+const reviewingMessageIds = ref({})
 const lastUpdatedLabel = computed(() => {
   if (!store.lastUpdatedAt) return t('messages.notUpdatedYet')
   return new Date(store.lastUpdatedAt).toLocaleString()
@@ -228,6 +231,34 @@ async function handleResendNotification(message) {
     const next = { ...resendingMessageIds.value }
     delete next[message.id]
     resendingMessageIds.value = next
+  }
+}
+
+function escapeHtml(value) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+  return String(value).replace(/[&<>"']/g, (ch) => map[ch])
+}
+
+async function handleVlReview(message) {
+  if (!message?.id) return
+  reviewingMessageIds.value = { ...reviewingMessageIds.value, [message.id]: true }
+  try {
+    const result = await store.vlReviewMessage(message.id)
+    const verdictKey =
+      { confirmed: 'vlReviewConfirmed', rejected: 'vlReviewRejected', unknown: 'vlReviewUnknown' }[result.result] ||
+      'vlReviewUnknown'
+    await ElMessageBox.alert(
+      `<div style="white-space:pre-wrap;word-break:break-word">${t(`messages.${verdictKey}`)}\n${t('messages.vlReviewLatency', { ms: result.latency_ms })}\n\n${escapeHtml(result.raw_response || '')}</div>`,
+      t('messages.vlReviewResultTitle'),
+      { dangerouslyUseHTMLString: true, confirmButtonText: t('common.confirm') }
+    )
+  } catch (err) {
+    if (err && (err === 'cancel' || err?.message === 'cancel')) return
+    ElMessage.error(t('messages.vlReviewFailed', { message: err.message }))
+  } finally {
+    const next = { ...reviewingMessageIds.value }
+    delete next[message.id]
+    reviewingMessageIds.value = next
   }
 }
 

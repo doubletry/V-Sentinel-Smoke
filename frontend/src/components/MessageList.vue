@@ -65,6 +65,16 @@
             {{ t('messageList.resendNotification') }}
           </el-button>
           <el-button
+            v-if="vlReviewVisible(msg)"
+            size="small"
+            type="primary"
+            plain
+            :loading="Boolean(reviewingMessageIds[msg.id])"
+            @click="emit('vl-review', msg)"
+          >
+            {{ t('messageList.vlReview') }}
+          </el-button>
+          <el-button
             v-if="canAnnotateMessages && msg.id && !msg.false_positive"
             size="small"
             type="warning"
@@ -126,6 +136,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  reviewingMessageIds: {
+    type: Object,
+    default: () => ({}),
+  },
   selectedIds: {
     type: Object,
     default: () => ({}),
@@ -135,6 +149,7 @@ const emit = defineEmits([
   'mark-false-positive',
   'unmark-false-positive',
   'resend-notification',
+  'vl-review',
   'delete-message',
   'toggle-select',
   'toggle-select-group',
@@ -147,6 +162,14 @@ const previewVisible = ref(false)
 const previewImage = ref('')
 const canAnnotateMessages = computed(() => authStore.hasPermission('messages:annotate'))
 const canDeleteMessages = computed(() => authStore.hasPermission('messages:delete'))
+
+function vlReviewVisible(message) {
+  if (!canAnnotateMessages.value || !message?.id) return false
+  if (!message.source_id || message.source_id === '__agent__') return false
+  const scene = message.scene_id || 'smoke'
+  const enabled = appSettingsStore.settings?.[`${scene}_vl_confirm_enabled`]
+  return String(enabled || 'false').toLowerCase() === 'true'
+}
 
 function levelType(level) {
   const map = { info: '', warning: 'warning', alert: 'danger' }
