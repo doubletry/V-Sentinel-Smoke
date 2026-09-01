@@ -374,7 +374,7 @@ class MyProcessor(BaseVideoProcessor):
 
 | 方法 | 路径 | 描述 |
 |--------|------|-------------|
-| `GET` | `/api/messages` | 列出已持久化消息，支持 `source_id`、`false_positive_only`、`start_date`、`end_date`（`YYYY-MM-DD`，UTC）过滤 |
+| `GET` | `/api/messages` | 列出已持久化消息，支持 `source_id`、`false_positive_filter`（`all` / `only` / `exclude`）、`start_date`、`end_date`（`YYYY-MM-DD`，UTC）过滤 |
 | `POST` | `/api/messages/{id}/false-positive` | 标记为误报并将原图/检测图导出到 `false_positives/`（操作员/管理员） |
 | `DELETE` | `/api/messages/{id}/false-positive` | 取消误报标记（操作员/管理员） |
 | `POST` | `/api/messages/{id}/resend-notification` | 手动再次发送通知（操作员/管理员） |

@@ -381,6 +381,7 @@ async def init_db() -> None:
             "false_positive",
             "INTEGER NOT NULL DEFAULT 0",
         )
+        await _migrate_vl_confirm_enabled(db)
         for key, value in DEFAULT_APP_SETTINGS.items():
             await db.execute(
                 "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
@@ -391,6 +392,30 @@ async def init_db() -> None:
         await _seed_default_notification_records(db)
         await db.commit()
     logger.info("Database initialized at {}", _DB_PATH)
+
+
+async def _migrate_vl_confirm_enabled(db: aiosqlite.Connection) -> None:
+    """One-time migration: copy legacy global ``vl_confirm_enabled`` into the
+    per-scene ``{scene}_vl_confirm_enabled`` keys, then drop the global key.
+
+    The global key is deleted right after the copy, so this branch runs at
+    most once per database; ``INSERT OR REPLACE`` is safe and also repairs
+    databases that were initialised by the new code before the legacy key
+    was present.
+    一次性迁移：将旧全局 VL 开关复制进各场景开关后删除全局 key。
+    """
+    async with db.execute(
+        "SELECT value FROM app_settings WHERE key = 'vl_confirm_enabled'"
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return
+    for scene_key in ("smoke_vl_confirm_enabled", "fire_door_vl_confirm_enabled"):
+        await db.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+            (scene_key, str(row[0])),
+        )
+    await db.execute("DELETE FROM app_settings WHERE key = 'vl_confirm_enabled'")
 
 
 def _now_iso() -> str:
@@ -2529,12 +2554,18 @@ async def list_analysis_messages(
     page: int = 1,
     page_size: int = 20,
     source_id: str | None = None,
-    false_positive_only: bool = False,
+    false_positive_filter: str = "all",
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, object]:
     """List persisted analysis messages ordered newest-first.
     按时间倒序列出持久化分析消息。
+
+    ``false_positive_filter``: ``"all"`` (no filter), ``"only"``
+    (``false_positive = 1``) or ``"exclude"`` (``false_positive = 0``).
+    Other values are treated as ``"all"``.
+    ``false_positive_filter``：``"all"``（不过滤）、``"only"``（仅误报）、
+    ``"exclude"``（排除误报）；其他值按 ``"all"`` 处理。
 
     ``start_date`` / ``end_date`` are inclusive ``YYYY-MM-DD`` calendar days
     (UTC) used to bound ``created_at``. Invalid values are silently ignored.
@@ -2549,8 +2580,10 @@ async def list_analysis_messages(
     if source_id:
         where_clauses.append("source_id = ?")
         query_values.append(source_id)
-    if false_positive_only:
+    if false_positive_filter == "only":
         where_clauses.append("false_positive = 1")
+    elif false_positive_filter == "exclude":
+        where_clauses.append("false_positive = 0")
     safe_start = (start_date or "").strip()
     if safe_start and MESSAGE_IMAGE_DAY_RE.fullmatch(safe_start):
         try:

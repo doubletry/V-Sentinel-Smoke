@@ -367,7 +367,7 @@ See [`docs/processor-plugin-usage.md`](docs/processor-plugin-usage.md).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/messages` | List persisted messages; supports `source_id`, `false_positive_only`, `start_date`, `end_date` (`YYYY-MM-DD`, UTC) filters |
+| `GET` | `/api/messages` | List persisted messages; supports `source_id`, `false_positive_filter` (`all` / `only` / `exclude`), `start_date`, `end_date` (`YYYY-MM-DD`, UTC) filters |
 | `POST` | `/api/messages/{id}/false-positive` | Mark as false positive and export images to `false_positives/` (operator/admin) |
 | `DELETE` | `/api/messages/{id}/false-positive` | Clear the false-positive flag (operator/admin) |
 | `POST` | `/api/messages/{id}/resend-notification` | Manually resend notifications (operator/admin) |

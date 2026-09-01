@@ -20,7 +20,7 @@ from core.smoke.constants import (
 )
 from core.smoke.email import build_smoke_email_event
 from core.smoke.post_processor import Detection, DetectionClass, PostProcessorConfig, SmokeFirePostProcessor
-from core.vl_confirm import VLConfirmClient, crop_roi_image
+from core.vl_confirm import VLConfirmClient, build_vl_image_data_url
 
 
 class SmokeFireProcessor(BaseVideoProcessor):
@@ -114,11 +114,12 @@ class SmokeFireProcessor(BaseVideoProcessor):
         annotated = self.draw_on_frame(frame, result)
         result.annotated_frame = annotated
 
+        vl_rejected = False
         if post_result.has_alarm and confirmed:
             if self._vl_confirm_enabled():
-                vl_result = await self._vl_confirm_alert(frame, primary_roi)
+                vl_result = await self._vl_confirm_alert(frame, annotated, primary_roi)
                 if vl_result is False:
-                    confirmed = []
+                    vl_rejected = True
                 # True or None (fail-open) → keep alerts
         if post_result.has_alarm and confirmed:
             labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
@@ -146,21 +147,30 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 "image_base64": detected_image_base64,
                 "original_image_base64": original_image_base64,
                 "detected_image_base64": detected_image_base64,
+                "false_positive": vl_rejected,
             })
-            result.extra["email_event"] = event
-            result.extra["smoke_event"] = event
+            if not vl_rejected:
+                result.extra["email_event"] = event
+                result.extra["smoke_event"] = event
         return result
 
     def _vl_confirm_enabled(self) -> bool:
-        return str(self.app_settings.get("vl_confirm_enabled") or "false").lower() == "true"
+        return str(self.app_settings.get("smoke_vl_confirm_enabled") or "false").lower() == "true"
 
     async def _vl_confirm_alert(
         self,
         frame: np.ndarray,
+        annotated: np.ndarray,
         primary_roi: list[dict] | None,
     ) -> bool | None:
         """Ask the VL model to verify a smoke/fire alarm. Returns True/False/None."""
-        image_data_url = crop_roi_image(frame, primary_roi)
+        image_data_url = build_vl_image_data_url(
+            frame,
+            annotated,
+            str(self.app_settings.get("smoke_vl_confirm_image_source") or "original"),
+            str(self.app_settings.get("smoke_vl_confirm_image_crop") or "roi"),
+            primary_roi,
+        )
         prompt = str(
             self.app_settings.get("smoke_vl_confirm_prompt")
             or DEFAULT_VL_CONFIRM_PROMPT

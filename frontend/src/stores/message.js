@@ -16,7 +16,7 @@ export const useMessageStore = defineStore('message', () => {
   const messages = ref([])
   const wsConnected = ref(false)
   const filterSource = ref('')
-  const falsePositiveOnly = ref(false)
+  const falsePositiveFilter = ref('exclude')
   const startDate = ref('')
   const endDate = ref('')
   const loading = ref(false)
@@ -39,7 +39,7 @@ export const useMessageStore = defineStore('message', () => {
         page: nextPage,
         page_size: nextPageSize,
         source_id: filterSource.value || undefined,
-        false_positive_only: falsePositiveOnly.value || undefined,
+        false_positive_filter: falsePositiveFilter.value,
         start_date: startDate.value || undefined,
         end_date: endDate.value || undefined,
       })
@@ -55,6 +55,12 @@ export const useMessageStore = defineStore('message', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  function falsePositiveFilterMatches(isFalsePositive) {
+    if (falsePositiveFilter.value === 'all') return true
+    if (falsePositiveFilter.value === 'only') return Boolean(isFalsePositive)
+    return !isFalsePositive
   }
 
   function matchesActiveDateRange(timestamp) {
@@ -93,7 +99,7 @@ export const useMessageStore = defineStore('message', () => {
         const msg = JSON.parse(event.data)
         if (msg === 'pong') return
         const matchesFilter = !filterSource.value || msg.source_id === filterSource.value
-        const matchesFalsePositive = !falsePositiveOnly.value || Boolean(msg.false_positive)
+        const matchesFalsePositive = falsePositiveFilterMatches(msg.false_positive)
         const matchesDate = matchesActiveDateRange(msg.timestamp)
         if (!matchesFilter || !matchesFalsePositive || !matchesDate) return
         if (page.value === 1) {
@@ -143,8 +149,8 @@ export const useMessageStore = defineStore('message', () => {
     clearSelection()
   }
 
-  function setFalsePositiveOnly(value) {
-    falsePositiveOnly.value = Boolean(value)
+  function setFalsePositiveFilter(value) {
+    falsePositiveFilter.value = ['exclude', 'all', 'only'].includes(value) ? value : 'exclude'
     clearSelection()
   }
 
@@ -155,8 +161,8 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   function applyFalsePositiveFilterToLocalMessages() {
-    if (!falsePositiveOnly.value) return
-    messages.value = messages.value.filter((item) => item.false_positive)
+    if (falsePositiveFilter.value === 'all') return
+    messages.value = messages.value.filter((item) => falsePositiveFilterMatches(item.false_positive))
   }
 
   async function markFalsePositive(messageId) {
@@ -257,7 +263,7 @@ export const useMessageStore = defineStore('message', () => {
     pageSizeOptions,
     wsConnected,
     filterSource,
-    falsePositiveOnly,
+    falsePositiveFilter,
     startDate,
     endDate,
     selectedIds,
@@ -266,7 +272,7 @@ export const useMessageStore = defineStore('message', () => {
     disconnectWS,
     clearMessages,
     setFilterSource,
-    setFalsePositiveOnly,
+    setFalsePositiveFilter,
     setDateRange,
     markFalsePositive,
     unmarkFalsePositive,

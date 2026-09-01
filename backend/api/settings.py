@@ -65,15 +65,20 @@ PLUGIN_SETTING_KEYS = {
     "fire_door_temporal_confirm_frames",
     "fire_door_temporal_confirm_window",
     "fire_door_alarm_hold_time",
-    "vl_confirm_enabled",
     "vl_confirm_base_url",
     "vl_confirm_api_key",
     "vl_confirm_model",
     "vl_confirm_timeout",
-    "fire_door_vl_confirm_prompt",
-    "fire_door_vl_confirm_response_key",
+    "smoke_vl_confirm_enabled",
+    "smoke_vl_confirm_image_source",
+    "smoke_vl_confirm_image_crop",
     "smoke_vl_confirm_prompt",
     "smoke_vl_confirm_response_key",
+    "fire_door_vl_confirm_enabled",
+    "fire_door_vl_confirm_image_source",
+    "fire_door_vl_confirm_image_crop",
+    "fire_door_vl_confirm_prompt",
+    "fire_door_vl_confirm_response_key",
 }
 
 

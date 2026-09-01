@@ -21,7 +21,7 @@ from core.fire_door.constants import (
     FIRE_DOOR_ROI_TAG,
 )
 from core.fire_door.email import build_fire_door_email_event
-from core.vl_confirm import VLConfirmClient, crop_roi_image
+from core.vl_confirm import VLConfirmClient, build_vl_image_data_url
 
 
 class FireDoorProcessor(BaseVideoProcessor):
@@ -169,10 +169,11 @@ class FireDoorProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         alert_items = [item for item in classifications if item.get("alarm")]
+        vl_rejected = False
         if alert_items and self._vl_confirm_enabled():
-            vl_result = await self._vl_confirm_alert(frame, alert_items, roi_pixel_points)
+            vl_result = await self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
             if vl_result is False:
-                alert_items = []
+                vl_rejected = True
             # True or None (fail-open) → keep alerts
         if alert_items:
             best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
@@ -215,18 +216,21 @@ class FireDoorProcessor(BaseVideoProcessor):
                     "image_base64": detected_image_base64,
                     "original_image_base64": original_image_base64,
                     "detected_image_base64": detected_image_base64,
+                    "false_positive": vl_rejected,
                 }
             )
-            result.extra["email_event"] = event
-            result.extra["fire_door_event"] = event
+            if not vl_rejected:
+                result.extra["email_event"] = event
+                result.extra["fire_door_event"] = event
         return result
 
     def _vl_confirm_enabled(self) -> bool:
-        return str(self.app_settings.get("vl_confirm_enabled") or "false").lower() == "true"
+        return str(self.app_settings.get("fire_door_vl_confirm_enabled") or "false").lower() == "true"
 
     async def _vl_confirm_alert(
         self,
         frame: np.ndarray,
+        annotated: np.ndarray,
         alert_items: list[dict[str, Any]],
         roi_pixel_points: list[list[dict]],
     ) -> bool | None:
@@ -239,7 +243,13 @@ class FireDoorProcessor(BaseVideoProcessor):
             else None
         )
 
-        image_data_url = crop_roi_image(frame, roi_points)
+        image_data_url = build_vl_image_data_url(
+            frame,
+            annotated,
+            str(self.app_settings.get("fire_door_vl_confirm_image_source") or "original"),
+            str(self.app_settings.get("fire_door_vl_confirm_image_crop") or "roi"),
+            roi_points,
+        )
         prompt = str(
             self.app_settings.get("fire_door_vl_confirm_prompt")
             or DEFAULT_VL_CONFIRM_PROMPT

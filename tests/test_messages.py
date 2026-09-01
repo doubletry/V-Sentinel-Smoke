@@ -238,7 +238,7 @@ class TestMessagesAPI:
         assert any(path.endswith(".jpg") and not path.endswith("_detected.jpg") for path in data["exported_files"])
         assert any(path.endswith("_detected.jpg") for path in data["exported_files"])
 
-        filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
+        filtered = await async_client.get("/api/messages", params={"false_positive_filter": "only"})
         assert filtered.status_code == 200
         filtered_data = filtered.json()
         assert len(filtered_data["items"]) == 1
@@ -262,10 +262,42 @@ class TestMessagesAPI:
         data = resp.json()
         assert data["false_positive"] is False
 
-        filtered = await async_client.get("/api/messages", params={"false_positive_only": "true"})
+        filtered = await async_client.get("/api/messages", params={"false_positive_filter": "only"})
         assert filtered.status_code == 200
         filtered_data = filtered.json()
         assert filtered_data["items"] == []
+
+    async def test_list_messages_false_positive_filter_exclude(self, async_client: AsyncClient):
+        normal_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "normal",
+            }
+        )
+        await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Cam1",
+                "source_id": "s1",
+                "level": "alert",
+                "message": "fp",
+                "false_positive": True,
+            }
+        )
+
+        excluded = await async_client.get("/api/messages", params={"false_positive_filter": "exclude"})
+        assert excluded.status_code == 200
+        excluded_data = excluded.json()
+        assert len(excluded_data["items"]) == 1
+        assert excluded_data["items"][0]["id"] == normal_id
+        assert excluded_data["items"][0]["false_positive"] is False
+
+        all_msgs = await async_client.get("/api/messages", params={"false_positive_filter": "all"})
+        assert all_msgs.status_code == 200
+        assert all_msgs.json()["total"] == 2
 
     async def test_resend_notification_endpoint_forwards_persisted_message(self, async_client: AsyncClient):
         message_id = await save_analysis_message(

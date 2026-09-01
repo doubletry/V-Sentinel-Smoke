@@ -39,14 +39,16 @@
             style="width: 260px"
             @change="handleDateRangeChange"
           />
-          <div class="false-positive-filter">
-            <span class="false-positive-filter__label">{{ t('messages.falsePositiveOnly') }}</span>
-            <el-switch
-              v-model="store.falsePositiveOnly"
-              :aria-label="t('messages.falsePositiveOnlyHint')"
-              @change="handleFalsePositiveFilterChange"
-            />
-          </div>
+          <el-radio-group
+            v-model="store.falsePositiveFilter"
+            size="small"
+            :aria-label="t('messages.falsePositiveFilterHint')"
+            @change="handleFalsePositiveFilterChange"
+          >
+            <el-radio-button value="exclude">{{ t('messages.filterValidAlerts') }}</el-radio-button>
+            <el-radio-button value="all">{{ t('messages.filterAll') }}</el-radio-button>
+            <el-radio-button value="only">{{ t('messages.filterFalsePositives') }}</el-radio-button>
+          </el-radio-group>
           <el-button size="small" type="primary" :loading="refreshing" @click="handleManualRefresh">
             {{ t('messages.refresh') }}
           </el-button>
@@ -168,7 +170,7 @@ async function handleFilterChange(value) {
 }
 
 async function handleFalsePositiveFilterChange(value) {
-  store.setFalsePositiveOnly(value)
+  store.setFalsePositiveFilter(value)
   await refresh(1, store.pageSize)
 }
 
@@ -356,19 +358,6 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.false-positive-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.false-positive-filter__label {
-  color: #c8d5f0;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .messages-updated-at {

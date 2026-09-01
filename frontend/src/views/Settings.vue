@@ -829,7 +829,7 @@
                     <div class="settings-form-grid wide-grid">
                       <el-form-item :label="t('settings.vlConfirmEnabled')" class="form-grid-span-full">
                         <div class="field-stack switch-field-stack">
-                          <el-switch v-model="form.vl_confirm_enabled" active-value="true" inactive-value="false" />
+                          <el-switch v-model="form.smoke_vl_confirm_enabled" active-value="true" inactive-value="false" />
                           <p class="form-hint">{{ t('settings.vlConfirmEnabledHint') }}</p>
                         </div>
                       </el-form-item>
@@ -844,6 +844,20 @@
                       </el-form-item>
                       <el-form-item :label="t('settings.vlConfirmTimeout')">
                         <el-input v-model="form.vl_confirm_timeout" placeholder="60" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmImageSource')">
+                        <el-select v-model="form.smoke_vl_confirm_image_source">
+                          <el-option :label="t('settings.vlConfirmImageSourceOriginal')" value="original" />
+                          <el-option :label="t('settings.vlConfirmImageSourceAnnotated')" value="annotated" />
+                        </el-select>
+                        <p class="form-hint">{{ t('settings.vlConfirmImageSourceHint') }}</p>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmImageCrop')">
+                        <el-select v-model="form.smoke_vl_confirm_image_crop">
+                          <el-option :label="t('settings.vlConfirmImageCropRoi')" value="roi" />
+                          <el-option :label="t('settings.vlConfirmImageCropFull')" value="full" />
+                        </el-select>
+                        <p class="form-hint">{{ t('settings.vlConfirmImageCropHint') }}</p>
                       </el-form-item>
                       <el-form-item :label="t('settings.vlConfirmPrompt')" class="form-grid-span-full">
                         <el-input v-model="form.smoke_vl_confirm_prompt" type="textarea" :rows="4" :placeholder="t('settings.vlConfirmPromptPlaceholder')" />
@@ -940,7 +954,7 @@
                     <div class="settings-form-grid wide-grid">
                       <el-form-item :label="t('settings.vlConfirmEnabled')" class="form-grid-span-full">
                         <div class="field-stack switch-field-stack">
-                          <el-switch v-model="form.vl_confirm_enabled" active-value="true" inactive-value="false" />
+                          <el-switch v-model="form.fire_door_vl_confirm_enabled" active-value="true" inactive-value="false" />
                           <p class="form-hint">{{ t('settings.vlConfirmEnabledHint') }}</p>
                         </div>
                       </el-form-item>
@@ -955,6 +969,20 @@
                       </el-form-item>
                       <el-form-item :label="t('settings.vlConfirmTimeout')">
                         <el-input v-model="form.vl_confirm_timeout" placeholder="60" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmImageSource')">
+                        <el-select v-model="form.fire_door_vl_confirm_image_source">
+                          <el-option :label="t('settings.vlConfirmImageSourceOriginal')" value="original" />
+                          <el-option :label="t('settings.vlConfirmImageSourceAnnotated')" value="annotated" />
+                        </el-select>
+                        <p class="form-hint">{{ t('settings.vlConfirmImageSourceHint') }}</p>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmImageCrop')">
+                        <el-select v-model="form.fire_door_vl_confirm_image_crop">
+                          <el-option :label="t('settings.vlConfirmImageCropRoi')" value="roi" />
+                          <el-option :label="t('settings.vlConfirmImageCropFull')" value="full" />
+                        </el-select>
+                        <p class="form-hint">{{ t('settings.vlConfirmImageCropHint') }}</p>
                       </el-form-item>
                       <el-form-item :label="t('settings.vlConfirmPrompt')" class="form-grid-span-full">
                         <el-input v-model="form.fire_door_vl_confirm_prompt" type="textarea" :rows="4" :placeholder="t('settings.vlConfirmPromptPlaceholder')" />
@@ -1295,7 +1323,6 @@ const SMOKE_ADVANCED_DEFAULTS = {
 }
 const ACTIVE_PLUGIN_SETTING_KEYS = ['active_plugin_id']
 const VL_CONFIRM_GLOBAL_KEYS = [
-  'vl_confirm_enabled',
   'vl_confirm_base_url',
   'vl_confirm_api_key',
   'vl_confirm_model',
@@ -1320,6 +1347,12 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'fire_door_temporal_confirm_window',
   'fire_door_alarm_hold_time',
   ...VL_CONFIRM_GLOBAL_KEYS,
+  'smoke_vl_confirm_enabled',
+  'smoke_vl_confirm_image_source',
+  'smoke_vl_confirm_image_crop',
+  'fire_door_vl_confirm_enabled',
+  'fire_door_vl_confirm_image_source',
+  'fire_door_vl_confirm_image_crop',
   'fire_door_vl_confirm_prompt',
   'fire_door_vl_confirm_response_key',
   'smoke_vl_confirm_prompt',
@@ -1413,6 +1446,9 @@ const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_enable_appearance_filter',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
   ...VL_CONFIRM_GLOBAL_KEYS,
+  'smoke_vl_confirm_enabled',
+  'smoke_vl_confirm_image_source',
+  'smoke_vl_confirm_image_crop',
   'smoke_vl_confirm_prompt',
   'smoke_vl_confirm_response_key',
 ]
@@ -1426,6 +1462,9 @@ const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
   'fire_door_temporal_confirm_window',
   'fire_door_alarm_hold_time',
   ...VL_CONFIRM_GLOBAL_KEYS,
+  'fire_door_vl_confirm_enabled',
+  'fire_door_vl_confirm_image_source',
+  'fire_door_vl_confirm_image_crop',
   'fire_door_vl_confirm_prompt',
   'fire_door_vl_confirm_response_key',
 ]
@@ -1575,7 +1614,12 @@ const form = ref({
   fire_door_temporal_confirm_frames: '1',
   fire_door_temporal_confirm_window: '2.0',
   fire_door_alarm_hold_time: '3.0',
-  vl_confirm_enabled: 'false',
+  smoke_vl_confirm_enabled: 'false',
+  smoke_vl_confirm_image_source: 'original',
+  smoke_vl_confirm_image_crop: 'roi',
+  fire_door_vl_confirm_enabled: 'false',
+  fire_door_vl_confirm_image_source: 'original',
+  fire_door_vl_confirm_image_crop: 'roi',
   vl_confirm_base_url: 'http://localhost:30000/v1',
   vl_confirm_api_key: 'EMPTY',
   vl_confirm_model: '/models/Mage-VL',

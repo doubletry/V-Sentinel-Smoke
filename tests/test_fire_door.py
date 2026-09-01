@@ -235,7 +235,7 @@ def _vl_processor(vengine) -> FireDoorProcessor:
     return _processor(
         vengine,
         settings={
-            "vl_confirm_enabled": "true",
+            "fire_door_vl_confirm_enabled": "true",
             "vl_confirm_base_url": "http://localhost:30000/v1",
             "vl_confirm_api_key": "EMPTY",
             "vl_confirm_model": "/models/Mage-VL",
@@ -245,7 +245,16 @@ def _vl_processor(vengine) -> FireDoorProcessor:
     )
 
 
-async def test_vl_confirm_suppresses_alarm_when_model_returns_false():
+def _decode_data_url(data_url: str) -> np.ndarray:
+    import base64
+
+    import cv2
+
+    buf = np.frombuffer(base64.b64decode(data_url.split(",", 1)[1]), dtype=np.uint8)
+    return cv2.imdecode(buf, cv2.IMREAD_COLOR)
+
+
+async def test_vl_confirm_reject_keeps_message_marked_false_positive():
     vengine = AsyncMock()
     vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
     processor = _vl_processor(vengine)
@@ -260,7 +269,9 @@ async def test_vl_confirm_suppresses_alarm_when_model_returns_false():
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
 
-    assert result.messages == []
+    assert len(result.messages) == 1
+    assert result.messages[0]["false_positive"] is True
+    assert "email_event" not in result.extra
 
 
 async def test_vl_confirm_allows_alarm_when_model_returns_true():
@@ -278,7 +289,9 @@ async def test_vl_confirm_allows_alarm_when_model_returns_true():
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
 
-    assert result.messages
+    assert len(result.messages) == 1
+    assert result.messages[0]["false_positive"] is False
+    assert "email_event" in result.extra
 
 
 async def test_vl_confirm_fail_open_when_model_returns_none():
@@ -296,13 +309,15 @@ async def test_vl_confirm_fail_open_when_model_returns_none():
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
 
-    assert result.messages
+    assert len(result.messages) == 1
+    assert result.messages[0]["false_positive"] is False
+    assert "email_event" in result.extra
 
 
 async def test_vl_confirm_skipped_when_disabled():
     vengine = AsyncMock()
     vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
-    processor = _processor(vengine, settings={"vl_confirm_enabled": "false"})
+    processor = _processor(vengine, settings={"fire_door_vl_confirm_enabled": "false"})
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
     with patch("core.fire_door.processor.VLConfirmClient") as mock_cls:
@@ -313,3 +328,33 @@ async def test_vl_confirm_skipped_when_disabled():
 
     mock_cls.assert_not_called()
     assert result.messages
+
+
+async def test_vl_annotated_full_image_sent_to_model():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _processor(
+        vengine,
+        settings={
+            "fire_door_vl_confirm_enabled": "true",
+            "fire_door_vl_confirm_prompt": "Verify",
+            "fire_door_vl_confirm_response_key": "open",
+            "fire_door_vl_confirm_image_source": "annotated",
+            "fire_door_vl_confirm_image_crop": "full",
+        },
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
+        await processor.process_frame(
+            frame, b"frame", frame.shape,
+            [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+        )
+
+    data_url = mock_client.confirm.await_args.args[0]
+    decoded = _decode_data_url(data_url)
+    assert decoded.shape[:2] == (100, 100)
+    assert decoded.std() > 5  # 检测图上画了 ROI 标注，非纯黑（纯黑帧 std≈0）

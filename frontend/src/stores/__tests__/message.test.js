@@ -102,3 +102,48 @@ describe('message store — deletion', () => {
     expect(store.selectedIds).toEqual({ 'id-3': true })
   })
 })
+
+describe('message store — false positive filter modes', () => {
+  it('defaults to exclude and sends false_positive_filter to the API', async () => {
+    listMock.mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0, total_pages: 0 })
+    const store = useMessageStore()
+    await store.fetchMessages()
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ false_positive_filter: 'exclude' })
+    )
+  })
+
+  it('setFalsePositiveFilter switches modes and sanitises unknown values', async () => {
+    listMock.mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0, total_pages: 0 })
+    const store = useMessageStore()
+    store.setFalsePositiveFilter('only')
+    await store.fetchMessages()
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ false_positive_filter: 'only' })
+    )
+    store.setFalsePositiveFilter('bogus')
+    expect(store.falsePositiveFilter).toBe('exclude')
+  })
+
+  it('exclude mode hides a message just marked as false positive locally', async () => {
+    const store = useMessageStore()
+    store.setFalsePositiveFilter('exclude')
+    store.messages = [
+      { id: 'a', false_positive: false },
+      { id: 'b', false_positive: false },
+    ]
+    await store.markFalsePositive('b')
+    expect(store.messages.map((m) => m.id)).toEqual(['a'])
+  })
+
+  it('only mode keeps only false positives after unmarking', async () => {
+    const store = useMessageStore()
+    store.setFalsePositiveFilter('only')
+    store.messages = [
+      { id: 'a', false_positive: true },
+      { id: 'b', false_positive: true },
+    ]
+    await store.unmarkFalsePositive('a')
+    expect(store.messages.map((m) => m.id)).toEqual(['b'])
+  })
+})

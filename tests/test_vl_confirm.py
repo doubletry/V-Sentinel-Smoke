@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import cv2
 import numpy as np
 
-from core.vl_confirm import VLConfirmClient, crop_roi_image, parse_vl_response
+from core.vl_confirm import VLConfirmClient, build_vl_image_data_url, crop_roi_image, parse_vl_response
 
 
 def test_parse_json_with_response_key_true():
@@ -121,3 +121,47 @@ async def test_vl_confirm_client_returns_none_on_unparseable():
 
     result = await client.confirm("data:image/jpeg;base64,abc", "Verify", "open")
     assert result is None
+
+
+class TestBuildVlImageDataUrl:
+    def test_original_full_returns_full_frame(self):
+        frame = np.zeros((40, 60, 3), dtype=np.uint8)
+        url = build_vl_image_data_url(
+            frame, None, "original", "full",
+            [{"x": 5, "y": 5}, {"x": 55, "y": 35}],
+        )
+        decoded = _decode_data_url(url)
+        assert decoded.shape[:2] == (40, 60)
+
+    def test_original_roi_crops_to_bbox(self):
+        frame = np.zeros((40, 60, 3), dtype=np.uint8)
+        url = build_vl_image_data_url(
+            frame, None, "original", "roi",
+            [{"x": 5, "y": 5}, {"x": 55, "y": 35}],
+        )
+        decoded = _decode_data_url(url)
+        assert decoded.shape[:2] == (31, 51)
+
+    def test_annotated_full_uses_annotated_frame(self):
+        frame = np.zeros((40, 60, 3), dtype=np.uint8)
+        annotated = np.zeros((40, 60, 3), dtype=np.uint8)
+        annotated[:, :, 0] = 255  # RGB red
+        url = build_vl_image_data_url(frame, annotated, "annotated", "full", None)
+        decoded = _decode_data_url(url)
+        assert decoded.shape[:2] == (40, 60)
+        assert decoded[:, :, 2].mean() > 200  # BGR 解码后 R 通道
+
+    def test_annotated_missing_falls_back_to_original(self):
+        frame = np.zeros((40, 60, 3), dtype=np.uint8)
+        url = build_vl_image_data_url(frame, None, "annotated", "full", None)
+        decoded = _decode_data_url(url)
+        assert decoded[:, :, 2].mean() < 50
+
+    def test_unknown_values_fall_back_to_original_roi(self):
+        frame = np.zeros((40, 60, 3), dtype=np.uint8)
+        url = build_vl_image_data_url(
+            frame, None, "bogus", "bogus",
+            [{"x": 5, "y": 5}, {"x": 55, "y": 35}],
+        )
+        decoded = _decode_data_url(url)
+        assert decoded.shape[:2] == (31, 51)

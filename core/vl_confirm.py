@@ -105,6 +105,30 @@ def crop_roi_image(
     return _encode_frame_as_data_url(cropped)
 
 
+def build_vl_image_data_url(
+    frame: np.ndarray,
+    annotated_frame: np.ndarray | None,
+    image_source: str,
+    image_crop: str,
+    roi_points: list[dict[str, Any]] | None,
+) -> str:
+    """Build the JPEG data URL sent to the VL model from configured options.
+
+    - ``image_source``: ``"original"`` (raw frame, default) or ``"annotated"``
+      (frame with detection drawings). Unknown values, or a missing
+      ``annotated_frame``, fall back to the original frame.
+    - ``image_crop``: ``"roi"`` (crop to the ``roi_points`` bounding box,
+      default) or ``"full"`` (full frame). Unknown values fall back to
+      ``"roi"``.
+    """
+    selected = frame
+    if str(image_source or "").strip().lower() == "annotated" and annotated_frame is not None:
+        selected = annotated_frame
+    if str(image_crop or "").strip().lower() == "full":
+        return crop_roi_image(selected, None)
+    return crop_roi_image(selected, roi_points)
+
+
 class VLConfirmClient:
     """Async VL model client for alarm secondary confirmation."""
 

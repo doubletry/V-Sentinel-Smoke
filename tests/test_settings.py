@@ -44,6 +44,13 @@ class TestSettingsDB:
         assert all_settings["message_retention_days"] == "7"
         assert all_settings["mediamtx_username"] == ""
         assert all_settings["mediamtx_password"] == ""
+        assert all_settings["smoke_vl_confirm_enabled"] == "false"
+        assert all_settings["smoke_vl_confirm_image_source"] == "original"
+        assert all_settings["smoke_vl_confirm_image_crop"] == "roi"
+        assert all_settings["fire_door_vl_confirm_enabled"] == "false"
+        assert all_settings["fire_door_vl_confirm_image_source"] == "original"
+        assert all_settings["fire_door_vl_confirm_image_crop"] == "roi"
+        assert "vl_confirm_enabled" not in all_settings
 
     async def test_get_setting(self, init_db):
         val = await get_setting("vengine_host")
@@ -71,6 +78,18 @@ class TestSettingsDB:
         all_settings = await get_all_settings()
         # Should still only have the default keys (no duplicates)
         assert all_settings["vengine_host"] == "localhost"
+
+    async def test_legacy_vl_confirm_enabled_is_migrated(self, init_db):
+        """Legacy global vl_confirm_enabled migrates into per-scene keys, then disappears."""
+        await update_settings({"vl_confirm_enabled": "true"})
+
+        from backend.db.database import init_db as re_init
+        await re_init()
+
+        all_settings = await get_all_settings()
+        assert all_settings["smoke_vl_confirm_enabled"] == "true"
+        assert all_settings["fire_door_vl_confirm_enabled"] == "true"
+        assert "vl_confirm_enabled" not in all_settings
 
     async def test_rewrite_source_rtsp_urls(self, init_db):
         source = await create_source(

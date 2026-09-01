@@ -32,13 +32,18 @@ async def get_messages(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     source_id: str | None = Query(default=None),
-    false_positive_only: bool = Query(default=False),
+    false_positive_filter: str = Query(default="all", description="all | only | exclude"),
     start_date: str | None = Query(default=None, description="Inclusive YYYY-MM-DD lower bound (UTC)."),
     end_date: str | None = Query(default=None, description="Inclusive YYYY-MM-DD upper bound (UTC)."),
     _role: str = Depends(require_permission("messages:read")),
 ) -> PaginatedMessagesResponse:
     """Return persisted analysis messages ordered newest-first.
     返回按时间倒序排列的持久化分析消息。
+
+    ``false_positive_filter``: ``all`` (default, no filter), ``only``
+    (false positives only) or ``exclude`` (valid alerts only).
+    ``false_positive_filter``：``all``（默认，不过滤）、``only``（仅误报）、
+    ``exclude``（仅有效告警）。
 
     ``start_date`` / ``end_date`` (YYYY-MM-DD) filter ``created_at`` by UTC
     calendar day; both bounds are inclusive.
@@ -48,7 +53,7 @@ async def get_messages(
         page=page,
         page_size=page_size,
         source_id=source_id,
-        false_positive_only=false_positive_only,
+        false_positive_filter=false_positive_filter,
         start_date=start_date,
         end_date=end_date,
     )

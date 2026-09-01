@@ -573,17 +573,22 @@ class AppSettingsUpdate(BaseModel):
     fire_door_temporal_confirm_frames: str | None = None
     fire_door_temporal_confirm_window: str | None = None
     fire_door_alarm_hold_time: str | None = None
-    # VL secondary confirmation (global) / VL 二次确认（全局）
-    vl_confirm_enabled: str | None = None
+    # VL secondary confirmation (shared endpoint) / VL 二次确认（共享端点）
     vl_confirm_base_url: str | None = None
     vl_confirm_api_key: str | None = None
     vl_confirm_model: str | None = None
     vl_confirm_timeout: str | None = None
     # VL secondary confirmation (per-scene) / VL 二次确认（场景级）
-    fire_door_vl_confirm_prompt: str | None = None
-    fire_door_vl_confirm_response_key: str | None = None
+    smoke_vl_confirm_enabled: str | None = None
+    smoke_vl_confirm_image_source: str | None = None
+    smoke_vl_confirm_image_crop: str | None = None
     smoke_vl_confirm_prompt: str | None = None
     smoke_vl_confirm_response_key: str | None = None
+    fire_door_vl_confirm_enabled: str | None = None
+    fire_door_vl_confirm_image_source: str | None = None
+    fire_door_vl_confirm_image_crop: str | None = None
+    fire_door_vl_confirm_prompt: str | None = None
+    fire_door_vl_confirm_response_key: str | None = None
     max_pull_workers: str | None = None
     max_push_workers: str | None = None
     max_cpu_workers: str | None = None
