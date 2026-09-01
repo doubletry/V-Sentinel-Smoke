@@ -49,7 +49,7 @@ VL 大模型二次确认（`core/vl_confirm.py`）接入的是用户自管的 Op
   1. 查消息，不存在 → 404。
   2. 由 `source_id` 查 `video_sources.scene_id`（源不存在 → 404）。
   3. 该场景 `<scene>_vl_confirm_enabled` 不为 `"true"` → 422（VL 未启用）。
-  4. 取图：按 `<scene>_vl_confirm_image_source` 配置选 `kind="original"` 或 `"detected"`，走现有 `get_analysis_message_image_path()`；文件缺失 → 404（图片已清理）。
+   4. 取图：按 `<scene>_vl_confirm_image_source` 配置选 `kind="original"` 或 `"detected"`，走现有 `get_analysis_message_image_path()`；首选 kind 文件缺失时回退到另一种 kind；两者都缺失 → 404（图片已清理）。
   5. 读图 → RGB ndarray → JPEG data URL（全图）。
   6. prompt 用 `<scene>_vl_confirm_prompt`（为空时用与处理器相同的默认提示词）；`response_key` 用 `<scene>_vl_confirm_response_key`；端点配置用全局 `vl_confirm_*`。
   7. `raw = await client.complete(data_url, prompt)`；`verdict = parse_vl_response(raw, response_key)` → `confirmed` / `rejected` / `unknown`。
