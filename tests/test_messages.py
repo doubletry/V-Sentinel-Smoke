@@ -132,6 +132,63 @@ class TestMessagePersistence:
         rows = await list_analysis_messages(limit=10)
         assert [row["message"] for row in rows["items"]] == ["new"]
 
+    async def test_list_messages_includes_scene_id(self, init_db):
+        from backend.db.database import create_source
+        from backend.models.schemas import VideoSourceCreate
+
+        await update_settings({"active_plugin_id": "fire_door"})
+        source = await create_source(VideoSourceCreate(name="FireCam", rtsp_url="rtsp://x/1", scene_id="fire_door"))
+        await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "FireCam",
+                "source_id": source.id,
+                "level": "alert",
+                "message": "fire door open",
+                "image_base64": None,
+            }
+        )
+        rows = await list_analysis_messages(limit=10)
+        assert rows["items"][0]["scene_id"] == "fire_door"
+
+    async def test_list_messages_scene_id_defaults_smoke_for_unknown_source(self, init_db):
+        await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "Ghost",
+                "source_id": "no-such-source",
+                "level": "info",
+                "message": "hello",
+                "image_base64": None,
+            }
+        )
+        rows = await list_analysis_messages(limit=10)
+        assert rows["items"][0]["scene_id"] == "smoke"
+
+    async def test_review_context_returns_source_and_scene(self, init_db):
+        from backend.db.database import create_source, get_analysis_message_review_context
+        from backend.models.schemas import VideoSourceCreate
+
+        await update_settings({"active_plugin_id": "fire_door"})
+        source = await create_source(VideoSourceCreate(name="FireCam", rtsp_url="rtsp://x/1", scene_id="fire_door"))
+        message_id = await save_analysis_message(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_name": "FireCam",
+                "source_id": source.id,
+                "level": "alert",
+                "message": "fire door open",
+                "image_base64": None,
+            }
+        )
+        context = await get_analysis_message_review_context(message_id)
+        assert context == {"source_id": source.id, "scene_id": "fire_door"}
+
+    async def test_review_context_missing_message_returns_none(self, init_db):
+        from backend.db.database import get_analysis_message_review_context
+
+        assert await get_analysis_message_review_context("no-such-id") is None
+
 
 class TestMessagesAPI:
     async def test_message_image_endpoint_uses_message_id_url(self, async_client: AsyncClient):

@@ -2578,12 +2578,12 @@ async def list_analysis_messages(
     where_clauses: list[str] = []
     query_values: list[object] = []
     if source_id:
-        where_clauses.append("source_id = ?")
+        where_clauses.append("m.source_id = ?")
         query_values.append(source_id)
     if false_positive_filter == "only":
-        where_clauses.append("false_positive = 1")
+        where_clauses.append("m.false_positive = 1")
     elif false_positive_filter == "exclude":
-        where_clauses.append("false_positive = 0")
+        where_clauses.append("m.false_positive = 0")
     safe_start = (start_date or "").strip()
     if safe_start and MESSAGE_IMAGE_DAY_RE.fullmatch(safe_start):
         try:
@@ -2591,7 +2591,7 @@ async def list_analysis_messages(
         except ValueError:
             start_iso = None
         if start_iso is not None:
-            where_clauses.append("created_at >= ?")
+            where_clauses.append("m.created_at >= ?")
             query_values.append(start_iso)
     safe_end = (end_date or "").strip()
     if safe_end and MESSAGE_IMAGE_DAY_RE.fullmatch(safe_end):
@@ -2603,11 +2603,14 @@ async def list_analysis_messages(
         except ValueError:
             end_iso = None
         if end_iso is not None:
-            where_clauses.append("created_at < ?")
+            where_clauses.append("m.created_at < ?")
             query_values.append(end_iso)
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     async with _db_session() as db:
-        count_query = f"SELECT COUNT(*) FROM analysis_messages{where_sql}"
+        count_query = (
+            f"SELECT COUNT(*) FROM analysis_messages m "
+            f"LEFT JOIN video_sources vs ON vs.id = m.source_id{where_sql}"
+        )
         async with db.execute(count_query, tuple(query_values)) as cursor:
             total = int((await cursor.fetchone())[0])
         total_pages = (total + safe_size - 1) // safe_size if total else 0
@@ -2620,10 +2623,13 @@ async def list_analysis_messages(
         safe_page = min(safe_page, visible_total_pages) if visible_total_pages else 1
         offset = (safe_page - 1) * safe_size
         listing_query = (
-            "SELECT id, timestamp, source_name, source_id, level, message, image_url, "
-            "original_image_url, detected_image_url, image_base64, false_positive "
-            f"FROM analysis_messages{where_sql} "
-            "ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            "SELECT m.id, m.timestamp, m.source_name, m.source_id, m.level, m.message, "
+            "m.image_url, m.original_image_url, m.detected_image_url, m.image_base64, "
+            "m.false_positive, COALESCE(vs.scene_id, 'smoke') "
+            "FROM analysis_messages m "
+            "LEFT JOIN video_sources vs ON vs.id = m.source_id"
+            f"{where_sql} "
+            "ORDER BY m.created_at DESC LIMIT ? OFFSET ?"
         )
         async with db.execute(listing_query, (*query_values, safe_size, offset)) as cursor:
             rows = await cursor.fetchall()
@@ -2640,6 +2646,7 @@ async def list_analysis_messages(
             "original_image_url": build_analysis_message_image_url(row[0], kind="original") if row[7] else None,
             "detected_image_url": build_analysis_message_image_url(row[0]) if row[8] or row[6] else None,
             "false_positive": bool(row[10]),
+            "scene_id": row[11],
         }
         for row in rows
     ]
@@ -2650,6 +2657,23 @@ async def list_analysis_messages(
         "total": visible_total,
         "total_pages": visible_total_pages,
     }
+
+
+async def get_analysis_message_review_context(message_id: str) -> dict[str, str] | None:
+    """Return source/scene context for one persisted message (or None).
+    返回一条持久化消息的源与场景上下文（不存在时返回 None）。"""
+    async with _db_session() as db:
+        async with db.execute(
+            "SELECT m.source_id, COALESCE(vs.scene_id, 'smoke') "
+            "FROM analysis_messages m "
+            "LEFT JOIN video_sources vs ON vs.id = m.source_id "
+            "WHERE m.id = ?",
+            (message_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+    if row is None:
+        return None
+    return {"source_id": str(row[0]), "scene_id": str(row[1])}
 
 
 def _read_message_image_base64(stored_url: str | None) -> str:
