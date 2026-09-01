@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
+ARG BASE_IMAGE=v-sentinel-base:py311
+
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 
@@ -26,7 +28,7 @@ RUN --mount=type=secret,id=build_proxy_ca,required=false \
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.11-slim
+FROM ${BASE_IMAGE}
 WORKDIR /app
 
 ARG RELAX_HTTPS_VERIFICATION=false
@@ -38,13 +40,7 @@ ARG http_proxy=""
 ARG https_proxy=""
 ARG no_proxy=""
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    DB_PATH=/app/data/v_sentinel.db
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libturbojpeg0 \
-    && rm -rf /var/lib/apt/lists/*
+ENV DB_PATH=/app/data/v_sentinel.db
 
 COPY pyproject.toml README.md README_zh.md .env.example /app/
 COPY backend /app/backend
