@@ -5,8 +5,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import cv2
 import numpy as np
+import pytest
 
-from core.vl_confirm import VLConfirmClient, build_vl_image_data_url, crop_roi_image, parse_vl_response
+from core.vl_confirm import (
+    VLConfirmClient,
+    VL_TEST_PROMPT,
+    build_vl_image_data_url,
+    build_vl_test_image_data_url,
+    crop_roi_image,
+    encode_frame_as_data_url,
+    parse_vl_response,
+)
 
 
 def test_parse_json_with_response_key_true():
@@ -165,3 +174,60 @@ class TestBuildVlImageDataUrl:
         )
         decoded = _decode_data_url(url)
         assert decoded.shape[:2] == (31, 51)
+
+
+async def test_complete_returns_raw_text():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "hello raw"
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    raw = await client.complete("data:image/jpeg;base64,abc", "Ping")
+    assert raw == "hello raw"
+
+
+async def test_complete_raises_on_upstream_error():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(side_effect=Exception("conn refused"))
+
+    with pytest.raises(Exception, match="conn refused"):
+        await client.complete("data:image/jpeg;base64,abc", "Ping")
+
+
+async def test_complete_empty_content_returns_empty_string():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = None
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    assert await client.complete("data:image/jpeg;base64,abc", "Ping") == ""
+
+
+async def test_confirm_behavior_unchanged_uses_complete():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    client.complete = AsyncMock(return_value='{"smoke": true}')
+    assert await client.confirm("x", "P", "smoke") is True
+    client.complete = AsyncMock(side_effect=Exception("boom"))
+    assert await client.confirm("x", "P", "smoke") is None
+
+
+def test_build_vl_test_image_data_url_is_valid_jpeg():
+    url = build_vl_test_image_data_url()
+    assert url.startswith("data:image/jpeg;base64,")
+    decoded = _decode_data_url(url)
+    assert decoded.shape == (240, 320, 3)
+
+
+def test_encode_frame_as_data_url_roundtrip():
+    frame = np.zeros((30, 40, 3), dtype=np.uint8)
+    decoded = _decode_data_url(encode_frame_as_data_url(frame))
+    assert decoded.shape == (30, 40, 3)
+
+
+def test_vl_test_prompt_mentions_json():
+    assert "connected" in VL_TEST_PROMPT

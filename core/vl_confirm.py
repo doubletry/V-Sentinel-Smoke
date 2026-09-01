@@ -23,6 +23,12 @@ except ImportError:  # pragma: no cover - optional dependency
     AsyncOpenAI = None  # type: ignore[assignment]
 
 
+VL_TEST_PROMPT = (
+    "This is a connection test image. 这是一张连通性测试图。"
+    "Reply with ONLY: {\"connected\": true}"
+)
+
+
 def parse_vl_response(text: str, response_key: str) -> bool | None:
     """Parse a VL model response and extract the boolean for ``response_key``.
 
@@ -67,7 +73,7 @@ def parse_vl_response(text: str, response_key: str) -> bool | None:
     return None
 
 
-def _encode_frame_as_data_url(frame: np.ndarray) -> str:
+def encode_frame_as_data_url(frame: np.ndarray) -> str:
     """Encode an RGB ndarray as a JPEG data URL."""
     bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     ok, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -75,6 +81,14 @@ def _encode_frame_as_data_url(frame: np.ndarray) -> str:
         raise ValueError("Failed to encode frame as JPEG")
     encoded = base64.b64encode(buf.tobytes()).decode()
     return f"data:image/jpeg;base64,{encoded}"
+
+
+def build_vl_test_image_data_url() -> str:
+    """Build a deterministic synthetic test image as a JPEG data URL.
+    生成确定性合成测试图并编码为 JPEG data URL。"""
+    frame = np.full((240, 320, 3), 200, dtype=np.uint8)
+    frame[80:160, 110:210] = (255, 0, 0)
+    return encode_frame_as_data_url(frame)
 
 
 def crop_roi_image(
@@ -88,7 +102,7 @@ def crop_roi_image(
       axis-aligned bounding box that encloses all points.
     """
     if not roi_points:
-        return _encode_frame_as_data_url(frame)
+        return encode_frame_as_data_url(frame)
 
     xs = [int(p["x"]) for p in roi_points]
     ys = [int(p["y"]) for p in roi_points]
@@ -99,10 +113,10 @@ def crop_roi_image(
     max_y = min(h - 1, max(ys))
 
     if max_x <= min_x or max_y <= min_y:
-        return _encode_frame_as_data_url(frame)
+        return encode_frame_as_data_url(frame)
 
     cropped = frame[min_y:max_y + 1, min_x:max_x + 1]
-    return _encode_frame_as_data_url(cropped)
+    return encode_frame_as_data_url(cropped)
 
 
 def build_vl_image_data_url(
@@ -148,6 +162,25 @@ class VLConfirmClient:
             timeout=float(timeout),
         )
 
+    async def complete(self, image_data_url: str, prompt: str) -> str:
+        """Send an image + prompt to the model and return the raw text.
+
+        Unlike :meth:`confirm`, any failure is raised to the caller so
+        endpoints can surface the concrete upstream error.
+        与 ``confirm`` 不同，任何失败都会抛给调用方，便于端点展示具体错误。
+        """
+        content = [
+            {"type": "image_url", "image_url": {"url": image_data_url}},
+            {"type": "text", "text": prompt},
+        ]
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[{"role": "user", "content": content}],
+            max_tokens=50,
+            temperature=0,
+        )
+        return response.choices[0].message.content or ""
+
     async def confirm(
         self,
         image_data_url: str,
@@ -160,17 +193,7 @@ class VLConfirmClient:
         error / unparseable output (callers should fail-open).
         """
         try:
-            content = [
-                {"type": "image_url", "image_url": {"url": image_data_url}},
-                {"type": "text", "text": prompt},
-            ]
-            response = await self._client.chat.completions.create(
-                model=self._model,
-                messages=[{"role": "user", "content": content}],
-                max_tokens=50,
-                temperature=0,
-            )
-            raw = response.choices[0].message.content or ""
+            raw = await self.complete(image_data_url, prompt)
             logger.debug("VL confirm raw response: {}", raw)
             return parse_vl_response(raw, response_key)
         except Exception:
