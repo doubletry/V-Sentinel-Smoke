@@ -436,6 +436,7 @@ docker run -d \
   v-sentinel:latest
 ```
 
+- The runtime stage builds on a pre-baked base image `v-sentinel-base:py311` (ffmpeg / libturbojpeg0 preinstalled); `build_docker.sh` creates it automatically on first use — rebuild it with `REBUILD_BASE=1 ./scripts/build_docker.sh` when system dependencies change
 - Frontend, REST API, WebSocket, and persisted message thumbnails are all served from port `8000`
 - `docker-compose` is no longer required
 - MediaMTX is not bundled into the image; configure any external RTSP/WebRTC gateway in the Settings page if you need live video playback

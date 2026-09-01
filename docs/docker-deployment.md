@@ -51,6 +51,29 @@ When running with Docker, you can either:
 
 The build script automatically reads the current shell proxy settings (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, and their lowercase variants) and passes them to `docker build` only for the image build. If the detected proxy host is `127.0.0.1` / `localhost`, it is rewritten to `host.docker.internal` for Docker build networking.
 
+### Base image
+
+The runtime stage of the main image is built on a pre-baked base image
+`v-sentinel-base:py311` (defined in `Dockerfile.base`), which contains the
+Python 3.11 runtime and the system packages `ffmpeg` and `libturbojpeg0`.
+This keeps `apt-get` out of the normal build path.
+
+- `./scripts/build_docker.sh` checks for the base image before building the
+  main image and builds it automatically on first use, reusing the same proxy
+  and `host.docker.internal` handling as the main build.
+- Rebuild the base image when system dependencies or the Python version
+  change:
+
+  ```bash
+  REBUILD_BASE=1 ./scripts/build_docker.sh
+  ```
+
+- Override the base image reference if needed:
+
+  ```bash
+  BASE_IMAGE=my-registry/v-sentinel-base:py311 ./scripts/build_docker.sh
+  ```
+
 When an HTTPS proxy is present:
 
 - run `RELAX_HTTPS_VERIFICATION=true ./scripts/build_docker.sh` if you need npm / pip to relax HTTPS verification behind a self-signed interception proxy

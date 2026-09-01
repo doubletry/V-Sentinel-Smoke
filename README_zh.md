@@ -407,6 +407,7 @@ docker run -d \
   v-sentinel:latest
 ```
 
+- 运行时镜像基于预构建基础镜像 `v-sentinel-base:py311`（已预装 ffmpeg / libturbojpeg0）；`build_docker.sh` 首次使用时自动构建，系统依赖变更时用 `REBUILD_BASE=1 ./scripts/build_docker.sh` 重建
 - 前端、REST API、WebSocket 和消息缩略图统一由 `8000` 端口提供
 - 不再需要 `docker-compose`
 - 镜像内不再打包 MediaMTX；如需视频墙播放，请在设置页配置外部 RTSP/WebRTC 网关
