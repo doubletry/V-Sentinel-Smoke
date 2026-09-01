@@ -825,6 +825,11 @@
                         <h2>{{ t('settings.vlConfirmTitle') }}</h2>
                         <p class="info-tip">{{ t('settings.vlConfirmHint') }}</p>
                       </div>
+                      <div class="section-card__actions">
+                        <el-button :loading="testingVl" @click="testVlConfig">
+                          {{ t('settings.vlTestConnection') }}
+                        </el-button>
+                      </div>
                     </div>
                     <div class="settings-form-grid wide-grid">
                       <el-form-item :label="t('settings.vlConfirmEnabled')" class="form-grid-span-full">
@@ -949,6 +954,11 @@
                       <div>
                         <h2>{{ t('settings.vlConfirmTitle') }}</h2>
                         <p class="info-tip">{{ t('settings.vlConfirmHint') }}</p>
+                      </div>
+                      <div class="section-card__actions">
+                        <el-button :loading="testingVl" @click="testVlConfig">
+                          {{ t('settings.vlTestConnection') }}
+                        </el-button>
                       </div>
                     </div>
                     <div class="settings-form-grid wide-grid">
@@ -1493,6 +1503,7 @@ const smokeAdvancedFields = [
 
 const loading = ref(false)
 const testingEmail = ref(false)
+const testingVl = ref(false)
 const creatingUser = ref(false)
 const expertMode = ref(false)
 const pluginDialogVisible = ref(false)
@@ -2203,6 +2214,29 @@ async function testEmailConfig() {
     ElMessage.error(t('settings.testEmailFailed', { message: err.message }))
   } finally {
     testingEmail.value = false
+  }
+}
+
+async function testVlConfig() {
+  testingVl.value = true
+  try {
+    const payload = {
+      vl_confirm_base_url: form.value.vl_confirm_base_url,
+      vl_confirm_api_key: form.value.vl_confirm_api_key,
+      vl_confirm_model: form.value.vl_confirm_model,
+      vl_confirm_timeout: form.value.vl_confirm_timeout,
+    }
+    const result = await appSettingsStore.testVl(payload)
+    ElMessage.success(
+      t('settings.vlTestSuccess', {
+        latency: result.latency_ms,
+        response: String(result.response || '').slice(0, 80),
+      })
+    )
+  } catch (err) {
+    ElMessage.error(t('settings.vlTestFailed', { message: err.message }))
+  } finally {
+    testingVl.value = false
   }
 }
 
