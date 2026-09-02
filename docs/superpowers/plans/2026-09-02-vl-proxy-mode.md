@@ -12,13 +12,13 @@
 
 ## Global Constraints
 
-- 分支 `feat/logging-coverage`（PR #18 开放，未合并）；Conventional Commits；**只 commit，不 push**（最后任务统一推送）。
+- 分支 `feat/vl-proxy-mode`（从 `feat/logging-coverage` 切出；PR #18 开放未合并，`feat/logging-coverage` 保持 `a43b2f5` 不动）；Conventional Commits；**只 commit，不 push**（最后任务统一推送）。
 - 日志：英文消息、loguru `{}` 占位、异常用 `logger.opt(exception=True)`（loguru 忽略 `exc_info=True`）。
 - 代理 URL 可能含凭据 → 日志只记 mode，不记 URL。
 - 设置键合并顺序：`overrides → settings → 默认值`（与现有调用点一致）。
 - 解耦语义：推流立即入队；消息/通知仍在 VL 结论后（与现状一致）；`false_positive` 在持久化前确定。
 - 已知环境性失败（不计入回归）：`tests/test_main.py::TestFrontendFallbackRoutes::test_direct_frontend_route_serves_index_html`（本地未跟踪 `.env` 的 `VITE_APP_BASE_PATH=/smoke`）。
-- Ruff 基线 32 条错误；要求 0 新增（改动文件必须 0 错误）。
+- Ruff 基线 32 条错误；要求 0 新增（改动文件必须 0 错误）。注：Task 1 移除了一处既有 `import io` F401，实际基线现为 31，验证时以"无新增"为准。
 
 ---
 
@@ -1904,14 +1904,14 @@ uv run ruff check core/ backend/ tests/ 2>&1 | tail -3
 cd frontend && npm run test && npm run build && cd ..
 ```
 
-- [ ] **Step 4: 推送（更新 PR #18）**
+- [ ] **Step 4: 推送（新分支）**
 
 ```bash
-git push origin feat/logging-coverage
+git push -u origin feat/vl-proxy-mode
 ```
 
-（若遇代理 502，等待数秒重试。）
+（若遇代理 502，等待数秒重试。）PR 策略需用户确认后执行：本分支基于未合并的 PR #18（`feat/logging-coverage`），可选 (a) 新建 PR `feat/vl-proxy-mode → main`（diff 含 PR #18 的 logging 变更，待 #18 合并后收敛），或 (b) 堆叠 PR `feat/vl-proxy-mode → feat/logging-coverage`（独立评审本特性）。
 
 - [ ] **Step 5: 汇报**
 
-向用户报告：全量结果、PR #18 链接（https://github.com/doubletry/V-Sentinel-Smoke/pull/18）、升级行为变化说明（默认代理模式 = 不走代理；依赖环境变量代理的部署需手动切"走系统代理"）。
+向用户报告：全量结果、新分支/PR 链接、升级行为变化说明（默认代理模式 = 不走代理；依赖环境变量代理的部署需手动切"走系统代理"）。
