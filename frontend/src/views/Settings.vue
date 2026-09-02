@@ -870,6 +870,22 @@
                       <el-form-item :label="t('settings.vlConfirmResponseKey')">
                         <el-input v-model="form.smoke_vl_confirm_response_key" placeholder="smoke" />
                       </el-form-item>
+                      <el-form-item :label="t('settings.vlMaxTokens')">
+                        <el-input v-model="form.smoke_vl_confirm_max_tokens" placeholder="1024" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlTemperature')">
+                        <el-input v-model="form.smoke_vl_confirm_temperature" placeholder="0" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlTopP')">
+                        <el-input v-model="form.smoke_vl_confirm_top_p" />
+                        <p class="form-hint">{{ t('settings.vlTopPHint') }}</p>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlDisableThinking')" class="form-grid-span-full">
+                        <div class="field-stack switch-field-stack">
+                          <el-switch v-model="form.smoke_vl_confirm_disable_thinking" active-value="true" inactive-value="false" />
+                          <p class="form-hint">{{ t('settings.vlDisableThinkingHint') }}</p>
+                        </div>
+                      </el-form-item>
                     </div>
                   </section>
                 </template>
@@ -999,6 +1015,22 @@
                       </el-form-item>
                       <el-form-item :label="t('settings.vlConfirmResponseKey')">
                         <el-input v-model="form.fire_door_vl_confirm_response_key" placeholder="open" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlMaxTokens')">
+                        <el-input v-model="form.fire_door_vl_confirm_max_tokens" placeholder="1024" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlTemperature')">
+                        <el-input v-model="form.fire_door_vl_confirm_temperature" placeholder="0" />
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlTopP')">
+                        <el-input v-model="form.fire_door_vl_confirm_top_p" />
+                        <p class="form-hint">{{ t('settings.vlTopPHint') }}</p>
+                      </el-form-item>
+                      <el-form-item :label="t('settings.vlDisableThinking')" class="form-grid-span-full">
+                        <div class="field-stack switch-field-stack">
+                          <el-switch v-model="form.fire_door_vl_confirm_disable_thinking" active-value="true" inactive-value="false" />
+                          <p class="form-hint">{{ t('settings.vlDisableThinkingHint') }}</p>
+                        </div>
                       </el-form-item>
                     </div>
                   </section>
@@ -1367,6 +1399,14 @@ const PROCESSOR_RESTART_SETTING_KEYS = [
   'fire_door_vl_confirm_response_key',
   'smoke_vl_confirm_prompt',
   'smoke_vl_confirm_response_key',
+  'smoke_vl_confirm_max_tokens',
+  'smoke_vl_confirm_temperature',
+  'smoke_vl_confirm_top_p',
+  'smoke_vl_confirm_disable_thinking',
+  'fire_door_vl_confirm_max_tokens',
+  'fire_door_vl_confirm_temperature',
+  'fire_door_vl_confirm_top_p',
+  'fire_door_vl_confirm_disable_thinking',
   ...Object.keys(SMOKE_ADVANCED_DEFAULTS),
 ]
 const emailTemplatePlaceholderGroups = computed(() => {
@@ -1461,6 +1501,10 @@ const SMOKE_PLUGIN_SETTING_KEYS = [
   'smoke_vl_confirm_image_crop',
   'smoke_vl_confirm_prompt',
   'smoke_vl_confirm_response_key',
+  'smoke_vl_confirm_max_tokens',
+  'smoke_vl_confirm_temperature',
+  'smoke_vl_confirm_top_p',
+  'smoke_vl_confirm_disable_thinking',
 ]
 const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
   'fire_door_classification_model_name',
@@ -1477,6 +1521,10 @@ const FIRE_DOOR_PLUGIN_SETTING_KEYS = [
   'fire_door_vl_confirm_image_crop',
   'fire_door_vl_confirm_prompt',
   'fire_door_vl_confirm_response_key',
+  'fire_door_vl_confirm_max_tokens',
+  'fire_door_vl_confirm_temperature',
+  'fire_door_vl_confirm_top_p',
+  'fire_door_vl_confirm_disable_thinking',
 ]
 const smokeAdvancedFields = [
   { key: 'smoke_min_confidence_smoke', labelKey: 'settings.smokeMinConfidenceSmoke', hintKey: 'settings.smokeMinConfidenceSmokeHint', placeholder: '0.35' },
@@ -1639,6 +1687,14 @@ const form = ref({
   fire_door_vl_confirm_response_key: 'open',
   smoke_vl_confirm_prompt: '',
   smoke_vl_confirm_response_key: 'smoke',
+  smoke_vl_confirm_max_tokens: '1024',
+  smoke_vl_confirm_temperature: '0',
+  smoke_vl_confirm_top_p: '',
+  smoke_vl_confirm_disable_thinking: 'false',
+  fire_door_vl_confirm_max_tokens: '1024',
+  fire_door_vl_confirm_temperature: '0',
+  fire_door_vl_confirm_top_p: '',
+  fire_door_vl_confirm_disable_thinking: 'false',
   message_retention_days: '7',
   max_pull_workers: '',
   max_push_workers: '',
@@ -2220,11 +2276,17 @@ async function testEmailConfig() {
 async function testVlConfig() {
   testingVl.value = true
   try {
+    const scene = currentPluginScene.value?.id || 'smoke'
     const payload = {
+      scene_id: scene,
       vl_confirm_base_url: form.value.vl_confirm_base_url,
       vl_confirm_api_key: form.value.vl_confirm_api_key,
       vl_confirm_model: form.value.vl_confirm_model,
       vl_confirm_timeout: form.value.vl_confirm_timeout,
+      [`${scene}_vl_confirm_max_tokens`]: form.value[`${scene}_vl_confirm_max_tokens`],
+      [`${scene}_vl_confirm_temperature`]: form.value[`${scene}_vl_confirm_temperature`],
+      [`${scene}_vl_confirm_top_p`]: form.value[`${scene}_vl_confirm_top_p`],
+      [`${scene}_vl_confirm_disable_thinking`]: form.value[`${scene}_vl_confirm_disable_thinking`],
     }
     const result = await appSettingsStore.testVl(payload)
     ElMessage.success(
