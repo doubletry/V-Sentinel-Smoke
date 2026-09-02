@@ -27,7 +27,7 @@ from core.smoke.constants import (
     DEFAULT_VL_CONFIRM_PROMPT as SMOKE_DEFAULT_VL_PROMPT,
     DEFAULT_VL_CONFIRM_RESPONSE_KEY as SMOKE_DEFAULT_VL_RESPONSE_KEY,
 )
-from core.vl_confirm import VLConfirmClient, encode_frame_as_data_url, parse_vl_response
+from core.vl_confirm import VLConfirmClient, encode_frame_as_data_url, parse_vl_response, vl_sampling_kwargs
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
 
@@ -177,6 +177,7 @@ async def review_message_with_vl(
         api_key=str(settings_map.get("vl_confirm_api_key") or "EMPTY").strip() or "EMPTY",
         model=model,
         timeout=timeout,
+        **vl_sampling_kwargs(settings_map, scene_id),
     )
     started = time.monotonic()
     try:

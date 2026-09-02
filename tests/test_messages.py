@@ -795,3 +795,24 @@ class TestVlReviewEndpoint:
         assert resp.status_code == 502
         assert "conn refused" in resp.json()["detail"]
 
+    async def test_vl_review_uses_scene_sampling_settings(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await self._save_message_with_image(source.id)
+        await update_settings({
+            "smoke_vl_confirm_enabled": "true",
+            "smoke_vl_confirm_max_tokens": "128",
+            "smoke_vl_confirm_temperature": "0.5",
+            "smoke_vl_confirm_disable_thinking": "true",
+        })
+
+        with patch("backend.api.messages.VLConfirmClient") as mock_cls:
+            mock_cls.return_value.complete = AsyncMock(return_value='{"smoke": true}')
+            resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+
+        assert resp.status_code == 200
+        kwargs = mock_cls.call_args.kwargs
+        assert kwargs["max_tokens"] == 128
+        assert kwargs["temperature"] == 0.5
+        assert kwargs["disable_thinking"] is True
+        assert kwargs.get("top_p") is None
+
