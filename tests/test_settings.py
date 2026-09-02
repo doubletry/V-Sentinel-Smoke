@@ -334,6 +334,40 @@ class TestSettingsAPI:
         assert resp.status_code == 200
         assert mock_cls.call_args.kwargs["max_tokens"] == 128
 
+    async def test_update_persists_vl_sampling_settings(self, async_client: AsyncClient):
+        payload = {
+            "smoke_vl_confirm_max_tokens": "2048",
+            "smoke_vl_confirm_temperature": "0.2",
+            "smoke_vl_confirm_top_p": "0.8",
+            "smoke_vl_confirm_disable_thinking": "true",
+            "fire_door_vl_confirm_max_tokens": "4096",
+            "fire_door_vl_confirm_temperature": "0.1",
+            "fire_door_vl_confirm_top_p": "0.7",
+            "fire_door_vl_confirm_disable_thinking": "true",
+        }
+        resp = await async_client.put("/api/settings", json=payload)
+        assert resp.status_code == 200
+        for key, value in payload.items():
+            assert resp.json()[key] == value
+        got = await async_client.get("/api/settings")
+        assert got.status_code == 200
+        for key, value in payload.items():
+            assert got.json()[key] == value
+
+    async def test_plugin_role_can_update_vl_sampling_settings(self, async_client: AsyncClient):
+        from backend.auth.security import create_access_token
+
+        token = create_access_token(username="op-vl-sampling", role="operator")["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = await async_client.put(
+            "/api/settings",
+            json={"smoke_vl_confirm_disable_thinking": "true"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        got = await async_client.get("/api/settings", headers=headers)
+        assert got.json()["smoke_vl_confirm_disable_thinking"] == "true"
+
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,
         async_client: AsyncClient,

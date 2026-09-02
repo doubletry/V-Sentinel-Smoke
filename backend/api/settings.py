@@ -77,11 +77,19 @@ PLUGIN_SETTING_KEYS = {
     "smoke_vl_confirm_image_crop",
     "smoke_vl_confirm_prompt",
     "smoke_vl_confirm_response_key",
+    "smoke_vl_confirm_max_tokens",
+    "smoke_vl_confirm_temperature",
+    "smoke_vl_confirm_top_p",
+    "smoke_vl_confirm_disable_thinking",
     "fire_door_vl_confirm_enabled",
     "fire_door_vl_confirm_image_source",
     "fire_door_vl_confirm_image_crop",
     "fire_door_vl_confirm_prompt",
     "fire_door_vl_confirm_response_key",
+    "fire_door_vl_confirm_max_tokens",
+    "fire_door_vl_confirm_temperature",
+    "fire_door_vl_confirm_top_p",
+    "fire_door_vl_confirm_disable_thinking",
 }
 
 
