@@ -20,7 +20,7 @@ from core.smoke.constants import (
 )
 from core.smoke.email import build_smoke_email_event
 from core.smoke.post_processor import Detection, DetectionClass, PostProcessorConfig, SmokeFirePostProcessor
-from core.vl_confirm import VLConfirmClient, build_vl_image_data_url
+from core.vl_confirm import VLConfirmClient, build_vl_image_data_url, vl_sampling_kwargs
 
 
 class SmokeFireProcessor(BaseVideoProcessor):
@@ -189,6 +189,7 @@ class SmokeFireProcessor(BaseVideoProcessor):
             api_key=str(self.app_settings.get("vl_confirm_api_key") or "EMPTY"),
             model=str(self.app_settings.get("vl_confirm_model") or "/models/Mage-VL"),
             timeout=self._setting_int("vl_confirm_timeout", 60),
+            **vl_sampling_kwargs(self.app_settings, "smoke"),
         )
         return await client.confirm(image_data_url, prompt, response_key)
 

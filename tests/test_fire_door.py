@@ -359,3 +359,34 @@ async def test_vl_annotated_full_image_sent_to_model():
     decoded = _decode_data_url(data_url)
     assert decoded.shape[:2] == (100, 100)
     assert decoded.std() > 5  # 检测图上画了 ROI 标注，非纯黑（纯黑帧 std≈0）
+
+
+async def test_vl_sampling_params_from_fire_door_settings_only():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _processor(
+        vengine,
+        settings={
+            "fire_door_vl_confirm_enabled": "true",
+            "vl_confirm_base_url": "http://localhost:30000/v1",
+            "vl_confirm_api_key": "EMPTY",
+            "vl_confirm_model": "/models/Mage-VL",
+            "fire_door_vl_confirm_max_tokens": "512",
+            "fire_door_vl_confirm_disable_thinking": "true",
+            "smoke_vl_confirm_max_tokens": "256",
+        },
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    with patch("core.fire_door.processor.VLConfirmClient", return_value=AsyncMock()) as mock_cls:
+        result = await processor.process_frame(
+            frame, b"frame", frame.shape,
+            [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+        )
+
+    assert len(result.messages) == 1
+    kwargs = mock_cls.call_args.kwargs
+    assert kwargs["max_tokens"] == 512
+    assert kwargs["disable_thinking"] is True
+    assert kwargs["top_p"] is None
+    assert kwargs["temperature"] == 0.0

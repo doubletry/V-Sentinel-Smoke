@@ -265,3 +265,41 @@ async def test_vl_annotated_full_image_sent_to_model():
     decoded = _decode_data_url(data_url)
     assert decoded.shape[:2] == (100, 100)
     assert decoded.std() > 5  # 检测图上画了检测框，非纯黑（纯黑帧 std≈0）
+
+
+async def test_vl_sampling_params_from_smoke_settings_only():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = SmokeFireProcessor(
+        source_id="s1",
+        source_name="Cam1",
+        rtsp_url="",
+        rois=[],
+        vengine_client=vengine,
+        app_settings={
+            "smoke_temporal_confirm_frames": "1",
+            "smoke_enable_appearance_filter": "false",
+            "smoke_vl_confirm_enabled": "true",
+            "vl_confirm_base_url": "http://localhost:30000/v1",
+            "vl_confirm_api_key": "EMPTY",
+            "vl_confirm_model": "/models/Mage-VL",
+            "smoke_vl_confirm_max_tokens": "256",
+            "smoke_vl_confirm_temperature": "0.5",
+            "smoke_vl_confirm_top_p": "0.9",
+            "smoke_vl_confirm_disable_thinking": "true",
+            "fire_door_vl_confirm_max_tokens": "32",
+        },
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    with patch("core.smoke.processor.VLConfirmClient", return_value=AsyncMock()) as mock_cls:
+        result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+
+    assert len(result.messages) == 1
+    kwargs = mock_cls.call_args.kwargs
+    assert kwargs["max_tokens"] == 256
+    assert kwargs["temperature"] == 0.5
+    assert kwargs["top_p"] == 0.9
+    assert kwargs["disable_thinking"] is True
