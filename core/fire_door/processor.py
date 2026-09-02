@@ -1,6 +1,7 @@
 """Fire safety door classification processor."""
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from datetime import datetime, timezone
 import time
@@ -32,6 +33,18 @@ class FireDoorProcessor(BaseVideoProcessor):
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._roi_alarm_history: dict[str, deque[float]] = {}
         self._roi_last_alarm_at: dict[str, float] = {}
+        self._pending_vl_tasks: set[asyncio.Task] = set()
+
+    async def stop(self) -> None:
+        if self._pending_vl_tasks:
+            for task in list(self._pending_vl_tasks):
+                task.cancel()
+            try:
+                await asyncio.gather(*self._pending_vl_tasks, return_exceptions=True)
+            except Exception:
+                pass
+            self._pending_vl_tasks.clear()
+        await super().stop()
 
     def _setting_float(self, key: str, default: float) -> float:
         try:
@@ -170,67 +183,98 @@ class FireDoorProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         alert_items = [item for item in classifications if item.get("alarm")]
-        vl_rejected = False
-        if alert_items and self._vl_confirm_enabled():
-            vl_result = await self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
-            if vl_result is False:
-                vl_rejected = True
-                logger.warning(
-                    "Alarm rejected by VL confirm, marked false positive: source={}",
-                    self.source_name,
-                )
-            elif vl_result is True:
-                logger.info("Alarm confirmed by VL confirm: source={}", self.source_name)
-            # True or None (fail-open) → keep alerts
+        pending_alert = None
         if alert_items:
-            best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
-            open_count = sum(1 for item in classifications if item.get("door_state") == "open")
-            closed_count = sum(1 for item in classifications if item.get("door_state") == "closed")
-            original_image_base64 = self._encode_thumbnail(frame)
-            detected_image_base64 = self._encode_thumbnail(annotated)
-            confidence = float(best.get("confidence") or 0.0)
-            event = build_fire_door_email_event(
-                timestamp=timestamp,
-                source_id=self.source_id,
-                source_name=self.source_name,
-                source_rtsp_url=self.rtsp_url,
-                source_route_path=self._stream_path(),
-                source_remark=str(getattr(self, "source_remark", "") or ""),
-                roi_id=str(best.get("roi_id") or ""),
-                roi_tag=str(best.get("roi_tag") or ""),
-                roi_index=int(best.get("roi_index") or 0),
-                roi_count=len(fire_rois),
-                door_state=str(best.get("door_state") or ""),
-                door_state_label=str(best.get("stable_label") or ""),
-                confidence=confidence,
-                alarm_label=str(best.get("door_state") or best.get("raw_label") or ""),
-                open_count=open_count,
-                closed_count=closed_count,
-                original_image_base64=original_image_base64,
-                detected_image_base64=detected_image_base64,
-            )
-            result.messages.append(
-                {
-                    "timestamp": timestamp,
-                    "source_name": self.source_name,
-                    "source_id": self.source_id,
-                    "scene_id": "fire_door",
-                    "level": "alert",
-                    "message": (
-                        f"Fire door open on {self.source_name} "
-                        f"ROI {event['roi_index']}/{event['roi_count']} "
-                        f"({confidence:.2f})"
-                    ),
-                    "image_base64": detected_image_base64,
-                    "original_image_base64": original_image_base64,
-                    "detected_image_base64": detected_image_base64,
-                    "false_positive": vl_rejected,
-                }
-            )
-            if not vl_rejected:
-                result.extra["email_event"] = event
-                result.extra["fire_door_event"] = event
+            vl_task = None
+            if self._vl_confirm_enabled():
+                vl_task = asyncio.create_task(
+                    self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
+                )
+                self._pending_vl_tasks.add(vl_task)
+                vl_task.add_done_callback(self._pending_vl_tasks.discard)
+            pending_alert = {
+                "frame": frame,
+                "annotated": annotated,
+                "alert_items": alert_items,
+                "classifications": classifications,
+                "fire_rois": fire_rois,
+                "timestamp": timestamp,
+                "vl_task": vl_task,
+            }
+        result.extra["pending_alert"] = pending_alert
         return result
+
+    async def finalize_result(self, result: AnalysisResult) -> None:
+        """Build the alarm message once the VL verdict (if any) resolves.
+        在 VL 复判结论（如有）落地后构建告警消息。"""
+        pending = result.extra.pop("pending_alert", None)
+        if pending is None:
+            return
+        vl_task = pending["vl_task"]
+        vl_result = await vl_task if vl_task is not None else None
+        vl_rejected = vl_result is False
+        if vl_result is False:
+            logger.warning(
+                "Alarm rejected by VL confirm, marked false positive: source={}",
+                self.source_name,
+            )
+        elif vl_result is True:
+            logger.info(
+                "Alarm confirmed by VL confirm: source={}", self.source_name
+            )
+        frame = pending["frame"]
+        annotated = pending["annotated"]
+        alert_items = pending["alert_items"]
+        classifications = pending["classifications"]
+        fire_rois = pending["fire_rois"]
+        timestamp = pending["timestamp"]
+        best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
+        open_count = sum(1 for item in classifications if item.get("door_state") == "open")
+        closed_count = sum(1 for item in classifications if item.get("door_state") == "closed")
+        original_image_base64 = self._encode_thumbnail(frame)
+        detected_image_base64 = self._encode_thumbnail(annotated)
+        confidence = float(best.get("confidence") or 0.0)
+        event = build_fire_door_email_event(
+            timestamp=timestamp,
+            source_id=self.source_id,
+            source_name=self.source_name,
+            source_rtsp_url=self.rtsp_url,
+            source_route_path=self._stream_path(),
+            source_remark=str(getattr(self, "source_remark", "") or ""),
+            roi_id=str(best.get("roi_id") or ""),
+            roi_tag=str(best.get("roi_tag") or ""),
+            roi_index=int(best.get("roi_index") or 0),
+            roi_count=len(fire_rois),
+            door_state=str(best.get("door_state") or ""),
+            door_state_label=str(best.get("stable_label") or ""),
+            confidence=confidence,
+            alarm_label=str(best.get("door_state") or best.get("raw_label") or ""),
+            open_count=open_count,
+            closed_count=closed_count,
+            original_image_base64=original_image_base64,
+            detected_image_base64=detected_image_base64,
+        )
+        result.messages.append(
+            {
+                "timestamp": timestamp,
+                "source_name": self.source_name,
+                "source_id": self.source_id,
+                "scene_id": "fire_door",
+                "level": "alert",
+                "message": (
+                    f"Fire door open on {self.source_name} "
+                    f"ROI {event['roi_index']}/{event['roi_count']} "
+                    f"({confidence:.2f})"
+                ),
+                "image_base64": detected_image_base64,
+                "original_image_base64": original_image_base64,
+                "detected_image_base64": detected_image_base64,
+                "false_positive": vl_rejected,
+            }
+        )
+        if not vl_rejected:
+            result.extra["email_event"] = event
+            result.extra["fire_door_event"] = event
 
     def _vl_confirm_enabled(self) -> bool:
         return str(self.app_settings.get("fire_door_vl_confirm_enabled") or "false").lower() == "true"

@@ -123,6 +123,7 @@ class TestBaseVideoProcessor:
         proc._enqueue_output = MagicMock()
 
         await proc._handle_result(np.zeros((10, 10, 3), dtype=np.uint8), AnalysisResult())
+        await asyncio.sleep(0)
 
         proc._enqueue_output.assert_not_called()
 
@@ -543,6 +544,7 @@ class TestBackendBaseProcessorPipeline:
         )
 
         await proc._handle_result(frame, result)
+        await asyncio.sleep(0)
 
         proc.ws_manager.broadcast.assert_awaited_once()
         sent = proc.ws_manager.broadcast.await_args.args[0]
@@ -571,6 +573,7 @@ class TestBackendBaseProcessorPipeline:
         )
 
         await proc._handle_result(frame, result)
+        await asyncio.sleep(0)
 
         assert queued
         assert queued[0][2] == "zone/cam1_processed"
@@ -590,6 +593,80 @@ class TestBackendBaseProcessorPipeline:
         frame = np.zeros((32, 32, 3), dtype=np.uint8)
 
         await proc._handle_result(frame, AnalysisResult())
+        await asyncio.sleep(0)
 
         assert queued
         assert queued[0][2] == "client1/stream2_processed"
+
+
+class TestPushVsVlDecoupling:
+    def _make_slow_processor(self, gate, ws):
+        class SlowProcessor(BaseVideoProcessor):
+            async def process_frame(self, frame, encoded, shape, roi_pixel_points):
+                result = AnalysisResult(annotated_frame=frame)
+
+                async def verdict():
+                    await gate.wait()
+                    return True
+
+                result.extra["pending_alert"] = {"vl_task": asyncio.create_task(verdict())}
+                return result
+
+            async def finalize_result(self, result):
+                task = result.extra.pop("pending_alert")["vl_task"]
+                await task
+                result.messages.append(
+                    {
+                        "timestamp": "2026-09-02T00:00:00+00:00",
+                        "source_name": "cam",
+                        "source_id": "s1",
+                        "scene_id": "smoke",
+                        "level": "alert",
+                        "message": "alert",
+                    }
+                )
+
+        return SlowProcessor(
+            source_id="s1",
+            source_name="cam",
+            rtsp_url="rtsp://localhost:8554/cam1",
+            rois=[],
+            vengine_client=MagicMock(),
+            ws_manager=ws,
+            app_settings={},
+        )
+
+    async def test_push_enqueued_before_verdict_broadcast_after(self):
+        gate = asyncio.Event()
+        ws = AsyncMock()
+        proc = self._make_slow_processor(gate, ws)
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+        await proc._process_frame_item(frame, b"x")
+
+        assert proc._output_queue.qsize() == 1
+        assert ws.broadcast.await_count == 0
+
+        gate.set()
+        if proc._dispatch_tasks:
+            await asyncio.wait_for(asyncio.gather(*proc._dispatch_tasks), 5.0)
+        assert ws.broadcast.await_count == 1
+
+    async def test_stop_cancels_pending_dispatch(self):
+        gate = asyncio.Event()
+        ws = AsyncMock()
+        proc = self._make_slow_processor(gate, ws)
+        proc._run_loop = AsyncMock()
+        await proc.start()
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+        await proc._process_frame_item(frame, b"x")
+        assert proc._output_queue.qsize() == 1
+        assert ws.broadcast.await_count == 0
+
+        await proc.stop()
+
+        assert ws.broadcast.await_count == 0
+        assert proc._dispatch_tasks == set()
+        gate.set()
+        await asyncio.sleep(0)

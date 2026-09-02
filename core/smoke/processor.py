@@ -2,6 +2,7 @@
 烟雾/火焰视频处理器。"""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 import time
 from typing import Any
@@ -30,6 +31,18 @@ class SmokeFireProcessor(BaseVideoProcessor):
     def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._post_processor = SmokeFirePostProcessor(self._build_postprocess_config())
+        self._pending_vl_tasks: set[asyncio.Task] = set()
+
+    async def stop(self) -> None:
+        if self._pending_vl_tasks:
+            for task in list(self._pending_vl_tasks):
+                task.cancel()
+            try:
+                await asyncio.gather(*self._pending_vl_tasks, return_exceptions=True)
+            except Exception:
+                pass
+            self._pending_vl_tasks.clear()
+        await super().stop()
 
     def _setting_float(self, key: str, default: float) -> float:
         try:
@@ -115,52 +128,80 @@ class SmokeFireProcessor(BaseVideoProcessor):
         annotated = self.draw_on_frame(frame, result)
         result.annotated_frame = annotated
 
-        vl_rejected = False
+        pending_alert = None
         if post_result.has_alarm and confirmed:
+            vl_task = None
             if self._vl_confirm_enabled():
-                vl_result = await self._vl_confirm_alert(frame, annotated, primary_roi)
-                if vl_result is False:
-                    vl_rejected = True
-                    logger.warning(
-                        "Alarm rejected by VL confirm, marked false positive: source={}",
-                        self.source_name,
-                    )
-                elif vl_result is True:
-                    logger.info("Alarm confirmed by VL confirm: source={}", self.source_name)
-                # True or None (fail-open) → keep alerts
-        if post_result.has_alarm and confirmed:
-            labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
-            confidence = max(float(det.get("confidence", 0.0)) for det in confirmed)
-            original_image_base64 = self._encode_thumbnail(frame)
-            detected_image_base64 = self._encode_thumbnail(annotated)
-            event = build_smoke_email_event(
-                timestamp=timestamp,
-                source_id=self.source_id,
-                source_name=self.source_name,
-                labels=labels,
-                confidence=confidence,
-                detection_count=len(confirmed),
-                frame_id=post_result.frame_id,
-                active_tracks=post_result.active_tracks,
-                image_base64=detected_image_base64,
-            )
-            message = f"Detected {event['event_label']} on {self.source_name} ({len(confirmed)} confirmed detection(s))"
-            result.messages.append({
+                vl_task = asyncio.create_task(
+                    self._vl_confirm_alert(frame, annotated, primary_roi)
+                )
+                self._pending_vl_tasks.add(vl_task)
+                vl_task.add_done_callback(self._pending_vl_tasks.discard)
+            pending_alert = {
+                "frame": frame,
+                "annotated": annotated,
+                "confirmed": confirmed,
+                "post_result": post_result,
                 "timestamp": timestamp,
-                "source_name": self.source_name,
-                "source_id": self.source_id,
-                "scene_id": "smoke",
-                "level": "alert",
-                "message": message,
-                "image_base64": detected_image_base64,
-                "original_image_base64": original_image_base64,
-                "detected_image_base64": detected_image_base64,
-                "false_positive": vl_rejected,
-            })
-            if not vl_rejected:
-                result.extra["email_event"] = event
-                result.extra["smoke_event"] = event
+                "vl_task": vl_task,
+            }
+        result.extra["pending_alert"] = pending_alert
         return result
+
+    async def finalize_result(self, result: AnalysisResult) -> None:
+        """Build the alarm message once the VL verdict (if any) resolves.
+        在 VL 复判结论（如有）落地后构建告警消息。"""
+        pending = result.extra.pop("pending_alert", None)
+        if pending is None:
+            return
+        vl_task = pending["vl_task"]
+        vl_result = await vl_task if vl_task is not None else None
+        vl_rejected = vl_result is False
+        if vl_result is False:
+            logger.warning(
+                "Alarm rejected by VL confirm, marked false positive: source={}",
+                self.source_name,
+            )
+        elif vl_result is True:
+            logger.info(
+                "Alarm confirmed by VL confirm: source={}", self.source_name
+            )
+        frame = pending["frame"]
+        annotated = pending["annotated"]
+        confirmed = pending["confirmed"]
+        post_result = pending["post_result"]
+        timestamp = pending["timestamp"]
+        labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
+        confidence = max(float(det.get("confidence", 0.0)) for det in confirmed)
+        original_image_base64 = self._encode_thumbnail(frame)
+        detected_image_base64 = self._encode_thumbnail(annotated)
+        event = build_smoke_email_event(
+            timestamp=timestamp,
+            source_id=self.source_id,
+            source_name=self.source_name,
+            labels=labels,
+            confidence=confidence,
+            detection_count=len(confirmed),
+            frame_id=post_result.frame_id,
+            active_tracks=post_result.active_tracks,
+            image_base64=detected_image_base64,
+        )
+        message = f"Detected {event['event_label']} on {self.source_name} ({len(confirmed)} confirmed detection(s))"
+        result.messages.append({
+            "timestamp": timestamp,
+            "source_name": self.source_name,
+            "source_id": self.source_id,
+            "scene_id": "smoke",
+            "level": "alert",
+            "message": message,
+            "image_base64": detected_image_base64,
+            "original_image_base64": original_image_base64,
+            "detected_image_base64": detected_image_base64,
+            "false_positive": vl_rejected,
+        })
+        if not vl_rejected:
+            result.extra["email_event"] = event
+            result.extra["smoke_event"] = event
 
     def _vl_confirm_enabled(self) -> bool:
         return str(self.app_settings.get("smoke_vl_confirm_enabled") or "false").lower() == "true"

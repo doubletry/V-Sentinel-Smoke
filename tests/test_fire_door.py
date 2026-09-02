@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 from loguru import logger
@@ -54,6 +55,7 @@ async def test_open_label_is_case_insensitive_and_generates_alert():
         frame.shape,
         [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
     )
+    await processor.finalize_result(result)
 
     assert result.messages
     assert result.classifications[0]["door_state"] == "open"
@@ -150,6 +152,7 @@ async def test_multiple_rois_batch_classification_alerts_when_any_roi_is_open():
     ]
 
     result = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+    await processor.finalize_result(result)
 
     vengine.classify.assert_awaited_once()
     images = vengine.classify.await_args.kwargs["images"]
@@ -192,6 +195,7 @@ async def test_temporal_confirmation_requires_configured_frames():
 
     first = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
     second = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+    await processor.finalize_result(second)
 
     assert first.messages == []
     assert second.messages
@@ -269,6 +273,7 @@ async def test_vl_confirm_reject_keeps_message_marked_false_positive():
             frame, b"frame", frame.shape,
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
+        await processor.finalize_result(result)
 
     assert len(result.messages) == 1
     assert result.messages[0]["false_positive"] is True
@@ -289,6 +294,7 @@ async def test_vl_confirm_allows_alarm_when_model_returns_true():
             frame, b"frame", frame.shape,
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
+        await processor.finalize_result(result)
 
     assert len(result.messages) == 1
     assert result.messages[0]["false_positive"] is False
@@ -310,6 +316,7 @@ async def test_vl_confirm_fail_open_when_model_returns_none():
             frame, b"frame", frame.shape,
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
+        await processor.finalize_result(result)
 
     assert len(result.messages) == 1
     assert result.messages[0]["false_positive"] is False
@@ -327,6 +334,7 @@ async def test_vl_confirm_skipped_when_disabled():
             frame, b"frame", frame.shape,
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
+        await processor.finalize_result(result)
 
     mock_cls.assert_not_called()
     assert result.messages
@@ -351,10 +359,11 @@ async def test_vl_annotated_full_image_sent_to_model():
     mock_client.confirm = AsyncMock(return_value=True)
 
     with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
-        await processor.process_frame(
+        result = await processor.process_frame(
             frame, b"frame", frame.shape,
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
+        await processor.finalize_result(result)
 
     data_url = mock_client.confirm.await_args.args[0]
     decoded = _decode_data_url(data_url)
@@ -384,6 +393,7 @@ async def test_vl_sampling_params_from_fire_door_settings_only():
             frame, b"frame", frame.shape,
             [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
         )
+        await processor.finalize_result(result)
 
     assert len(result.messages) == 1
     kwargs = mock_cls.call_args.kwargs
@@ -406,10 +416,11 @@ async def test_vl_reject_logs_warning_with_source():
     sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
     try:
         with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
-            await processor.process_frame(
+            result = await processor.process_frame(
                 frame, b"frame", frame.shape,
                 [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
             )
+            await processor.finalize_result(result)
     finally:
         logger.remove(sink_id)
 
@@ -419,3 +430,36 @@ async def test_vl_reject_logs_warning_with_source():
         and r["level"].name == "WARNING"
         for r in records
     )
+
+
+async def test_process_frame_returns_before_vl_verdict():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    roi_points = [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]]
+
+    gate = asyncio.Event()
+
+    async def gated_verdict():
+        await gate.wait()
+        return True
+
+    processor._vl_confirm_alert = lambda *args: gated_verdict()
+
+    result = await asyncio.wait_for(
+        processor.process_frame(frame, b"frame", frame.shape, roi_points),
+        timeout=5.0,
+    )
+
+    vl_task = result.extra["pending_alert"]["vl_task"]
+    assert vl_task is not None and not vl_task.done()
+    assert result.annotated_frame is not None
+    assert result.messages == []
+
+    gate.set()
+    await processor.finalize_result(result)
+    assert len(result.messages) == 1
+    assert result.messages[0]["false_positive"] is False
+    assert result.messages[0]["scene_id"] == "fire_door"
+    assert "email_event" in result.extra

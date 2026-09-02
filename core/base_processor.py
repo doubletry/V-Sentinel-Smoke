@@ -892,6 +892,14 @@ class BaseVideoProcessor(ABC):
         del result
         return self.push_result_stream
 
+    async def finalize_result(self, result: AnalysisResult) -> None:
+        """Scene hook for slow post-processing before message dispatch.
+        Runs on a detached dispatch task after the display hand-off, so it
+        never blocks the real-time push.
+        场景钩子：消息分发前的慢速后处理（如等待 VL 复判结论）。
+        在推流交接之后、脱离帧处理槽位的后台任务中运行，不阻塞实时画面。"""
+        del result
+
     def _source_confidence_threshold(self, fallback: float) -> float:
         """Return per-source confidence override when configured."""
         if self.source_alarm_confidence_threshold is None:
