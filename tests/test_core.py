@@ -832,3 +832,33 @@ class TestCoreBaseVideoProcessorPipeline:
             proc._build_push_rtsp_url("zone/cam1_processed")
             == "rtsp://shared-user:shared-pass@localhost:8554/live/zone/cam1_processed"
         )
+
+
+class TestRedactUrl:
+    def test_redacts_password(self):
+        from core.base_processor import redact_url
+
+        assert (
+            redact_url("rtsp://admin:secret@10.0.0.1:8554/stream")
+            == "rtsp://admin:***@10.0.0.1:8554/stream"
+        )
+
+    def test_username_only_unchanged(self):
+        from core.base_processor import redact_url
+
+        assert redact_url("rtsp://admin@10.0.0.1:8554/stream") == "rtsp://admin@10.0.0.1:8554/stream"
+
+    def test_no_credentials_unchanged(self):
+        from core.base_processor import redact_url
+
+        assert redact_url("rtsp://10.0.0.1:8554/stream") == "rtsp://10.0.0.1:8554/stream"
+
+    def test_empty_string(self):
+        from core.base_processor import redact_url
+
+        assert redact_url("") == ""
+
+    def test_non_url_unchanged(self):
+        from core.base_processor import redact_url
+
+        assert redact_url("not a url") == "not a url"
