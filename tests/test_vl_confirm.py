@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 import pytest
 
+from loguru import logger
+
 from core.vl_confirm import (
     VLConfirmClient,
     VL_TEST_PROMPT,
@@ -370,3 +372,66 @@ async def test_complete_disable_thinking_sends_extra_body():
 
     kwargs = client._client.chat.completions.create.await_args.kwargs
     assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+async def test_complete_success_logs_raw_response():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '{"smoke": true}'
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+    try:
+        raw = await client.complete("data:image/jpeg;base64,abc", "Ping")
+    finally:
+        logger.remove(sink_id)
+
+    assert raw == '{"smoke": true}'
+    messages = [r["message"] for r in records]
+    assert any("VL request ok" in m and "/models/Mage-VL" in m for m in messages)
+    assert any("VL raw response" in m and '{"smoke": true}' in m for m in messages)
+
+
+async def test_complete_failure_logs_exception_details():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(
+        side_effect=RuntimeError("conn-refused-detail")
+    )
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        with pytest.raises(RuntimeError, match="conn-refused-detail"):
+            await client.complete("data:image/jpeg;base64,abc", "Ping")
+    finally:
+        logger.remove(sink_id)
+
+    failures = [r for r in records if "VL request failed" in r["message"]]
+    assert failures, "expected a 'VL request failed' warning"
+    assert "conn-refused-detail" in failures[0]["message"]
+    # 回归：loguru 忽略 stdlib 风格 exc_info=True；record 必须携带异常（完整栈），
+    # 否则 VL 服务端返回的错误体在日志中不可见。
+    assert failures[0]["exception"] is not None
+
+
+async def test_confirm_failure_logs_failing_open():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(side_effect=Exception("boom-vl"))
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        result = await client.confirm("data:image/jpeg;base64,abc", "Verify", "open")
+    finally:
+        logger.remove(sink_id)
+
+    assert result is None
+    assert any(
+        "failing open" in r["message"] and "/models/Mage-VL" in r["message"]
+        for r in records
+    )
