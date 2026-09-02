@@ -142,6 +142,11 @@ class TestWSManager:
             "Failed to persist analysis message" in r["message"] and "s-1" in r["message"]
             for r in records
         )
+        assert any(
+            r["exception"] is not None
+            for r in records
+            if "Failed to persist analysis message" in r["message"]
+        )
 
 
 class TestWSEndpointAuth:

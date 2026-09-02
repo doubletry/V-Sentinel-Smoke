@@ -862,3 +862,19 @@ class TestRedactUrl:
         from core.base_processor import redact_url
 
         assert redact_url("not a url") == "not a url"
+
+    def test_redacts_password_only_userinfo(self):
+        from core.base_processor import redact_url
+
+        assert (
+            redact_url("rtsp://:secret@10.0.0.1:8554/stream")
+            == "rtsp://:***@10.0.0.1:8554/stream"
+        )
+
+    def test_at_in_query_unchanged(self):
+        from core.base_processor import redact_url
+
+        assert (
+            redact_url("rtsp://10.0.0.1:8554/stream?cb=a@b")
+            == "rtsp://10.0.0.1:8554/stream?cb=a@b"
+        )

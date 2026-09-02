@@ -118,14 +118,19 @@ def redact_url(url: str) -> str:
     if scheme_end == -1:
         return text
     rest = text[scheme_end + 3:]
-    at = rest.find("@")
+    slash = rest.find("/")
+    authority = rest if slash == -1 else rest[:slash]
+    at = authority.rfind("@")
     if at == -1:
         return text
-    authority = rest[:at]
-    if ":" in authority:
-        user, _sep, _password = authority.partition(":")
-        if user:
-            return f"{text[:scheme_end + 3]}{user}:***@{rest[at + 1:]}"
+    qmark = authority.find("?")
+    if qmark != -1 and qmark < at:
+        return text
+    userinfo = authority[:at]
+    if ":" in userinfo:
+        user, _sep, _password = userinfo.partition(":")
+        tail = rest[slash:] if slash != -1 else ""
+        return f"{text[:scheme_end + 3]}{user}:***@{authority[at + 1:]}{tail}"
     return text
 
 
@@ -370,7 +375,10 @@ class BaseVideoProcessor(ABC):
                     logger.warning("PyAV reader ended before yielding frames for {}", redact_url(self.rtsp_url))
             except Exception as exc:
                 if not self._stop_event.is_set():
-                    logger.exception("Frame reader error for {}: {}", redact_url(self.rtsp_url), exc)
+                    exc_text = str(exc).replace(self.rtsp_url, redact_url(self.rtsp_url))
+                    logger.error(
+                        "Frame reader error for {}: {}", redact_url(self.rtsp_url), exc_text
+                    )
             finally:
                 try:
                     if container is not None:

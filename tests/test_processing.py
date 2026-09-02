@@ -217,6 +217,11 @@ class TestBaseVideoProcessor:
             "Failed to handle frame result" in r["message"] and "s1" in r["message"]
             for r in records
         )
+        assert any(
+            r["exception"] is not None
+            for r in records
+            if "Failed to handle frame result" in r["message"]
+        )
 
     async def test_wait_for_processing_slot_logs_failed_task(self):
         proc = self._make_processor()
@@ -237,6 +242,11 @@ class TestBaseVideoProcessor:
             logger.remove(sink_id)
 
         assert any("Frame task failed" in r["message"] and "s1" in r["message"] for r in records)
+        assert any(
+            r["exception"] is not None
+            for r in records
+            if "Frame task failed" in r["message"]
+        )
 
 
 class TestProcessorManager:
