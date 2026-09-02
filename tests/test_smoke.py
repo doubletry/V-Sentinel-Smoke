@@ -403,3 +403,28 @@ async def test_smoke_vl_manual_proxy_misconfig_falls_back_to_direct():
         "VL manual proxy misconfigured" in r["message"] and "Cam1" in r["message"]
         for r in records
     )
+
+
+async def test_alert_text_only_on_rising_edge():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
+        first = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+        second = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+        first_pending = first.extra["pending_alert"]
+        second_pending = second.extra["pending_alert"]
+        await processor.finalize_result(first)
+        await processor.finalize_result(second)
+
+    assert first_pending["alert_text"] == "Detected 烟雾 on Cam1 (1 confirmed detection(s))"
+    assert first_pending["scene_id"] == "smoke"
+    assert second_pending is not None and "alert_text" not in second_pending
+    assert first.messages[0]["message"] == first_pending["alert_text"]

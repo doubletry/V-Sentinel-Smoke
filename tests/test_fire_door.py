@@ -491,3 +491,27 @@ async def test_fire_door_vl_manual_proxy_misconfig_falls_back_to_direct():
         "VL manual proxy misconfigured" in r["message"] and "DoorCam" in r["message"]
         for r in records
     )
+
+
+async def test_alert_text_only_on_rising_edge():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    roi_points = [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]]
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
+        first = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+        second = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+        first_pending = first.extra["pending_alert"]
+        second_pending = second.extra["pending_alert"]
+        await processor.finalize_result(first)
+        await processor.finalize_result(second)
+
+    assert first_pending["alert_text"] == "Fire door open on DoorCam ROI 1/1 (0.91)"
+    assert first_pending["scene_id"] == "fire_door"
+    assert second_pending is not None and "alert_text" not in second_pending
+    assert first.messages[0]["message"] == first_pending["alert_text"]

@@ -670,3 +670,52 @@ class TestPushVsVlDecoupling:
         assert proc._dispatch_tasks == set()
         gate.set()
         await asyncio.sleep(0)
+
+    async def test_immediate_alert_sent_before_vl_verdict(self):
+        gate = asyncio.Event()
+        ws = AsyncMock()
+
+        class AlertingProcessor(BaseVideoProcessor):
+            async def process_frame(self, frame, encoded, shape, roi_pixel_points):
+                result = AnalysisResult(annotated_frame=frame)
+
+                async def verdict():
+                    await gate.wait()
+                    return True
+
+                result.extra["pending_alert"] = {
+                    "vl_task": asyncio.create_task(verdict()),
+                    "alert_text": "Detected smoke on cam (1 confirmed detection(s))",
+                    "scene_id": "smoke",
+                    "timestamp": "2026-09-02T00:00:00+00:00",
+                }
+                return result
+
+            async def finalize_result(self, result):
+                task = result.extra.pop("pending_alert")["vl_task"]
+                await task
+
+        proc = AlertingProcessor(
+            source_id="s1",
+            source_name="cam",
+            rtsp_url="rtsp://localhost:8554/cam1",
+            rois=[],
+            vengine_client=MagicMock(),
+            ws_manager=ws,
+            app_settings={},
+        )
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+        await proc._process_frame_item(frame, b"x")
+        await asyncio.sleep(0)  # 让脱离的 dispatch 任务执行即时告警步骤
+        ws.send_notification.assert_awaited_once()
+        payload = ws.send_notification.call_args[0][0]
+        assert payload["type"] == "alert_notify"
+        assert payload["source_name"] == "cam"
+        assert payload["scene_id"] == "smoke"
+        assert payload["message"] == "Detected smoke on cam (1 confirmed detection(s))"
+        assert ws.broadcast.await_count == 0  # 消息广播仍等 VL 结论
+
+        gate.set()
+        if proc._dispatch_tasks:
+            await asyncio.wait_for(asyncio.gather(*proc._dispatch_tasks), 5.0)

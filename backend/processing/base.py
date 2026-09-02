@@ -131,9 +131,10 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
         task.add_done_callback(self._dispatch_tasks.discard)
 
     async def _dispatch_result(self, result: AnalysisResult) -> None:
-        """Finalize the result (await slow verdicts), then dispatch messages.
-        完成场景钩子（等待慢速结论），然后分发消息。"""
+        """Send the immediate alert, finalize (await slow verdicts), then dispatch.
+        先发即时告警横幅，再完成场景钩子（等待慢速结论），最后分发消息。"""
         try:
+            await self._send_immediate_alert(result)
             await self.finalize_result(result)
             if self.agent is not None:
                 await self.agent.submit(
@@ -165,6 +166,26 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
             logger.opt(exception=True).error(
                 "Failed to dispatch frame result: source={}", self.source_id
             )
+
+    async def _send_immediate_alert(self, result: AnalysisResult) -> None:
+        """Send the immediate top-banner alert (no VL wait, no DB persist).
+        发送即时顶部告警横幅（不等 VL 结论、不入库）。"""
+        pending = result.extra.get("pending_alert")
+        if not isinstance(pending, dict):
+            return
+        text = str(pending.get("alert_text") or "").strip()
+        if not text or self.ws_manager is None:
+            return
+        await self.ws_manager.send_notification(
+            {
+                "type": "alert_notify",
+                "timestamp": pending.get("timestamp"),
+                "source_id": self.source_id,
+                "source_name": self.source_name,
+                "scene_id": str(pending.get("scene_id") or ""),
+                "message": text,
+            }
+        )
 
     @property
     def push_active(self) -> bool:

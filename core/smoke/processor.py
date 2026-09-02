@@ -20,7 +20,7 @@ from core.smoke.constants import (
     SMOKE_FIRE_LABELS,
     SMOKE_LABEL,
 )
-from core.smoke.email import build_smoke_email_event
+from core.smoke.email import build_event_label, build_smoke_email_event
 from core.smoke.post_processor import Detection, DetectionClass, PostProcessorConfig, SmokeFirePostProcessor
 from core.vl_confirm import build_vl_client, build_vl_image_data_url
 
@@ -32,6 +32,7 @@ class SmokeFireProcessor(BaseVideoProcessor):
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._post_processor = SmokeFirePostProcessor(self._build_postprocess_config())
         self._pending_vl_tasks: set[asyncio.Task] = set()
+        self._was_alarmed = False
 
     async def stop(self) -> None:
         if self._pending_vl_tasks:
@@ -129,7 +130,10 @@ class SmokeFireProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         pending_alert = None
-        if post_result.has_alarm and confirmed:
+        is_alarmed = bool(post_result.has_alarm and confirmed)
+        rising_edge = is_alarmed and not self._was_alarmed
+        self._was_alarmed = is_alarmed
+        if is_alarmed:
             vl_task = None
             if self._vl_confirm_enabled():
                 vl_task = asyncio.create_task(
@@ -137,6 +141,7 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 )
                 self._pending_vl_tasks.add(vl_task)
                 vl_task.add_done_callback(self._pending_vl_tasks.discard)
+            labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
             pending_alert = {
                 "frame": frame,
                 "annotated": annotated,
@@ -144,7 +149,13 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 "post_result": post_result,
                 "timestamp": timestamp,
                 "vl_task": vl_task,
+                "scene_id": "smoke",
             }
+            if rising_edge:
+                pending_alert["alert_text"] = (
+                    f"Detected {build_event_label(labels)} on {self.source_name} "
+                    f"({len(confirmed)} confirmed detection(s))"
+                )
         result.extra["pending_alert"] = pending_alert
         return result
 

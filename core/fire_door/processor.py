@@ -34,6 +34,7 @@ class FireDoorProcessor(BaseVideoProcessor):
         self._roi_alarm_history: dict[str, deque[float]] = {}
         self._roi_last_alarm_at: dict[str, float] = {}
         self._pending_vl_tasks: set[asyncio.Task] = set()
+        self._was_alarmed = False
 
     async def stop(self) -> None:
         if self._pending_vl_tasks:
@@ -183,8 +184,11 @@ class FireDoorProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         alert_items = [item for item in classifications if item.get("alarm")]
+        is_alarmed = bool(alert_items)
+        rising_edge = is_alarmed and not self._was_alarmed
+        self._was_alarmed = is_alarmed
         pending_alert = None
-        if alert_items:
+        if is_alarmed:
             vl_task = None
             if self._vl_confirm_enabled():
                 vl_task = asyncio.create_task(
@@ -192,6 +196,7 @@ class FireDoorProcessor(BaseVideoProcessor):
                 )
                 self._pending_vl_tasks.add(vl_task)
                 vl_task.add_done_callback(self._pending_vl_tasks.discard)
+            best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
             pending_alert = {
                 "frame": frame,
                 "annotated": annotated,
@@ -200,7 +205,14 @@ class FireDoorProcessor(BaseVideoProcessor):
                 "fire_rois": fire_rois,
                 "timestamp": timestamp,
                 "vl_task": vl_task,
+                "scene_id": "fire_door",
             }
+            if rising_edge:
+                pending_alert["alert_text"] = (
+                    f"Fire door open on {self.source_name} "
+                    f"ROI {int(best.get('roi_index') or 0)}/{len(fire_rois)} "
+                    f"({float(best.get('confidence') or 0.0):.2f})"
+                )
         result.extra["pending_alert"] = pending_alert
         return result
 

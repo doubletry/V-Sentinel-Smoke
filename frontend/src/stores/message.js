@@ -30,6 +30,24 @@ export const useMessageStore = defineStore('message', () => {
   let _ws = null
   let _reconnectTimer = null
 
+  const activeAlert = ref(null)
+  const ALERT_BANNER_DURATION_MS = 5000
+  let _alertHideTimer = null
+  let _alertSeq = 0
+
+  function showActiveAlert(payload) {
+    const seq = ++_alertSeq
+    activeAlert.value = {
+      seq,
+      message: String((payload && payload.message) || ''),
+      sourceName: String((payload && payload.source_name) || ''),
+    }
+    if (_alertHideTimer) clearTimeout(_alertHideTimer)
+    _alertHideTimer = setTimeout(() => {
+      if (_alertSeq === seq) activeAlert.value = null
+    }, ALERT_BANNER_DURATION_MS)
+  }
+
   const pageSizeOptions = PAGE_SIZE_OPTIONS
 
   async function fetchMessages(nextPage = page.value, nextPageSize = pageSize.value) {
@@ -98,6 +116,10 @@ export const useMessageStore = defineStore('message', () => {
       try {
         const msg = JSON.parse(event.data)
         if (msg === 'pong') return
+        if (msg.type === 'alert_notify') {
+          showActiveAlert(msg)
+          return
+        }
         const matchesFilter = !filterSource.value || msg.source_id === filterSource.value
         const matchesFalsePositive = falsePositiveFilterMatches(msg.false_positive)
         const matchesDate = matchesActiveDateRange(msg.timestamp)
@@ -266,6 +288,8 @@ export const useMessageStore = defineStore('message', () => {
     pendingCount,
     pageSizeOptions,
     wsConnected,
+    activeAlert,
+    showActiveAlert,
     filterSource,
     falsePositiveFilter,
     startDate,

@@ -160,3 +160,29 @@ describe('message store — vl review', () => {
     expect(result.result).toBe('confirmed')
   })
 })
+
+describe('message store — immediate alert banner', () => {
+  it('shows the alert and auto hides after the duration', () => {
+    vi.useFakeTimers()
+    const store = useMessageStore()
+    store.showActiveAlert({ message: 'Detected smoke on Cam1 (1 confirmed detection(s))', source_name: 'Cam1' })
+    expect(store.activeAlert.message).toBe('Detected smoke on Cam1 (1 confirmed detection(s))')
+    vi.advanceTimersByTime(5000)
+    expect(store.activeAlert).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('a new alert replaces the previous one and resets the hide timer', () => {
+    vi.useFakeTimers()
+    const store = useMessageStore()
+    store.showActiveAlert({ message: 'first', source_name: 'A' })
+    vi.advanceTimersByTime(3000)
+    store.showActiveAlert({ message: 'second', source_name: 'B' })
+    expect(store.activeAlert.message).toBe('second')
+    vi.advanceTimersByTime(4000)
+    expect(store.activeAlert.message).toBe('second')
+    vi.advanceTimersByTime(1000)
+    expect(store.activeAlert).toBeNull()
+    vi.useRealTimers()
+  })
+})
