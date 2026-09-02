@@ -818,8 +818,12 @@ class BaseVideoProcessor(ABC):
         for task in done:
             try:
                 await task
-            except BaseException:
+            except asyncio.CancelledError:
                 pass
+            except Exception:
+                logger.opt(exception=True).warning(
+                    "Frame task failed: source={}", self.source_id
+                )
 
     async def _process_frame_item(self, frame: np.ndarray, encoded: bytes) -> None:
         """Process one frame and hand off any display work asynchronously."""
@@ -838,7 +842,12 @@ class BaseVideoProcessor(ABC):
             logger.error("process_frame error: {}", exc)
             result = AnalysisResult()
 
-        await self._handle_result(frame, result)
+        try:
+            await self._handle_result(frame, result)
+        except Exception:
+            logger.opt(exception=True).error(
+                "Failed to handle frame result: source={}", self.source_id
+            )
 
     async def _handle_result(self, frame: np.ndarray, result: AnalysisResult) -> None:
         """Default per-result handling: enqueue for drawing/pushing if needed."""

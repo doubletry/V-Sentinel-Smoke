@@ -103,7 +103,12 @@ class WSManager:
         # Persist to DB / 持久化到数据库
         message_id: str | None = None
         if self._persist_message is not None:
-            message_id = await self._persist_message(message)
+            try:
+                message_id = await self._persist_message(message)
+            except Exception:
+                logger.opt(exception=True).error(
+                    "Failed to persist analysis message: source={}", message.source_id
+                )
         if message_id:
             message.id = message_id
 

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
+from loguru import logger
 
 from backend.api.ws import WSManager
 from backend.config import DEFAULT_APP_SETTINGS
@@ -198,6 +199,44 @@ class TestBaseVideoProcessor:
         await proc.stop()
 
         proc._stop_output_worker.assert_called_once()
+
+    async def test_process_frame_item_logs_handle_result_failure(self):
+        proc = self._make_processor()
+        proc.push_result_stream = False
+        proc._handle_result = AsyncMock(side_effect=RuntimeError("ws down"))
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="ERROR")
+        try:
+            frame = np.zeros((10, 10, 3), dtype=np.uint8)
+            await proc._process_frame_item(frame, b"encoded")  # 不得抛出
+        finally:
+            logger.remove(sink_id)
+
+        assert any(
+            "Failed to handle frame result" in r["message"] and "s1" in r["message"]
+            for r in records
+        )
+
+    async def test_wait_for_processing_slot_logs_failed_task(self):
+        proc = self._make_processor()
+        proc._max_inflight_frames = 1
+
+        async def boom():
+            raise RuntimeError("inference boom")
+
+        task = asyncio.create_task(boom())
+        await asyncio.sleep(0)  # 让任务失败
+        proc._processing_tasks.add(task)
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            await proc._wait_for_processing_slot()
+        finally:
+            logger.remove(sink_id)
+
+        assert any("Frame task failed" in r["message"] and "s1" in r["message"] for r in records)
 
 
 class TestProcessorManager:
