@@ -142,3 +142,42 @@ class TestWSManager:
             "Failed to persist analysis message" in r["message"] and "s-1" in r["message"]
             for r in records
         )
+
+
+class TestWSEndpointAuth:
+    def test_ws_invalid_token_close_is_logged(self):
+        from starlette.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        from backend.main import app
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            with TestClient(app) as client:
+                with pytest.raises(WebSocketDisconnect) as excinfo:
+                    with client.websocket_connect("/ws/messages?token=bad-token"):
+                        pass
+                assert excinfo.value.code == 4001
+        finally:
+            logger.remove(sink_id)
+
+        assert any("invalid token" in r["message"] for r in records)
+
+    def test_ws_missing_token_close_is_logged(self):
+        from starlette.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        from backend.main import app
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            with TestClient(app) as client:
+                with pytest.raises(WebSocketDisconnect):
+                    with client.websocket_connect("/ws/messages"):
+                        pass
+        finally:
+            logger.remove(sink_id)
+
+        assert any("missing token" in r["message"] for r in records)

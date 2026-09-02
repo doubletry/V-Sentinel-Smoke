@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from aiosqlite import IntegrityError
 from fastapi import APIRouter, Depends, HTTPException, Request
+from loguru import logger
 
 from backend.auth.dependencies import current_user
 from backend.auth.security import (
@@ -71,6 +72,12 @@ async def _register_failure_and_maybe_block(ip: str, username: str) -> None:
             reason=f"Exceeded {max_attempts} failed login attempts in {window_seconds}s",
         )
         blocked, blocked_until = await db.is_ip_blocked(ip)
+        logger.warning(
+            "IP {} blocked for {} after {} failed login attempts",
+            ip,
+            f"{duration_seconds}s" if duration_seconds > 0 else "indefinitely",
+            failures,
+        )
         raise HTTPException(
             status_code=403,
             detail={

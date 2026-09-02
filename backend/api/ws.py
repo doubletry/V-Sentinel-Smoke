@@ -153,12 +153,15 @@ async def ws_messages_endpoint(websocket: WebSocket) -> None:
 
     # ── Authenticate via query parameter / 通过查询参数认证 ──
     token = websocket.query_params.get("token")
+    client_text = str(websocket.client) if websocket.client else "unknown"
     if not token:
+        logger.warning("WS client rejected: missing token, client={}", client_text)
         await websocket.close(code=4001, reason="Missing token")
         return
     try:
         verify_access_token(token)
     except Exception:
+        logger.warning("WS client rejected: invalid token, client={}", client_text)
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 

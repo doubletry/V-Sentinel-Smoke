@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from loguru import logger
 
 from backend.auth.dependencies import require_permission
 from backend.models.schemas import (
@@ -28,6 +29,9 @@ async def start_processor(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.opt(exception=True).warning(
+            "Failed to start processor: source={}", request.source_id
+        )
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -71,4 +75,7 @@ async def toggle_push_result_stream(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
+        logger.opt(exception=True).warning(
+            "Failed to toggle push result stream: source={}", source_id
+        )
         raise HTTPException(status_code=500, detail=str(exc))
