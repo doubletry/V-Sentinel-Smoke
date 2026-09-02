@@ -1,10 +1,10 @@
-# VL 代理模式 + 推流/复判解耦 实现计划
+# VL 代理模式 + 推流/复判解耦 + 即时告警横幅 实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** ① VL 请求支持代理模式（不走代理/手动/系统代理）集中构造；② 开启复判后实时画面（标注帧推流）不再被 VL 调用阻塞，消息与通知语义不变。
 
-**Architecture:** `core/vl_confirm.py` 新增 `build_vl_http_client` / `build_vl_client` 工厂，4 个调用点（2 个 processor 的 `_vl_confirm_alert`、2 个 API 端点）统一改走工厂。流水线解耦：`process_frame` 立即返回（告警时把 VL 任务存 `result.extra["pending_alert"]`），backend 基类 `_handle_result` 先推流入队、再派脱离帧槽位的后台任务 `finalize_result`（等 VL 结论、构建消息）→ `agent.submit`（广播+通知）。
+**Architecture:** `core/vl_confirm.py` 新增 `build_vl_http_client` / `build_vl_client` 工厂，4 个调用点（2 个 processor 的 `_vl_confirm_alert`、2 个 API 端点）统一改走工厂。流水线解耦：`process_frame` 立即返回（告警时把 VL 任务存 `result.extra["pending_alert"]`），backend 基类 `_handle_result` 先推流入队、再派脱离帧槽位的后台任务 `finalize_result`（等 VL 结论、构建消息）→ `agent.submit`（广播+通知）。即时告警横幅：告警**上升沿**把告警文本放入 `pending_alert["alert_text"]`，`_dispatch_result` 在等 VL **之前**经 `WSManager.send_notification`（不入库）广播 `alert_notify`；前端全局 WS + App.vue 顶部流式横幅（新替换旧、5s 自动隐藏）。
 
 **Tech Stack:** Python 3.11 / openai SDK 3.1.0 / httpx2 2.10.0 / FastAPI / loguru / pytest（`asyncio_mode=auto`）/ Vue 3 + Element Plus。
 
@@ -1343,7 +1343,451 @@ git commit -m "feat(vl): route processor auto-confirm through factory with direc
 
 ---
 
-### Task 5: 前端 —— 代理模式 UI + i18n
+### Task 5: 即时告警横幅 —— 不等 VL 复盘的顶部提示
+
+**Files:**
+- Modify: `backend/api/ws.py`（`import json`、`WSManager.send_notification`）
+- Modify: `backend/processing/base.py`（`_dispatch_result` 增加 `_send_immediate_alert` 步骤）
+- Modify: `core/smoke/processor.py`（`_was_alarmed`、`build_event_label` import、`pending_alert` 块加 `scene_id`/`alert_text` 边沿逻辑）
+- Modify: `core/fire_door/processor.py`（同型）
+- Modify: `frontend/src/stores/message.js`（`activeAlert`/`showActiveAlert`、`onmessage` 分支）
+- Modify: `frontend/src/App.vue`（横幅 + 全局 WS 连接 + 样式）
+- Test: `tests/test_ws.py`、`tests/test_processing.py`、`tests/test_smoke.py`、`tests/test_fire_door.py`、`frontend/src/stores/__tests__/message.test.js`
+
+**Interfaces:**
+- Consumes: Task 3 的 `pending_alert` / `_dispatch_result` / `finalize_result` 结构。
+- Produces:
+  - `WSManager.send_notification(payload: dict) -> None`（不持久化）
+  - WS 事件 `{"type": "alert_notify", "timestamp", "source_id", "source_name", "scene_id", "message"}`
+  - store 状态 `activeAlert: {seq, message, sourceName} | null` + `showActiveAlert(payload)`
+  - `pending_alert["alert_text"]`（仅上升沿）+ `pending_alert["scene_id"]`
+
+**行为契约（测试依据）：**
+- 告警上升沿（无告警→有告警）才产生 `alert_text`；同一告警事件后续帧不重复。
+- `alert_text` 与最终消息文本逐字一致（无图像、不依赖 VL）。
+- `_dispatch_result` 中 `send_notification` 先于 `finalize_result`（不等 VL）、先于 `broadcast`（消息广播）。
+- 横幅：新替换旧；5s（`ALERT_BANNER_DURATION_MS`）无新告警自动隐藏；新告警重置计时器。
+
+- [ ] **Step 1: 写失败测试**
+
+`tests/test_ws.py` 末尾追加：
+
+```python
+class TestSendNotification:
+    async def test_send_notification_reaches_all_clients_without_persist(self):
+        import json
+
+        persist = AsyncMock(return_value="msg-id")
+        mgr = WSManager(persist_message=persist)
+        ws1 = AsyncMock()
+        ws2 = AsyncMock()
+        await mgr.connect(ws1)
+        await mgr.connect(ws2)
+
+        await mgr.send_notification(
+            {"type": "alert_notify", "message": "Detected smoke on Cam1"}
+        )
+
+        assert ws1.send_text.await_count == 1
+        assert ws2.send_text.await_count == 1
+        payload = json.loads(ws1.send_text.call_args[0][0])
+        assert payload["type"] == "alert_notify"
+        assert payload["message"] == "Detected smoke on Cam1"
+        persist.assert_not_awaited()
+```
+
+`tests/test_processing.py` 的 `TestPushVsVlDecoupling` 类内追加：
+
+```python
+    async def test_immediate_alert_sent_before_vl_verdict(self):
+        gate = asyncio.Event()
+        ws = AsyncMock()
+
+        class AlertingProcessor(BaseVideoProcessor):
+            async def process_frame(self, frame, encoded, shape, roi_pixel_points):
+                result = AnalysisResult(annotated_frame=frame)
+
+                async def verdict():
+                    await gate.wait()
+                    return True
+
+                result.extra["pending_alert"] = {
+                    "vl_task": asyncio.create_task(verdict()),
+                    "alert_text": "Detected smoke on cam (1 confirmed detection(s))",
+                    "scene_id": "smoke",
+                    "timestamp": "2026-09-02T00:00:00+00:00",
+                }
+                return result
+
+            async def finalize_result(self, result):
+                task = result.extra.pop("pending_alert")["vl_task"]
+                await task
+
+        proc = AlertingProcessor(
+            source_id="s1",
+            source_name="cam",
+            rtsp_url="rtsp://localhost:8554/cam1",
+            rois=[],
+            vengine_client=MagicMock(),
+            ws_manager=ws,
+            app_settings={},
+        )
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+        await proc._process_frame_item(frame, b"x")
+
+        ws.send_notification.assert_awaited_once()
+        payload = ws.send_notification.call_args[0][0]
+        assert payload["type"] == "alert_notify"
+        assert payload["source_name"] == "cam"
+        assert payload["scene_id"] == "smoke"
+        assert payload["message"] == "Detected smoke on cam (1 confirmed detection(s))"
+        assert ws.broadcast.await_count == 0  # 消息广播仍等 VL 结论
+
+        gate.set()
+        if proc._dispatch_tasks:
+            await asyncio.wait_for(asyncio.gather(*proc._dispatch_tasks), 5.0)
+```
+
+`tests/test_smoke.py` 末尾追加：
+
+```python
+async def test_alert_text_only_on_rising_edge():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+        first = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+        second = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+        await processor.finalize_result(first)
+        await processor.finalize_result(second)
+
+    first_pending = first.extra["pending_alert"]
+    second_pending = second.extra["pending_alert"]
+    assert first_pending["alert_text"] == "Detected 烟雾 on Cam1 (1 confirmed detection(s))"
+    assert first_pending["scene_id"] == "smoke"
+    assert second_pending is not None and "alert_text" not in second_pending
+    assert first.messages[0]["message"] == first_pending["alert_text"]
+```
+
+`tests/test_fire_door.py` 末尾追加：
+
+```python
+async def test_alert_text_only_on_rising_edge():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    roi_points = [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]]
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+
+    with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
+        first = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+        second = await processor.process_frame(frame, b"frame", frame.shape, roi_points)
+        await processor.finalize_result(first)
+        await processor.finalize_result(second)
+
+    first_pending = first.extra["pending_alert"]
+    second_pending = second.extra["pending_alert"]
+    assert first_pending["alert_text"] == "Fire door open on DoorCam ROI 1/1 (0.91)"
+    assert first_pending["scene_id"] == "fire_door"
+    assert second_pending is not None and "alert_text" not in second_pending
+    assert first.messages[0]["message"] == first_pending["alert_text"]
+```
+
+`frontend/src/stores/__tests__/message.test.js` 末尾追加：
+
+```js
+describe('message store — immediate alert banner', () => {
+  it('shows the alert and auto hides after the duration', () => {
+    vi.useFakeTimers()
+    const store = useMessageStore()
+    store.showActiveAlert({ message: 'Detected smoke on Cam1 (1 confirmed detection(s))', source_name: 'Cam1' })
+    expect(store.activeAlert.message).toBe('Detected smoke on Cam1 (1 confirmed detection(s))')
+    vi.advanceTimersByTime(5000)
+    expect(store.activeAlert).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('a new alert replaces the previous one and resets the hide timer', () => {
+    vi.useFakeTimers()
+    const store = useMessageStore()
+    store.showActiveAlert({ message: 'first', source_name: 'A' })
+    vi.advanceTimersByTime(3000)
+    store.showActiveAlert({ message: 'second', source_name: 'B' })
+    expect(store.activeAlert.message).toBe('second')
+    vi.advanceTimersByTime(4000)
+    expect(store.activeAlert.message).toBe('second')
+    vi.advanceTimersByTime(1000)
+    expect(store.activeAlert).toBeNull()
+    vi.useRealTimers()
+  })
+})
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```bash
+uv run pytest tests/test_ws.py::TestSendNotification tests/test_processing.py::TestPushVsVlDecoupling::test_immediate_alert_sent_before_vl_verdict tests/test_smoke.py::test_alert_text_only_on_rising_edge tests/test_fire_door.py::test_alert_text_only_on_rising_edge -q
+cd frontend && npm run test -- --run message.test.js && cd ..
+```
+
+预期：后端 4 条 FAIL（`send_notification` 不存在 / `alert_text` 缺失）；前端 2 条 FAIL（`showActiveAlert` 未定义）。
+
+- [ ] **Step 3: `backend/api/ws.py` 加 `send_notification`**
+
+顶部 import 区补 `import json`。`WSManager` 类内 `broadcast` 方法之后加：
+
+```python
+    async def send_notification(self, payload: dict[str, Any]) -> None:
+        """Send a raw notification to all clients without persisting it.
+        向所有客户端发送轻量通知（不持久化，不进消息页）。"""
+        text = json.dumps(payload, ensure_ascii=False)
+        dead: list[WebSocket] = []
+        async with self._lock:
+            connections = set(self._connections)
+        for ws in connections:
+            try:
+                await ws.send_text(text)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            await self.disconnect(ws)
+```
+
+- [ ] **Step 4: `backend/processing/base.py` 在 `_dispatch_result` 前置即时告警**
+
+`_dispatch_result` 的 try 块首行（`await self.finalize_result(result)` 之前）插入：
+
+```python
+            await self._send_immediate_alert(result)
+```
+
+并在 `_dispatch_result` 之后新增方法：
+
+```python
+    async def _send_immediate_alert(self, result: AnalysisResult) -> None:
+        """Send the immediate top-banner alert (no VL wait, no DB persist).
+        发送即时顶部告警横幅（不等 VL 结论、不入库）。"""
+        pending = result.extra.get("pending_alert")
+        if not isinstance(pending, dict):
+            return
+        text = str(pending.get("alert_text") or "").strip()
+        if not text or self.ws_manager is None:
+            return
+        await self.ws_manager.send_notification(
+            {
+                "type": "alert_notify",
+                "timestamp": pending.get("timestamp"),
+                "source_id": self.source_id,
+                "source_name": self.source_name,
+                "scene_id": str(pending.get("scene_id") or ""),
+                "message": text,
+            }
+        )
+```
+
+- [ ] **Step 5: `core/smoke/processor.py` 边沿告警文本**
+
+import 行改为：
+
+```python
+from core.smoke.email import build_event_label, build_smoke_email_event
+```
+
+`__init__` 中 `self._pending_vl_tasks` 之后加：
+
+```python
+        self._was_alarmed = False
+```
+
+`process_frame` 中 Task 3 建立的 `pending_alert` 块（`pending_alert = None` / `if post_result.has_alarm and confirmed:` …）替换为：
+
+```python
+        pending_alert = None
+        is_alarmed = bool(post_result.has_alarm and confirmed)
+        rising_edge = is_alarmed and not self._was_alarmed
+        self._was_alarmed = is_alarmed
+        if is_alarmed:
+            vl_task = None
+            if self._vl_confirm_enabled():
+                vl_task = asyncio.create_task(
+                    self._vl_confirm_alert(frame, annotated, primary_roi)
+                )
+                self._pending_vl_tasks.add(vl_task)
+                vl_task.add_done_callback(self._pending_vl_tasks.discard)
+            labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
+            pending_alert = {
+                "frame": frame,
+                "annotated": annotated,
+                "confirmed": confirmed,
+                "post_result": post_result,
+                "timestamp": timestamp,
+                "vl_task": vl_task,
+                "scene_id": "smoke",
+            }
+            if rising_edge:
+                pending_alert["alert_text"] = (
+                    f"Detected {build_event_label(labels)} on {self.source_name} "
+                    f"({len(confirmed)} confirmed detection(s))"
+                )
+        result.extra["pending_alert"] = pending_alert
+        return result
+```
+
+- [ ] **Step 6: `core/fire_door/processor.py` 同型改造**
+
+`__init__` 中 `self._pending_vl_tasks` 之后加 `self._was_alarmed = False`。
+
+`process_frame` 中 Task 3 建立的 `pending_alert` 块替换为：
+
+```python
+        alert_items = [item for item in classifications if item.get("alarm")]
+        is_alarmed = bool(alert_items)
+        rising_edge = is_alarmed and not self._was_alarmed
+        self._was_alarmed = is_alarmed
+        pending_alert = None
+        if is_alarmed:
+            vl_task = None
+            if self._vl_confirm_enabled():
+                vl_task = asyncio.create_task(
+                    self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
+                )
+                self._pending_vl_tasks.add(vl_task)
+                vl_task.add_done_callback(self._pending_vl_tasks.discard)
+            best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
+            pending_alert = {
+                "frame": frame,
+                "annotated": annotated,
+                "alert_items": alert_items,
+                "classifications": classifications,
+                "fire_rois": fire_rois,
+                "timestamp": timestamp,
+                "vl_task": vl_task,
+                "scene_id": "fire_door",
+            }
+            if rising_edge:
+                pending_alert["alert_text"] = (
+                    f"Fire door open on {self.source_name} "
+                    f"ROI {int(best.get('roi_index') or 0)}/{len(fire_rois)} "
+                    f"({float(best.get('confidence') or 0.0):.2f})"
+                )
+        result.extra["pending_alert"] = pending_alert
+        return result
+```
+
+- [ ] **Step 7: 前端 store —— `activeAlert` + `onmessage` 分支**
+
+`frontend/src/stores/message.js`：
+
+`pendingCount`/`selectedIds` 声明附近加状态：
+
+```js
+  const activeAlert = ref(null)
+  const ALERT_BANNER_DURATION_MS = 5000
+  let _alertHideTimer = null
+  let _alertSeq = 0
+
+  function showActiveAlert(payload) {
+    const seq = ++_alertSeq
+    activeAlert.value = {
+      seq,
+      message: String((payload && payload.message) || ''),
+      sourceName: String((payload && payload.source_name) || ''),
+    }
+    if (_alertHideTimer) clearTimeout(_alertHideTimer)
+    _alertHideTimer = setTimeout(() => {
+      if (_alertSeq === seq) activeAlert.value = null
+    }, ALERT_BANNER_DURATION_MS)
+  }
+```
+
+`onmessage` 的 `if (msg === 'pong') return` 之后加：
+
+```js
+        if (msg.type === 'alert_notify') {
+          showActiveAlert(msg)
+          return
+        }
+```
+
+return 对象中 `wsConnected,` 之后加 `activeAlert,` 与 `showActiveAlert,`。
+
+- [ ] **Step 8: 前端 App.vue —— 横幅 + 全局 WS**
+
+`frontend/src/App.vue`：
+
+`<el-main class="app-main">` 内、`<router-view />` 之前插入：
+
+```html
+        <div v-if="messageStore.activeAlert" class="alert-banner" role="alert">
+          <el-icon class="alert-banner__icon"><Bell /></el-icon>
+          <span class="alert-banner__text">{{ messageStore.activeAlert.message }}</span>
+        </div>
+```
+
+script 区：补 import（若未引入）`import { useMessageStore } from './stores/message.js'` 与 vue 的 `watch`；实例化 `const messageStore = useMessageStore()`；在既有 store/计算属性初始化之后加：
+
+```js
+watch(
+  () => authStore.token,
+  (token) => {
+    if (token) messageStore.connectWS()
+    else messageStore.disconnectWS()
+  },
+  { immediate: true },
+)
+```
+
+（`Bell` 图标 App.vue 已 import；`authStore` 已存在。若 `watch` 尚未从 vue import，补进既有 import。）
+
+样式（并入 App.vue 既有 `<style>` 块，scoped 与否随该块现状）：
+
+```css
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  background: rgba(245, 108, 0, 0.12);
+  border: 1px solid rgba(245, 108, 0, 0.55);
+  border-left: 3px solid #f56c00;
+  border-radius: 4px;
+  color: #ffb26b;
+  font-size: 13px;
+}
+```
+
+- [ ] **Step 9: 跑测试确认通过**
+
+```bash
+uv run pytest tests/test_ws.py tests/test_processing.py tests/test_smoke.py tests/test_fire_door.py -q
+cd frontend && npm run test && npm run build && cd ..
+```
+
+预期：全部 PASS。
+
+- [ ] **Step 10: 静态检查 + 提交**
+
+```bash
+uv run ruff check backend/api/ws.py backend/processing/base.py core/smoke/processor.py core/fire_door/processor.py tests/test_ws.py tests/test_processing.py tests/test_smoke.py tests/test_fire_door.py
+git add backend/api/ws.py backend/processing/base.py core/smoke/processor.py core/fire_door/processor.py frontend/src/stores/message.js frontend/src/App.vue frontend/src/stores/__tests__/message.test.js tests/test_ws.py tests/test_processing.py tests/test_smoke.py tests/test_fire_door.py
+git commit -m "feat(alerts): immediate top alert banner without waiting for VL verdict"
+```
+
+---
+
+### Task 6: 前端 —— 代理模式 UI + i18n
 
 **Files:**
 - Modify: `frontend/src/views/Settings.vue`
@@ -1436,7 +1880,7 @@ git commit -m "feat(settings-ui): add VL proxy mode/url fields"
 
 ---
 
-### Task 6: 全量验证 + 推送
+### Task 7: 全量验证 + 推送
 
 - [ ] **Step 1: 后端全量测试**
 

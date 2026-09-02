@@ -32,6 +32,8 @@
   构造点漂移。
 - 配置错误不杀死告警链路（自动确认路径失败开放）。
 - 开启复判后，实时画面（标注帧推流）不得被 VL 调用阻塞；消息与通知语义保持不变。
+- 告警触发时（不等 VL 复盘）网页顶部显示即时告警横幅：内容与消息页文本一致、
+  仅文本无图像；新替换旧，无新告警时数秒后自动消失；不遮挡顶部导航与视频墙。
 
 ## 设计
 
@@ -119,7 +121,41 @@
 4. **已知权衡**：不同帧的 VL 结论可能乱序完成 → 消息列表短暂乱序
    （按时间戳展示，影响很小）。
 
-### 4. 错误处理
+### 4. 即时告警顶部横幅（不等 VL 复盘）
+
+**需求**：告警触发瞬间（不等 VL 结论）在网页顶部提示；内容为消息页消息文本
+（smoke 形如 `Detected 烟雾 on Cam1 (1 confirmed detection(s))`），仅文本无图像；
+新告警替换旧横幅，无新告警时约 5 秒后自动消失；不得遮挡顶部导航（视频墙/消息
+按钮）与视频墙画面。
+
+**设计**：
+
+1. **`WSManager.send_notification(payload: dict)`**（`backend/api/ws.py`）：原始 JSON
+   广播给所有已连接 WS 客户端，**不持久化 DB**（`broadcast` 会入库，不能复用，
+   否则消息页出现重复条目）。
+2. **场景 processor 边沿触发**（smoke/fire_door）：`has_alarm` 是电平信号
+   （告警保持 3s + 采样 3fps，单次事件约 9 帧），逐帧提示会刷屏。
+   `process_frame` 用 `self._was_alarmed` 跟踪，仅在**上升沿**（无告警→有告警）
+   时把告警文本（与最终消息文本逐字一致、无图像、不依赖 VL）放入
+   `pending_alert["alert_text"]`，并附 `"scene_id"`；非边沿告警帧不放入。
+   - smoke：`Detected {build_event_label(labels)} on {source_name} ({n} confirmed detection(s))`
+   - fire_door：`Fire door open on {source_name} ROI {i}/{n} ({conf:.2f})`
+3. **backend 基类 `_dispatch_result`**：在 `await self.finalize_result(result)`
+   （等 VL 结论）**之前**，若 `pending_alert["alert_text"]` 存在则
+   `await self.ws_manager.send_notification({"type": "alert_notify", "timestamp",
+   "source_id", "source_name", "scene_id", "message"})`。
+4. **前端**：
+   - `stores/message.js` 的 `connectWS` 目前定义了但**无任何页面调用**（死代码）→
+     `App.vue` 按 `authStore.token` 存在与否全局 `connectWS()` / `disconnectWS()`
+     （单连接复用，所有页面生效）。
+   - `onmessage` 分支：`msg.type === 'alert_notify'` → `showActiveAlert(msg)`：
+     更新 `activeAlert`（**新替换旧**）+ 重置 5s 自动隐藏计时器；**不进消息列表**。
+   - `App.vue` 的 `el-main` 顶部（`router-view` 之上）渲染**常规流式**
+     `<div class="alert-banner">`（随布局下推内容，零遮挡），仅显示 message 文本。
+5. **已知行为**：横幅在告警触发瞬间出现；若 VL 后续拒报，消息页该条标"误报"，
+   但横幅不回收（用户明确要求不等复盘）。
+
+### 5. 错误处理
 
 - **端点**（vl/test、vl-review）：`manual` 模式但 URL 为空/非法 →
   `HTTPException(422, detail=...)`，明确说明手动代理地址缺失或格式错误。
@@ -129,7 +165,7 @@
 - **升级行为变化**：键缺失 = `none` = 直连。依赖环境变量代理的既有部署需手动切
   `system`（PR 说明中注明；部署机可用 `docker exec <容器> env | grep -i proxy` 自查）。
 
-### 5. 前端（`frontend/src/views/Settings.vue`）
+### 6. 前端 —— 代理模式（`frontend/src/views/Settings.vue`）
 
 - 全局 VL 配置区（base_url/model/timeout 所在处）新增：
   - "代理模式" `el-select`：不走代理（默认）/ 手动设置 / 走系统代理
@@ -139,13 +175,13 @@
 - 保存载荷经 `pickFormValues` 走既有 `saveSection` 流程，无新机制。
 - i18n：`zh-CN` / `en-US` 各加标签与（manual 时）提示文案。
 
-### 6. 日志
+### 7. 日志
 
 - 工厂每次构造时 `logger.info("VL client: proxy_mode={}", mode)`（客户端每次调用都新建，
   与现有 `VL request ok` INFO 频率一致；不记录代理 URL，避免泄露其中可能含的凭据）。
 - 端点成功/失败日志沿用现有（`VL connection test ok/failed`、`VL re-review ok/failed`）。
 
-### 7. 测试
+### 8. 测试
 
 1. **工厂三模式路由**（复用本地 uvicorn 模型服务器 + 录制型代理的既有模式）：
    - `none`：即使环境设置了 `HTTP_PROXY`（指向录制代理），模型服务器收到请求、
@@ -168,10 +204,20 @@
    - backend 处理器：`_process_frame_item` 返回时推流队列已有帧、
      `ws_manager.broadcast` 尚未调用；放行 gate 后广播发生（1 次）。
    - `stop()`：挂起中的 dispatch/VL 任务被 cancel，无未处理异常。
+7. **即时告警横幅**（§4 的回归测试）：
+   - `WSManager.send_notification`：到达所有客户端的原始 JSON，
+     **不触发** `persist_message`。
+   - backend `_dispatch_result`：VL 判定被 gate 挂起时 `send_notification`
+     已调用（payload 含 `type=alert_notify` 与告警文本），消息广播仍未发生。
+   - 场景 processor：`pending_alert["alert_text"]` 与最终消息文本逐字一致；
+     上升沿触发（同一告警事件第二帧无 `alert_text`）。
+   - 前端 store：`showActiveAlert` 新替换旧；5s 无新告警自动隐藏；
+     新告警重置计时器（vitest fake timers）。
 
-### 8. 不做（YAGNI）
+### 9. 不做（YAGNI）
 
 - 不做 per-scene 代理（VL 后端是全局共享端点）。
 - 不做代理健康检查/自动切换。
 - 不改其他 HTTP 客户端（邮件 SMTP、WHEP 代理等）的代理行为。
 - 不在 `none`/`manual` 模式下尝试保留 `NO_PROXY` 语义（行为确定优先）。
+- 横幅不做多告警堆叠/按来源分组（新替换旧即可）；不做横幅历史/关闭按钮。
