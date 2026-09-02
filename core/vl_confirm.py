@@ -73,6 +73,71 @@ def parse_vl_response(text: str, response_key: str) -> bool | None:
     return None
 
 
+DEFAULT_VL_MAX_TOKENS = 1024
+DEFAULT_VL_TEMPERATURE = 0.0
+VL_MAX_TOKENS_LIMIT = 32768
+
+
+def _parse_float(raw: object, default: float) -> float:
+    try:
+        return float(str(raw).strip())
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def vl_sampling_kwargs(
+    settings: dict[str, str],
+    scene_id: str,
+    overrides: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
+    """Build VLConfirmClient sampling kwargs from per-scene settings.
+    从场景级设置构建 VL 采样参数。
+
+    Merge order: ``overrides`` (request body) -> saved
+    ``<scene>_vl_confirm_*`` settings -> defaults. 宽松解析：解析失败
+    回退默认值，不抛错。
+    """
+
+    def merged(key: str) -> str:
+        override = (overrides or {}).get(key)
+        if override is not None and str(override).strip():
+            return str(override).strip()
+        saved = settings.get(key)
+        if saved is not None and str(saved).strip():
+            return str(saved).strip()
+        return ""
+
+    prefix = f"{scene_id}_vl_confirm_"
+
+    max_tokens = _parse_float(
+        merged(prefix + "max_tokens") or str(DEFAULT_VL_MAX_TOKENS),
+        DEFAULT_VL_MAX_TOKENS,
+    )
+    max_tokens = int(max(1.0, min(max_tokens, float(VL_MAX_TOKENS_LIMIT))))
+
+    temperature = _parse_float(
+        merged(prefix + "temperature") or str(DEFAULT_VL_TEMPERATURE),
+        DEFAULT_VL_TEMPERATURE,
+    )
+    temperature = max(0.0, min(temperature, 2.0))
+
+    top_p: float | None = None
+    raw_top_p = merged(prefix + "top_p")
+    if raw_top_p:
+        parsed = _parse_float(raw_top_p, 0.0)
+        if 0 < parsed <= 1:
+            top_p = parsed
+
+    disable_thinking = merged(prefix + "disable_thinking").lower() == "true"
+
+    return {
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p,
+        "disable_thinking": disable_thinking,
+    }
+
+
 def encode_frame_as_data_url(frame: np.ndarray) -> str:
     """Encode an RGB ndarray as a JPEG data URL."""
     bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -152,8 +217,16 @@ class VLConfirmClient:
         api_key: str,
         model: str,
         timeout: int = 60,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        top_p: float | None = None,
+        disable_thinking: bool = False,
     ) -> None:
         self._model = model
+        self._max_tokens = max_tokens
+        self._temperature = temperature
+        self._top_p = top_p
+        self._disable_thinking = disable_thinking
         if AsyncOpenAI is None:
             raise RuntimeError("openai SDK is not installed")
         self._client = AsyncOpenAI(
@@ -173,12 +246,17 @@ class VLConfirmClient:
             {"type": "image_url", "image_url": {"url": image_data_url}},
             {"type": "text", "text": prompt},
         ]
-        response = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[{"role": "user", "content": content}],
-            max_tokens=1024,
-            temperature=0,
-        )
+        create_kwargs: dict[str, Any] = {
+            "model": self._model,
+            "messages": [{"role": "user", "content": content}],
+            "max_tokens": self._max_tokens,
+            "temperature": self._temperature,
+        }
+        if self._top_p is not None:
+            create_kwargs["top_p"] = self._top_p
+        if self._disable_thinking:
+            create_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        response = await self._client.chat.completions.create(**create_kwargs)
         return response.choices[0].message.content or ""
 
     async def confirm(

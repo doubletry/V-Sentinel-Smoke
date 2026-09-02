@@ -15,6 +15,7 @@ from core.vl_confirm import (
     crop_roi_image,
     encode_frame_as_data_url,
     parse_vl_response,
+    vl_sampling_kwargs,
 )
 
 
@@ -250,3 +251,122 @@ async def test_complete_max_tokens_covers_thinking_models():
 
     kwargs = client._client.chat.completions.create.await_args.kwargs
     assert kwargs["max_tokens"] >= 512
+
+
+def test_vl_sampling_kwargs_defaults():
+    kwargs = vl_sampling_kwargs({}, "smoke")
+    assert kwargs == {"max_tokens": 1024, "temperature": 0.0, "top_p": None, "disable_thinking": False}
+
+
+def test_vl_sampling_kwargs_scene_isolation():
+    settings = {
+        "smoke_vl_confirm_max_tokens": "256",
+        "smoke_vl_confirm_disable_thinking": "true",
+        "fire_door_vl_confirm_max_tokens": "512",
+    }
+    assert vl_sampling_kwargs(settings, "smoke")["max_tokens"] == 256
+    assert vl_sampling_kwargs(settings, "smoke")["disable_thinking"] is True
+    assert vl_sampling_kwargs(settings, "fire_door")["max_tokens"] == 512
+    assert vl_sampling_kwargs(settings, "fire_door")["disable_thinking"] is False
+
+
+def test_vl_sampling_kwargs_overrides_take_precedence():
+    kwargs = vl_sampling_kwargs(
+        {"smoke_vl_confirm_max_tokens": "256", "smoke_vl_confirm_temperature": "0.5"},
+        "smoke",
+        overrides={"smoke_vl_confirm_max_tokens": "64", "smoke_vl_confirm_top_p": "0.9"},
+    )
+    assert kwargs["max_tokens"] == 64
+    assert kwargs["temperature"] == 0.5
+    assert kwargs["top_p"] == 0.9
+    assert kwargs["disable_thinking"] is False
+
+
+def test_vl_sampling_kwargs_lenient_parsing():
+    settings = {
+        "smoke_vl_confirm_max_tokens": "abc",
+        "smoke_vl_confirm_temperature": "-3",
+        "smoke_vl_confirm_top_p": "1.5",
+        "smoke_vl_confirm_disable_thinking": "TRUE",
+    }
+    kwargs = vl_sampling_kwargs(settings, "smoke")
+    assert kwargs["max_tokens"] == 1024
+    assert kwargs["temperature"] == 0.0
+    assert kwargs["top_p"] is None
+    assert kwargs["disable_thinking"] is True
+
+    clamped = vl_sampling_kwargs(
+        {
+            "smoke_vl_confirm_max_tokens": "0",
+            "smoke_vl_confirm_temperature": "5",
+            "smoke_vl_confirm_top_p": "0.9",
+        },
+        "smoke",
+    )
+    assert clamped["max_tokens"] == 1
+    assert clamped["temperature"] == 2.0
+    assert clamped["top_p"] == 0.9
+
+
+def test_vl_sampling_kwargs_extreme_values_do_not_raise():
+    kwargs = vl_sampling_kwargs(
+        {
+            "smoke_vl_confirm_max_tokens": "1e400",
+            "smoke_vl_confirm_temperature": "1e400",
+            "smoke_vl_confirm_top_p": "1e400",
+        },
+        "smoke",
+    )
+    assert kwargs["max_tokens"] == 32768
+    assert kwargs["temperature"] == 2.0
+    assert kwargs["top_p"] is None
+
+
+async def test_complete_passes_sampling_kwargs():
+    client = VLConfirmClient(
+        "http://localhost:30000/v1", "EMPTY", "/models/Mage-VL",
+        max_tokens=256, temperature=0.5, top_p=0.9,
+    )
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "ok"
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    await client.complete("data:image/jpeg;base64,abc", "Ping")
+
+    kwargs = client._client.chat.completions.create.await_args.kwargs
+    assert kwargs["max_tokens"] == 256
+    assert kwargs["temperature"] == 0.5
+    assert kwargs["top_p"] == 0.9
+    assert "extra_body" not in kwargs
+
+
+async def test_complete_omits_top_p_when_none():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "ok"
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    await client.complete("data:image/jpeg;base64,abc", "Ping")
+
+    assert "top_p" not in client._client.chat.completions.create.await_args.kwargs
+
+
+async def test_complete_disable_thinking_sends_extra_body():
+    client = VLConfirmClient(
+        "http://localhost:30000/v1", "EMPTY", "/models/Mage-VL",
+        disable_thinking=True,
+    )
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "ok"
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    await client.complete("data:image/jpeg;base64,abc", "Ping")
+
+    kwargs = client._client.chat.completions.create.await_args.kwargs
+    assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
