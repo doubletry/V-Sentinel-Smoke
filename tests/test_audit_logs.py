@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from httpx import AsyncClient
+from loguru import logger
 
 from backend.auth.security import create_access_token
 from backend.db import database as db
@@ -100,3 +102,22 @@ class TestAuditLogs:
             headers={"Authorization": "Bearer " + user_token},
         )
         assert resp.status_code == 403
+
+    async def test_request_succeeds_when_audit_write_fails(self, async_client: AsyncClient):
+        import backend.audit as audit_mod
+
+        async def failing_create(**kwargs):
+            raise RuntimeError("audit db down")
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="ERROR")
+        try:
+            with patch.object(audit_mod.db, "create_audit_log", new=failing_create):
+                resp = await async_client.put(
+                    "/api/settings", json={"site_title": "AuditFail"}
+                )
+        finally:
+            logger.remove(sink_id)
+
+        assert resp.status_code == 200  # 审计故障不得破坏正常请求
+        assert any("Failed to write audit log" in r["message"] for r in records)

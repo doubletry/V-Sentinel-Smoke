@@ -4,6 +4,7 @@ import json
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request
+from loguru import logger
 from starlette.responses import Response
 
 from backend.auth.dependencies import _extract_bearer_token, _resolve_token_payload
@@ -246,18 +247,30 @@ async def audit_request(request: Request, call_next: Callable[[Request], Awaitab
     try:
         response = await call_next(working_request)
     except Exception as exc:
-        await write_audit_log(
-            working_request,
-            status_code=500,
-            payload=payload,
-            detail=_exception_detail(exc),
-        )
+        try:
+            await write_audit_log(
+                working_request,
+                status_code=500,
+                payload=payload,
+                detail=_exception_detail(exc),
+            )
+        except Exception:
+            logger.opt(exception=True).error(
+                "Failed to write audit log for failed request: {} {}",
+                request.method,
+                request.url.path,
+            )
         raise
 
-    await write_audit_log(
-        working_request,
-        response=response,
-        status_code=response.status_code,
-        payload=payload,
-    )
+    try:
+        await write_audit_log(
+            working_request,
+            response=response,
+            status_code=response.status_code,
+            payload=payload,
+        )
+    except Exception:
+        logger.opt(exception=True).error(
+            "Failed to write audit log: {} {}", request.method, request.url.path
+        )
     return response
