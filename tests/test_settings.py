@@ -219,6 +219,7 @@ class TestSettingsAPI:
             resp = await async_client.post(
                 "/api/settings/vl/test",
                 json={
+                    "scene_id": "smoke",
                     "vl_confirm_base_url": "http://vl.example.com/v1",
                     "vl_confirm_api_key": "test-key",
                     "vl_confirm_model": "/models/test-vl",
@@ -235,7 +236,9 @@ class TestSettingsAPI:
 
     async def test_vl_test_endpoint_missing_model_rejected(self, async_client: AsyncClient):
         await update_settings({"vl_confirm_model": ""})
-        resp = await async_client.post("/api/settings/vl/test", json={"vl_confirm_base_url": "http://x/v1"})
+        resp = await async_client.post(
+            "/api/settings/vl/test", json={"scene_id": "smoke", "vl_confirm_base_url": "http://x/v1"}
+        )
         assert resp.status_code == 422
 
     async def test_vl_test_endpoint_upstream_error_502(self, async_client: AsyncClient):
@@ -246,12 +249,64 @@ class TestSettingsAPI:
             resp = await async_client.post(
                 "/api/settings/vl/test",
                 json={
+                    "scene_id": "smoke",
                     "vl_confirm_base_url": "http://vl.example.com/v1",
                     "vl_confirm_model": "/models/test-vl",
                 },
             )
         assert resp.status_code == 502
         assert "401 unauthorized" in resp.json()["detail"]
+
+    async def test_vl_test_endpoint_missing_scene_rejected(self, async_client: AsyncClient):
+        resp = await async_client.post(
+            "/api/settings/vl/test",
+            json={"vl_confirm_base_url": "http://x/v1"},
+        )
+        assert resp.status_code == 422
+
+    async def test_vl_test_endpoint_invalid_scene_rejected(self, async_client: AsyncClient):
+        resp = await async_client.post(
+            "/api/settings/vl/test",
+            json={"scene_id": "foo", "vl_confirm_base_url": "http://x/v1"},
+        )
+        assert resp.status_code == 422
+
+    async def test_vl_test_endpoint_sampling_overrides_applied(self, async_client: AsyncClient):
+        with patch("backend.api.settings.VLConfirmClient") as mock_cls:
+            mock_cls.return_value.complete = AsyncMock(return_value='{"connected": true}')
+            resp = await async_client.post(
+                "/api/settings/vl/test",
+                json={
+                    "scene_id": "smoke",
+                    "vl_confirm_base_url": "http://vl.example.com/v1",
+                    "vl_confirm_model": "/models/test-vl",
+                    "smoke_vl_confirm_max_tokens": "64",
+                    "smoke_vl_confirm_temperature": "0.7",
+                    "smoke_vl_confirm_top_p": "0.9",
+                    "smoke_vl_confirm_disable_thinking": "true",
+                },
+            )
+        assert resp.status_code == 200
+        kwargs = mock_cls.call_args.kwargs
+        assert kwargs["max_tokens"] == 64
+        assert kwargs["temperature"] == 0.7
+        assert kwargs["top_p"] == 0.9
+        assert kwargs["disable_thinking"] is True
+
+    async def test_vl_test_endpoint_sampling_falls_back_to_scene_settings(self, async_client: AsyncClient):
+        await update_settings({"smoke_vl_confirm_max_tokens": "128"})
+        with patch("backend.api.settings.VLConfirmClient") as mock_cls:
+            mock_cls.return_value.complete = AsyncMock(return_value='{"connected": true}')
+            resp = await async_client.post(
+                "/api/settings/vl/test",
+                json={
+                    "scene_id": "smoke",
+                    "vl_confirm_base_url": "http://vl.example.com/v1",
+                    "vl_confirm_model": "/models/test-vl",
+                },
+            )
+        assert resp.status_code == 200
+        assert mock_cls.call_args.kwargs["max_tokens"] == 128
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,

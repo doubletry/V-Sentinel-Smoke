@@ -624,7 +624,16 @@ class VlTestRequest(BaseModel):
     """Payload for testing the VL backend without saving first.
     用于在不先保存的情况下测试 VL 后端的载荷。"""
 
+    scene_id: str
     vl_confirm_base_url: str | None = None
     vl_confirm_api_key: str | None = None
     vl_confirm_model: str | None = None
     vl_confirm_timeout: str | None = None
+    smoke_vl_confirm_max_tokens: str | None = None
+    smoke_vl_confirm_temperature: str | None = None
+    smoke_vl_confirm_top_p: str | None = None
+    smoke_vl_confirm_disable_thinking: str | None = None
+    fire_door_vl_confirm_max_tokens: str | None = None
+    fire_door_vl_confirm_temperature: str | None = None
+    fire_door_vl_confirm_top_p: str | None = None
+    fire_door_vl_confirm_disable_thinking: str | None = None

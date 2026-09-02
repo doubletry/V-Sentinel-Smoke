@@ -9,7 +9,7 @@ from backend.auth.dependencies import current_user, has_permission, require_any_
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest, VlTestRequest
 from backend.notifications.email_config import build_email_settings_smtp_config
-from core.vl_confirm import VLConfirmClient, VL_TEST_PROMPT, build_vl_test_image_data_url
+from core.vl_confirm import VLConfirmClient, VL_TEST_PROMPT, build_vl_test_image_data_url, vl_sampling_kwargs
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
@@ -243,6 +243,8 @@ async def test_vl_settings(
 ) -> dict[str, object]:
     """Run a full connection test against the configured VL backend.
     使用当前或传入的设置对 VL 后端做一次全链路连接测试。"""
+    if data.scene_id not in ("smoke", "fire_door"):
+        raise HTTPException(status_code=422, detail="scene_id must be 'smoke' or 'fire_door'")
     app_settings = await db.get_all_settings()
     base_url = str(data.vl_confirm_base_url or app_settings.get("vl_confirm_base_url") or "").strip()
     api_key = str(data.vl_confirm_api_key or app_settings.get("vl_confirm_api_key") or "").strip()
@@ -252,9 +254,20 @@ async def test_vl_settings(
         raise HTTPException(status_code=422, detail="VL base URL and model are required")
     try:
         timeout = max(1, int(float(timeout_raw)))
-    except ValueError:
+    except (ValueError, OverflowError):
         timeout = 60
-    client = VLConfirmClient(base_url=base_url, api_key=api_key or "EMPTY", model=model, timeout=timeout)
+    sampling_overrides = {
+        key: value
+        for key, value in data.model_dump().items()
+        if key.startswith(f"{data.scene_id}_vl_confirm_") and value is not None
+    }
+    client = VLConfirmClient(
+        base_url=base_url,
+        api_key=api_key or "EMPTY",
+        model=model,
+        timeout=timeout,
+        **vl_sampling_kwargs(app_settings, data.scene_id, overrides=sampling_overrides),
+    )
     started = time.monotonic()
     try:
         raw = await client.complete(build_vl_test_image_data_url(), VL_TEST_PROMPT)
