@@ -231,3 +231,22 @@ def test_encode_frame_as_data_url_roundtrip():
 
 def test_vl_test_prompt_mentions_json():
     assert "connected" in VL_TEST_PROMPT
+
+
+async def test_complete_max_tokens_covers_thinking_models():
+    """max_tokens must leave room for thinking models (e.g. Qwen3) that emit
+    reasoning tokens before the final JSON answer. A small budget gets fully
+    consumed by reasoning, the content is truncated to None and the review
+    result degrades to 'unknown'.
+    """
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '{"connected": true}'
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    await client.complete("data:image/jpeg;base64,abc", "Ping")
+
+    kwargs = client._client.chat.completions.create.await_args.kwargs
+    assert kwargs["max_tokens"] >= 512

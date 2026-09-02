@@ -103,7 +103,7 @@ export const messagesApi = {
   markFalsePositive: (id) => api.post(`/api/messages/${id}/false-positive`),
   unmarkFalsePositive: (id) => api.delete(`/api/messages/${id}/false-positive`),
   resendNotification: (id) => api.post(`/api/messages/${id}/resend-notification`),
-  vlReview: (id) => api.post(`/api/messages/${id}/vl-review`),
+  vlReview: (id) => api.post(`/api/messages/${id}/vl-review`, null, { timeout: 0 }),
   delete: (id) => api.delete(`/api/messages/${id}`),
   batchDelete: (ids) => api.post('/api/messages/batch-delete', { ids }),
 }
@@ -114,7 +114,7 @@ export const settingsApi = {
   get: () => api.get('/api/settings'),
   update: (data) => api.put('/api/settings', data),
   testEmail: (data) => api.post('/api/settings/email/test', data),
-  testVl: (data) => api.post('/api/settings/vl/test', data),
+  testVl: (data) => api.post('/api/settings/vl/test', data, { timeout: 0 }),
   emailTemplatePlaceholders: () => api.get('/api/settings/email/template-placeholders'),
 }
 

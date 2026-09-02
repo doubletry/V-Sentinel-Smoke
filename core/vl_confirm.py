@@ -176,7 +176,7 @@ class VLConfirmClient:
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[{"role": "user", "content": content}],
-            max_tokens=50,
+            max_tokens=1024,
             temperature=0,
         )
         return response.choices[0].message.content or ""
