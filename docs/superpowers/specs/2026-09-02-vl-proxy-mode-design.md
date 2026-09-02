@@ -31,6 +31,7 @@
 - 四种调用路径（自动确认 ×2、手动复盘、连接测试）行为一致，不允许再次出现
   构造点漂移。
 - 配置错误不杀死告警链路（自动确认路径失败开放）。
+- 开启复判后，实时画面（标注帧推流）不得被 VL 调用阻塞；消息与通知语义保持不变。
 
 ## 设计
 
@@ -75,12 +76,50 @@
 
 | 调用点 | 改法 |
 |---|---|
-| `core/smoke/processor.py:191` | `build_vl_client(self.app_settings, "smoke")` |
-| `core/fire_door/processor.py:270` | `build_vl_client(self.app_settings, "fire_door")` |
+| `core/smoke/processor.py` `_vl_confirm_alert`（§3 改造后为后台任务体） | try `build_vl_client(self.app_settings, "smoke")`，`ValueError` → WARNING + 回退 `none` |
+| `core/fire_door/processor.py` `_vl_confirm_alert`（同上） | try `build_vl_client(self.app_settings, "fire_door")`，同上 |
 | `backend/api/messages.py:176`（vl-review） | 先按现状 422 校验 base_url/model，再 `build_vl_client(settings_map, scene_id)` |
 | `backend/api/settings.py:278`（vl/test） | 先按现状 422 校验，再 `build_vl_client(app_settings, data.scene_id, overrides=<请求体全部 vl_confirm_* 字段>)` |
 
-### 3. 错误处理
+### 3. 实时推流与 VL 复判解耦
+
+**问题**：当前每帧流水线为 `process_frame`（内含 `await _vl_confirm_alert`，最长
+`vl_confirm_timeout`=60s）→ `agent.submit`（WS 广播消息 + 通知）→ 推流入队。
+开启复判后，VL 一慢，整帧流水线（含实时画面推流、处理槽位）被卡住。
+
+**目标**：推流立即入队，不等 VL；消息与通知的语义与到达时机与现状一致
+（结论到达后才广播/发通知），`false_positive` 标记在持久化前已确定。
+
+**设计**：
+
+1. **`core/base_processor.py`** 新增可覆写钩子
+   `async def finalize_result(self, result) -> None`（默认 no-op）。
+2. **`backend/processing/base.py`** `_handle_result` 重排：
+   - 先 `await super()._handle_result(frame, result)`（推流入队，毫秒级）；
+   - 再派一个**脱离帧处理槽位的后台任务** `_dispatch_result(result)`：
+     `await self.finalize_result(result)`（等 VL 结论，受客户端总超时上限约束）
+     → `agent.submit(...)`（或无 agent 时的直接广播，沿用现有转换逻辑）。
+   - 后台任务记入 `self._dispatch_tasks`（set + done 回调清理）；
+     `stop()` 覆写：先 cancel 所有 `_dispatch_tasks` 再 `super().stop()`。
+   - `_dispatch_result` 整体 try/except 记 ERROR（不让分发失败影响推流）。
+3. **场景 processor**（smoke/fire_door，改法对称）：
+   - `process_frame` 不再 await VL：告警且复判开启时
+     `task = asyncio.create_task(self._vl_confirm_alert(...))`，与告警上下文
+     （frame/annotated/confirmed 等引用 + 该 task）一起存
+     `result.extra["pending_alert"]`，立即返回；
+     告警且复判关闭：`pending_alert` 不含 task，其余同。
+   - 告警消息/邮件事件的构建整体移入 `finalize_result(result)`：
+     `vl_result = await task`（无 task 则为 None）→ `vl_rejected = vl_result is False`
+     → 按现有代码构建消息（`false_positive`）与 `email_event`（拒报时不附加）。
+   - 既有日志不变：拒报 WARNING `Alarm rejected by VL confirm...`、
+     确认 INFO `Alarm confirmed by VL confirm...`（移入 `finalize_result`）。
+   - 场景 `__init__` 增加 `self._pending_vl_tasks: set[asyncio.Task]`（create_task 时登记，
+     done 回调移除）；覆写 `stop()`：cancel 挂起 VL 任务后再 `super().stop()`
+     （MRO 链：backend base → 场景 core → core base）。
+4. **已知权衡**：不同帧的 VL 结论可能乱序完成 → 消息列表短暂乱序
+   （按时间戳展示，影响很小）。
+
+### 4. 错误处理
 
 - **端点**（vl/test、vl-review）：`manual` 模式但 URL 为空/非法 →
   `HTTPException(422, detail=...)`，明确说明手动代理地址缺失或格式错误。
@@ -90,7 +129,7 @@
 - **升级行为变化**：键缺失 = `none` = 直连。依赖环境变量代理的既有部署需手动切
   `system`（PR 说明中注明；部署机可用 `docker exec <容器> env | grep -i proxy` 自查）。
 
-### 4. 前端（`frontend/src/views/Settings.vue`）
+### 5. 前端（`frontend/src/views/Settings.vue`）
 
 - 全局 VL 配置区（base_url/model/timeout 所在处）新增：
   - "代理模式" `el-select`：不走代理（默认）/ 手动设置 / 走系统代理
@@ -100,13 +139,13 @@
 - 保存载荷经 `pickFormValues` 走既有 `saveSection` 流程，无新机制。
 - i18n：`zh-CN` / `en-US` 各加标签与（manual 时）提示文案。
 
-### 5. 日志
+### 6. 日志
 
 - 工厂每次构造时 `logger.info("VL client: proxy_mode={}", mode)`（客户端每次调用都新建，
   与现有 `VL request ok` INFO 频率一致；不记录代理 URL，避免泄露其中可能含的凭据）。
 - 端点成功/失败日志沿用现有（`VL connection test ok/failed`、`VL re-review ok/failed`）。
 
-### 6. 测试
+### 7. 测试
 
 1. **工厂三模式路由**（复用本地 uvicorn 模型服务器 + 录制型代理的既有模式）：
    - `none`：即使环境设置了 `HTTP_PROXY`（指向录制代理），模型服务器收到请求、
@@ -121,8 +160,16 @@
    无该值）→ patch 工厂使用的 `DefaultAsyncHttpxClient` 符号，断言其被以
    `proxy=<请求体 URL>` 构造（overrides 优先于 settings）。
 5. **全量回归**：`uv run pytest -q` + `uv run ruff check` 零新增。
+6. **推流与复判解耦**（§3 的回归测试）：
+   - 场景 processor（smoke/fire_door）：VL 判定被门控（gate）挂起时，
+     `process_frame` 仍立即返回，`result.extra["vl_confirm_task"]` 未完成、
+     `annotated_frame` 已就绪、`messages` 为空；放行 gate 后 `finalize_result`
+     产出消息（`false_positive` 正确、确认时附 `email_event`）。
+   - backend 处理器：`_process_frame_item` 返回时推流队列已有帧、
+     `ws_manager.broadcast` 尚未调用；放行 gate 后广播发生（1 次）。
+   - `stop()`：挂起中的 dispatch/VL 任务被 cancel，无未处理异常。
 
-### 7. 不做（YAGNI）
+### 8. 不做（YAGNI）
 
 - 不做 per-scene 代理（VL 后端是全局共享端点）。
 - 不做代理健康检查/自动切换。
