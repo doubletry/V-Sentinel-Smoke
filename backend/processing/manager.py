@@ -134,24 +134,35 @@ class ProcessorManager:
 
     async def restore_desired_processors(self, *, delay_seconds: float = 1.0) -> dict:
         """Gradually restart sources that were running before process shutdown."""
-        sources = await list_desired_analysis_sources()
-        restored = 0
-        failed: list[dict[str, str]] = []
-        for index, source in enumerate(sources):
-            if index > 0 and delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
-            try:
-                result = await self.start_processor(source.id)
-                if result.get("status") in {"started", "already_running"}:
-                    restored += 1
-            except Exception as exc:
-                logger.warning(
-                    "ProcessorManager: failed to restore processor for {}: {}",
-                    source.id,
-                    exc,
-                )
-                failed.append({"source_id": source.id, "reason": str(exc)})
-        return {"status": "restored", "restored": restored, "failed": failed}
+        try:
+            sources = await list_desired_analysis_sources()
+            restored = 0
+            failed: list[dict[str, str]] = []
+            for index, source in enumerate(sources):
+                if index > 0 and delay_seconds > 0:
+                    await asyncio.sleep(delay_seconds)
+                try:
+                    result = await self.start_processor(source.id)
+                    if result.get("status") in {"started", "already_running"}:
+                        restored += 1
+                except Exception as exc:
+                    logger.warning(
+                        "ProcessorManager: failed to restore processor for {}: {}",
+                        source.id,
+                        exc,
+                    )
+                    failed.append({"source_id": source.id, "reason": str(exc)})
+            logger.info(
+                "ProcessorManager: restored {}/{} desired processors",
+                restored,
+                len(sources),
+            )
+            return {"status": "restored", "restored": restored, "failed": failed}
+        except Exception:
+            logger.opt(exception=True).error(
+                "ProcessorManager: restore desired processors aborted"
+            )
+            return {"status": "failed", "restored": 0, "failed": []}
 
     async def _stop_all_processors(self) -> dict:
         """Stop all currently running processors for application shutdown.
@@ -170,6 +181,9 @@ class ProcessorManager:
                 if result["status"] == "stopped":
                     stopped += 1
             except Exception as exc:
+                logger.opt(exception=True).warning(
+                    "ProcessorManager: failed to stop processor: source={}", source_id
+                )
                 failed.append({"source_id": source_id, "reason": str(exc)})
 
         return {
@@ -181,8 +195,17 @@ class ProcessorManager:
     async def stop_all(self) -> None:
         """Stop all running processors (called during shutdown).
         停止所有运行中的处理器（关闭时调用）。"""
-        await self._stop_all_processors()
-        logger.info("ProcessorManager: all processors stopped")
+        summary = await self._stop_all_processors()
+        failed = summary.get("failed", [])
+        if failed:
+            logger.warning(
+                "ProcessorManager: stopped {} processor(s), {} failed: {}",
+                summary.get("stopped", 0),
+                len(failed),
+                [item["source_id"] for item in failed],
+            )
+        else:
+            logger.info("ProcessorManager: all processors stopped")
 
     def get_all_status(self) -> list[ProcessorStatus]:
         """Return status of all currently tracked processors.

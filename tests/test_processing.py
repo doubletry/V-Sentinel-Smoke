@@ -367,6 +367,32 @@ class TestProcessorManager:
         mgr = self._make_manager()
         await mgr.stop_all()  # Should not raise
 
+    async def test_stop_all_logs_failed_stops(self, init_db):
+        source = await create_source(
+            VideoSourceCreate(name="cam-fail", rtsp_url="rtsp://localhost:8554/cam-fail")
+        )
+        mgr = self._make_manager()
+        processor = MagicMock(status="running")
+        processor.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
+        mgr._processors[source.id] = processor
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            await mgr.stop_all()
+        finally:
+            logger.remove(sink_id)
+
+        assert any(
+            "failed to stop processor" in r["message"] and source.id in r["message"]
+            for r in records
+        )
+        # 汇总日志如实报告失败：stopped 0 processor(s), 1 failed: [<source_id>]
+        assert any(
+            "stopped" in r["message"] and "failed" in r["message"] and source.id in r["message"]
+            for r in records
+        )
+
     def test_smoke_adapter_initializes_core_state(self):
         from backend.processing.smoke import SmokeFireProcessor
 

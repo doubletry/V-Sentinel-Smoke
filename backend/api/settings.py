@@ -172,6 +172,12 @@ async def update_settings(
 
     previous_settings = await db.get_all_settings()
     result = await db.update_settings(updates)
+    changed_keys = sorted(
+        key for key in updates
+        if str(previous_settings.get(key) or "") != str(result.get(key) or "")
+    )
+    if changed_keys:
+        logger.info("Settings updated, changed keys: {}", changed_keys)
     request.app.title = result.get("site_title") or request.app.title
     if "message_retention_days" in updates:
         try:

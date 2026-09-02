@@ -444,6 +444,20 @@ class TestSettingsAPI:
         assert resp.status_code == 422
         assert "must match" in resp.json()["detail"]
 
+    async def test_update_settings_logs_changed_keys(self, async_client: AsyncClient):
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+        try:
+            resp = await async_client.put("/api/settings", json={"site_title": "LogCheck"})
+        finally:
+            logger.remove(sink_id)
+
+        assert resp.status_code == 200
+        assert any(
+            "Settings updated, changed keys" in r["message"] and "site_title" in r["message"]
+            for r in records
+        )
+
 
 class TestVEngineClientAddresses:
     def test_build_addresses(self):

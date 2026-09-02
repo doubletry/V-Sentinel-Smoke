@@ -404,7 +404,12 @@ class BaseVideoProcessor(ABC):
             loop.call_soon_threadsafe(self._enqueue_reader_sentinel)
         except Exception:
             pass
-        logger.info("Frame reader exited for {}", redact_url(self.rtsp_url))
+        if self._stop_event.is_set():
+            logger.info("Frame reader exited for {}", redact_url(self.rtsp_url))
+        else:
+            logger.error(
+                "Frame reader exited without stop request: source={}", self.source_id
+            )
 
     @staticmethod
     def _stream_fps(video_stream: Any) -> float | None:
@@ -1204,6 +1209,10 @@ class BaseVideoProcessor(ABC):
                     self._push_height = h
                     self._push_fps = target_fps
                     self._push_bitrate = video_bitrate
+                    logger.info(
+                        "ffmpeg push started for {}: {}x{} @ {} fps, bitrate {}",
+                        self.source_id, w, h, target_fps, video_bitrate,
+                    )
 
                     time.sleep(PUSH_STARTUP_CHECK_DELAY)
                     if self._push_proc.poll() is not None:
@@ -1411,6 +1420,9 @@ class BaseVideoProcessor(ABC):
         """Enable or disable push at runtime without restarting analysis.
         运行时启用或禁用推流，无需重启分析进程。"""
         self.push_result_stream = bool(enabled)
+        logger.info(
+            "Push result stream {}: source={}", self.push_result_stream, self.source_id
+        )
         if self.push_result_stream:
             self._start_output_worker()
         else:
