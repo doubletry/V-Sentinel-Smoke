@@ -165,7 +165,7 @@ async def test_vl_confirm_reject_keeps_message_marked_false_positive():
     mock_client = AsyncMock(spec=VLConfirmClient)
     mock_client.confirm = AsyncMock(return_value=False)
 
-    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+    with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         await processor.finalize_result(result)
 
@@ -185,7 +185,7 @@ async def test_vl_confirm_allows_alarm_when_model_returns_true():
     mock_client = AsyncMock(spec=VLConfirmClient)
     mock_client.confirm = AsyncMock(return_value=True)
 
-    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+    with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         await processor.finalize_result(result)
 
@@ -205,7 +205,7 @@ async def test_vl_confirm_fail_open_when_model_returns_none():
     mock_client = AsyncMock(spec=VLConfirmClient)
     mock_client.confirm = AsyncMock(return_value=None)
 
-    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+    with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         await processor.finalize_result(result)
 
@@ -233,7 +233,7 @@ async def test_vl_confirm_skipped_when_disabled():
     )
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
-    with patch("core.smoke.processor.VLConfirmClient") as mock_cls:
+    with patch("core.vl_confirm.VLConfirmClient") as mock_cls:
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         await processor.finalize_result(result)
 
@@ -265,7 +265,7 @@ async def test_vl_annotated_full_image_sent_to_model():
     mock_client = AsyncMock(spec=VLConfirmClient)
     mock_client.confirm = AsyncMock(return_value=True)
 
-    with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+    with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         await processor.finalize_result(result)
 
@@ -302,7 +302,7 @@ async def test_vl_sampling_params_from_smoke_settings_only():
     )
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
-    with patch("core.smoke.processor.VLConfirmClient", return_value=AsyncMock()) as mock_cls:
+    with patch("core.vl_confirm.VLConfirmClient", return_value=AsyncMock()) as mock_cls:
         result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
         await processor.finalize_result(result)
 
@@ -328,7 +328,7 @@ async def test_vl_reject_logs_warning_with_source():
     records: list[dict] = []
     sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
     try:
-        with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+        with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client):
             result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
             await processor.finalize_result(result)
     finally:
@@ -373,3 +373,33 @@ async def test_process_frame_returns_before_vl_verdict():
     assert len(result.messages) == 1
     assert result.messages[0]["false_positive"] is False
     assert result.extra["email_event"]["event_type"] == "smoke"
+
+
+async def test_smoke_vl_manual_proxy_misconfig_falls_back_to_direct():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    processor.app_settings["vl_confirm_proxy_mode"] = "manual"
+    processor.app_settings["vl_confirm_proxy_url"] = ""
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=True)
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        with patch("core.vl_confirm.VLConfirmClient", return_value=mock_client) as mock_cls:
+            result = await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+            await processor.finalize_result(result)
+    finally:
+        logger.remove(sink_id)
+
+    assert len(result.messages) == 1
+    assert result.messages[0]["false_positive"] is False
+    assert mock_cls.call_count == 1
+    assert any(
+        "VL manual proxy misconfigured" in r["message"] and "Cam1" in r["message"]
+        for r in records
+    )

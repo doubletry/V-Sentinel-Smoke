@@ -22,7 +22,7 @@ from core.smoke.constants import (
 )
 from core.smoke.email import build_smoke_email_event
 from core.smoke.post_processor import Detection, DetectionClass, PostProcessorConfig, SmokeFirePostProcessor
-from core.vl_confirm import VLConfirmClient, build_vl_image_data_url, vl_sampling_kwargs
+from core.vl_confirm import build_vl_client, build_vl_image_data_url
 
 
 class SmokeFireProcessor(BaseVideoProcessor):
@@ -229,16 +229,19 @@ class SmokeFireProcessor(BaseVideoProcessor):
             or DEFAULT_VL_CONFIRM_RESPONSE_KEY
         )
 
-        client = VLConfirmClient(
-            base_url=str(
-                self.app_settings.get("vl_confirm_base_url")
-                or "http://localhost:30000/v1"
-            ),
-            api_key=str(self.app_settings.get("vl_confirm_api_key") or "EMPTY"),
-            model=str(self.app_settings.get("vl_confirm_model") or "/models/Mage-VL"),
-            timeout=self._setting_int("vl_confirm_timeout", 60),
-            **vl_sampling_kwargs(self.app_settings, "smoke"),
-        )
+        try:
+            client = build_vl_client(self.app_settings, "smoke")
+        except ValueError as exc:
+            logger.warning(
+                "VL manual proxy misconfigured ({}), falling back to direct: source={}",
+                exc,
+                self.source_name,
+            )
+            client = build_vl_client(
+                self.app_settings,
+                "smoke",
+                overrides={"vl_confirm_proxy_mode": "none"},
+            )
         return await client.confirm(image_data_url, prompt, response_key)
 
     def _to_post_detection(self, det: dict[str, Any], timestamp: float) -> Detection:
