@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import http.server
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import cv2
@@ -543,3 +545,215 @@ async def test_all_slow_attempts_stay_within_total_budget():
     assert elapsed < 2.5, (
         f"total {elapsed:.1f}s for timeout=1s (SDK retries must not extend the budget)"
     )
+
+
+# ── proxy mode / 代理模式 ────────────────────────────────────────────────────
+
+
+def _start_recording_proxy(handler, state):
+    """Start a local recording proxy; state gains ``url`` and ``shutdown``."""
+    import threading
+
+    class _ProxyHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0))
+            if length:
+                self.rfile.read(length)
+            try:
+                handler(self.path)
+            except Exception:
+                pass
+            body = json.dumps(VALID_COMPLETION).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", _free_port()), _ProxyHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    state.update(
+        url=f"http://127.0.0.1:{server.server_address[1]}",
+        shutdown=lambda: (server.shutdown(), server.server_close(), thread.join(timeout=5)),
+    )
+
+
+def test_build_vl_http_client_none_mode_ignores_env_proxy(monkeypatch):
+    from core.vl_confirm import build_vl_http_client
+
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+    client = build_vl_http_client("none", "")
+    assert client is not None
+    assert client._trust_env is False
+    assert not any("AsyncHTTPProxy" in repr(vars(t).get("_pool", "")) for t in client._mounts.values())
+    monkeypatch.delenv("HTTP_PROXY")
+    monkeypatch.delenv("http_proxy")
+
+
+def test_build_vl_http_client_unknown_mode_behaves_like_none():
+    from core.vl_confirm import build_vl_http_client
+
+    client = build_vl_http_client("bogus", "")
+    assert client is not None
+    assert client._trust_env is False
+
+
+def test_build_vl_http_client_manual_requires_scheme():
+    from core.vl_confirm import build_vl_http_client
+
+    with pytest.raises(ValueError, match="http:// or https://"):
+        build_vl_http_client("manual", "")
+    with pytest.raises(ValueError, match="http:// or https://"):
+        build_vl_http_client("manual", "ftp://10.0.0.1:21")
+
+
+def test_build_vl_http_client_manual_sets_proxy():
+    from core.vl_confirm import build_vl_http_client
+
+    client = build_vl_http_client("manual", "http://10.0.0.1:3128")
+    assert client is not None
+    assert client._trust_env is False
+    # 代理挂载存在（httpx2 代理 transport 的池是 AsyncHTTPProxy）
+    assert any("AsyncHTTPProxy" in repr(vars(t).get("_pool", "")) for t in client._mounts.values())
+
+
+def test_build_vl_http_client_system_returns_none():
+    from core.vl_confirm import build_vl_http_client
+
+    assert build_vl_http_client("system", "") is None
+    assert build_vl_http_client("", "") is not None
+
+
+def test_build_vl_client_merge_order_and_defaults():
+    from core.vl_confirm import build_vl_client
+
+    settings = {
+        "vl_confirm_base_url": "http://settings-host/v1",
+        "vl_confirm_api_key": "settings-key",
+        "vl_confirm_model": "settings-model",
+        "vl_confirm_timeout": "7",
+        "smoke_vl_confirm_max_tokens": "128",
+    }
+    client = build_vl_client(settings, "smoke", overrides={"vl_confirm_base_url": "http://override-host/v1"})
+    assert client._base_url == "http://override-host/v1"
+    assert client._api_key == "settings-key"
+    assert client._model == "settings-model"
+    assert client._timeout == 7.0
+    assert client._max_tokens == 128
+
+
+def test_build_vl_client_scene_specific_sampling():
+    from core.vl_confirm import build_vl_client
+
+    settings = {
+        "smoke_vl_confirm_temperature": "0.1",
+        "fire_door_vl_confirm_temperature": "0.9",
+    }
+    assert build_vl_client(settings, "smoke")._temperature == 0.1
+    assert build_vl_client(settings, "fire_door")._temperature == 0.9
+
+
+def test_build_vl_client_defaults_when_settings_empty():
+    from core.vl_confirm import build_vl_client
+
+    client = build_vl_client({}, "smoke")
+    assert client._base_url == "http://localhost:30000/v1"
+    assert client._api_key == "EMPTY"
+    assert client._model == "/models/Mage-VL"
+    assert client._timeout == 60.0
+
+
+async def _model_ok(request):
+    return VALID_COMPLETION
+
+
+async def test_vl_none_mode_reaches_model_not_env_proxy(monkeypatch):
+    from core.vl_confirm import build_vl_client
+
+    base_url, model_state = _run_local_vl_server(_model_ok)
+    proxy_state: dict = {"n": 0}
+    _start_recording_proxy(
+        lambda path: proxy_state.update(n=proxy_state["n"] + 1), proxy_state
+    )
+    monkeypatch.setenv("HTTP_PROXY", proxy_state["url"])
+    monkeypatch.setenv("http_proxy", proxy_state["url"])
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    try:
+        client = build_vl_client(
+            {"vl_confirm_base_url": base_url, "vl_confirm_timeout": "5"}, "smoke"
+        )
+        result = await client.complete("hi", "text")
+    finally:
+        monkeypatch.delenv("HTTP_PROXY", raising=False)
+        monkeypatch.delenv("http_proxy", raising=False)
+        proxy_state["shutdown"]()
+        model_state["shutdown"]()
+    assert result == VALID_COMPLETION["choices"][0]["message"]["content"]
+    assert model_state["n"] == 1
+    assert proxy_state["n"] == 0
+
+
+async def test_vl_manual_mode_routes_through_proxy(monkeypatch):
+    from core.vl_confirm import build_vl_client
+
+    base_url, model_state = _run_local_vl_server(_model_ok)
+    proxy_state: dict = {"n": 0}
+    _start_recording_proxy(
+        lambda path: proxy_state.update(n=proxy_state["n"] + 1), proxy_state
+    )
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.delenv("http_proxy", raising=False)
+    try:
+        client = build_vl_client(
+            {
+                "vl_confirm_base_url": base_url,
+                "vl_confirm_timeout": "5",
+                "vl_confirm_proxy_mode": "manual",
+                "vl_confirm_proxy_url": proxy_state["url"],
+            },
+            "smoke",
+        )
+        result = await client.complete("hi", "text")
+    finally:
+        proxy_state["shutdown"]()
+        model_state["shutdown"]()
+    assert result == VALID_COMPLETION["choices"][0]["message"]["content"]
+    assert proxy_state["n"] == 1
+    assert model_state["n"] == 0
+
+
+async def test_vl_system_mode_uses_env_proxy(monkeypatch):
+    from core.vl_confirm import build_vl_client
+
+    base_url, model_state = _run_local_vl_server(_model_ok)
+    proxy_state: dict = {"n": 0}
+    _start_recording_proxy(
+        lambda path: proxy_state.update(n=proxy_state["n"] + 1), proxy_state
+    )
+    monkeypatch.setenv("HTTP_PROXY", proxy_state["url"])
+    monkeypatch.setenv("http_proxy", proxy_state["url"])
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    try:
+        client = build_vl_client(
+            {
+                "vl_confirm_base_url": base_url,
+                "vl_confirm_timeout": "5",
+                "vl_confirm_proxy_mode": "system",
+            },
+            "smoke",
+        )
+        await client.complete("hi", "text")
+    finally:
+        monkeypatch.delenv("HTTP_PROXY", raising=False)
+        monkeypatch.delenv("http_proxy", raising=False)
+        proxy_state["shutdown"]()
+        model_state["shutdown"]()
+    assert proxy_state["n"] == 1
+    assert model_state["n"] == 0
