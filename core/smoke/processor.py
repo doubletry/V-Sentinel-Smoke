@@ -8,6 +8,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from loguru import logger
 
 from core.base_processor import AnalysisResult, BaseVideoProcessor
 from core.smoke.constants import (
@@ -120,6 +121,12 @@ class SmokeFireProcessor(BaseVideoProcessor):
                 vl_result = await self._vl_confirm_alert(frame, annotated, primary_roi)
                 if vl_result is False:
                     vl_rejected = True
+                    logger.warning(
+                        "Alarm rejected by VL confirm, marked false positive: source={}",
+                        self.source_name,
+                    )
+                elif vl_result is True:
+                    logger.info("Alarm confirmed by VL confirm: source={}", self.source_name)
                 # True or None (fail-open) → keep alerts
         if post_result.has_alarm and confirmed:
             labels = sorted({str(det.get("label", "")).lower() for det in confirmed})

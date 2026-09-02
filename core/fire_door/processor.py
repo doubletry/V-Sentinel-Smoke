@@ -8,6 +8,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from loguru import logger
 
 from core.base_processor import AnalysisResult, BaseVideoProcessor
 from core.constants import DRAW_CLASSIFICATION_COLOR, DRAW_FONT_SCALE, DRAW_FONT_THICKNESS
@@ -174,6 +175,12 @@ class FireDoorProcessor(BaseVideoProcessor):
             vl_result = await self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
             if vl_result is False:
                 vl_rejected = True
+                logger.warning(
+                    "Alarm rejected by VL confirm, marked false positive: source={}",
+                    self.source_name,
+                )
+            elif vl_result is True:
+                logger.info("Alarm confirmed by VL confirm: source={}", self.source_name)
             # True or None (fail-open) → keep alerts
         if alert_items:
             best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))

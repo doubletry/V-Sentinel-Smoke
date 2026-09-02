@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+from loguru import logger
 import numpy as np
 
 from core.base_processor import ROI, ROIPoint
@@ -390,3 +391,31 @@ async def test_vl_sampling_params_from_fire_door_settings_only():
     assert kwargs["disable_thinking"] is True
     assert kwargs["top_p"] is None
     assert kwargs["temperature"] == 0.0
+
+
+async def test_vl_reject_logs_warning_with_source():
+    vengine = AsyncMock()
+    vengine.classify.return_value = [{"label": "open", "confidence": 0.91, "class_id": 1}]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=False)
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+    try:
+        with patch("core.fire_door.processor.VLConfirmClient", return_value=mock_client):
+            await processor.process_frame(
+                frame, b"frame", frame.shape,
+                [[{"x": 10, "y": 10}, {"x": 90, "y": 10}, {"x": 90, "y": 90}, {"x": 10, "y": 90}]],
+            )
+    finally:
+        logger.remove(sink_id)
+
+    assert any(
+        "Alarm rejected by VL confirm" in r["message"]
+        and "DoorCam" in r["message"]
+        and r["level"].name == "WARNING"
+        for r in records
+    )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+from loguru import logger
 import numpy as np
 
 from core.smoke.email import build_event_label, build_event_type
@@ -303,3 +304,30 @@ async def test_vl_sampling_params_from_smoke_settings_only():
     assert kwargs["temperature"] == 0.5
     assert kwargs["top_p"] == 0.9
     assert kwargs["disable_thinking"] is True
+
+
+async def test_vl_reject_logs_warning_with_source():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    mock_client = AsyncMock(spec=VLConfirmClient)
+    mock_client.confirm = AsyncMock(return_value=False)
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+    try:
+        with patch("core.smoke.processor.VLConfirmClient", return_value=mock_client):
+            await processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, [])
+    finally:
+        logger.remove(sink_id)
+
+    assert any(
+        "Alarm rejected by VL confirm" in r["message"]
+        and "Cam1" in r["message"]
+        and r["level"].name == "WARNING"
+        for r in records
+    )
