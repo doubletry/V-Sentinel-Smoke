@@ -7,6 +7,7 @@ JSON object whose boolean value determines whether the alarm is confirmed.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import json
@@ -225,6 +226,7 @@ class VLConfirmClient:
     ) -> None:
         self._base_url = base_url
         self._model = model
+        self._timeout = float(timeout)
         self._max_tokens = max_tokens
         self._temperature = temperature
         self._top_p = top_p
@@ -234,7 +236,7 @@ class VLConfirmClient:
         self._client = AsyncOpenAI(
             base_url=base_url,
             api_key=api_key,
-            timeout=float(timeout),
+            timeout=self._timeout,
         )
 
     async def complete(self, image_data_url: str, prompt: str) -> str:
@@ -260,7 +262,19 @@ class VLConfirmClient:
             create_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
         started = time.monotonic()
         try:
-            response = await self._client.chat.completions.create(**create_kwargs)
+            # Hard total-time cap: the SDK's per-attempt httpx timeout does not
+            # bound total elapsed time (silent retries, slow-drip chunks), so
+            # enforce the configured budget over the whole call.
+            # 硬性总时长上限：SDK 的 httpx 超时只约束单次尝试（静默重试、慢速
+            # 分块响应都能绕过它），这里对整个调用强制执行配置的超时预算。
+            response = await asyncio.wait_for(
+                self._client.chat.completions.create(**create_kwargs),
+                timeout=self._timeout,
+            )
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(
+                f"VL request exceeded {self._timeout:g}s total timeout"
+            ) from exc
         except Exception as exc:
             latency_ms = int((time.monotonic() - started) * 1000)
             logger.opt(exception=True).warning(
