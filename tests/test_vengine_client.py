@@ -1,7 +1,10 @@
 """Tests for the AsyncVEngineClient initialisation and image building."""
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import grpc
+from loguru import logger
 import pytest
 
 from backend.config import Settings
@@ -990,3 +993,56 @@ class TestModelAndHealthProtoCompatibility:
             "uptime_seconds": 42,
             "loaded_model_count": 3,
         }
+
+
+class TestNonOkAndConnectLogging:
+    def _client_with_non_ok_detection(self):
+        client = AsyncVEngineClient(Settings())
+        client._enabled = {"detection": True}
+        response = MagicMock()
+        response.response_header.status_code = base_pb2.StatusCode.STATUS_MODEL_NOT_FOUND
+        response.response_header.error_message = "model not loaded"
+        response.results = []
+        stub = MagicMock()
+        stub.Predict = AsyncMock(return_value=response)
+        client._stubs["detection"] = stub
+        return client
+
+    async def test_detect_non_ok_status_logs_error_message(self):
+        client = self._client_with_non_ok_detection()
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            result = await client.detect(
+                shape=(100, 200, 3), model_name="m", image_bytes=b"x"
+            )
+        finally:
+            logger.remove(sink_id)
+        assert result == []
+        assert any(
+            "detection gRPC non-OK" in r["message"] and "model not loaded" in r["message"]
+            for r in records
+        )
+
+    async def test_detect_repeated_non_ok_is_rate_limited(self):
+        client = self._client_with_non_ok_detection()
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            await client.detect(shape=(100, 200, 3), model_name="m", image_bytes=b"x")
+            await client.detect(shape=(100, 200, 3), model_name="m", image_bytes=b"x")
+        finally:
+            logger.remove(sink_id)
+        matches = [r for r in records if "detection gRPC non-OK" in r["message"]]
+        assert len(matches) == 1  # 60s 内相同错误只记一次
+
+    async def test_unknown_service_health_check_warns(self):
+        client = AsyncVEngineClient(Settings())
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            result = await client.health_check("nope")
+        finally:
+            logger.remove(sink_id)
+        assert result == {"error": "Unknown service: nope"}
+        assert any("not connected" in r["message"] for r in records)
