@@ -52,12 +52,12 @@ def __init__(self, base_url, api_key, model, timeout=60,
 
 ### 设置页（`Settings.vue` 两个插件 VL 卡片）
 
-在现有「启用 / 图片来源 / 裁剪 / 提示词 / 响应键」之后各加 4 个字段：
+在现有「启用 / 图片来源 / 裁剪 / 提示词 / 响应键」之后各加 4 个字段（与本文件其他数值设置一致，用 `el-input` 文本框 + 后端宽松解析，而非 `el-input-number`）：
 
-- `max_tokens`：`el-input-number`，min 1 max 32768；
-- `temperature`：`el-input-number`，min 0 max 2 step 0.1；
-- `top_p`：`el-input-number`，min 0.01 max 1 step 0.1，**允许留空**（空 = 不发送，用模型默认）；
-- `关闭思考`：`el-switch`，附提示"适用于 vLLM + Qwen3 等思考模型，可显著降低延迟"。
+- `max_tokens`：`el-input`，placeholder `1024`；
+- `temperature`：`el-input`，placeholder `0`；
+- `top_p`：`el-input`，**允许留空**（空 = 不发送，用模型默认），附 hint"留空 = 使用模型默认值"；
+- `关闭思考`：`el-switch`（`active-value="true"` / `inactive-value="false"`），附提示"适用于 vLLM + Qwen3 等思考模型，可显著降低延迟"。
 
 表单新增 8 个键（`<scene>_vl_confirm_max_tokens` / `_temperature` / `_top_p` / `_disable_thinking`），加入保存/回填的设置键清单。
 
