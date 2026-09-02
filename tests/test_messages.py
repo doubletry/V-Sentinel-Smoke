@@ -829,7 +829,7 @@ class TestVlReviewEndpoint:
             "smoke_vl_confirm_disable_thinking": "true",
         })
 
-        with patch("backend.api.messages.VLConfirmClient") as mock_cls:
+        with patch("core.vl_confirm.VLConfirmClient") as mock_cls:
             mock_cls.return_value.complete = AsyncMock(return_value='{"smoke": true}')
             resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
 
