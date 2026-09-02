@@ -272,11 +272,20 @@ async def test_vl_settings(
     try:
         raw = await client.complete(build_vl_test_image_data_url(), VL_TEST_PROMPT)
     except Exception as exc:
+        logger.opt(exception=True).warning(
+            "VL connection test failed: scene={} model={} base_url={}",
+            data.scene_id, model, base_url,
+        )
         raise HTTPException(status_code=502, detail=f"VL request failed: {exc}")
+    latency_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "VL connection test ok: scene={} model={} latency_ms={}",
+        data.scene_id, model, latency_ms,
+    )
     return {
         "status": "ok",
         "model": model,
-        "latency_ms": int((time.monotonic() - started) * 1000),
+        "latency_ms": latency_ms,
         "response": raw,
     }
 

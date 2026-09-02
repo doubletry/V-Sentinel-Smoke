@@ -5,6 +5,7 @@ import time
 import cv2
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
+from loguru import logger
 
 from backend.auth.dependencies import require_permission, require_permission_for_image
 from backend.db import database as db
@@ -183,10 +184,17 @@ async def review_message_with_vl(
     try:
         raw = await client.complete(image_data_url, prompt)
     except Exception as exc:
+        logger.opt(exception=True).warning(
+            "VL re-review failed: message_id={} model={}", message_id, model
+        )
         raise HTTPException(status_code=502, detail=f"VL request failed: {exc}")
     latency_ms = int((time.monotonic() - started) * 1000)
     verdict = parse_vl_response(raw, response_key)
     result = "confirmed" if verdict is True else ("rejected" if verdict is False else "unknown")
+    logger.info(
+        "VL re-review ok: message_id={} verdict={} latency_ms={}",
+        message_id, result, latency_ms,
+    )
     return {
         "result": result,
         "raw_response": raw,

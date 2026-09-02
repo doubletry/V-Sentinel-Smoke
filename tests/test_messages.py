@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import cv2
 import numpy as np
 from httpx import AsyncClient
+from loguru import logger
 
 from backend.db.database import (
     build_analysis_message_image_url,
@@ -794,6 +795,29 @@ class TestVlReviewEndpoint:
             resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
         assert resp.status_code == 502
         assert "conn refused" in resp.json()["detail"]
+
+    async def test_vl_review_failure_logs_warning(self, async_client: AsyncClient, init_db):
+        source = await self._create_source()
+        message_id = await self._save_message_with_image(source.id)
+        await update_settings({"smoke_vl_confirm_enabled": "true"})
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            with patch(
+                "core.vl_confirm.VLConfirmClient.complete",
+                new=AsyncMock(side_effect=Exception("conn refused")),
+            ):
+                resp = await async_client.post(f"/api/messages/{message_id}/vl-review")
+        finally:
+            logger.remove(sink_id)
+
+        assert resp.status_code == 502
+        failures = [r for r in records if "VL re-review failed" in r["message"]]
+        assert failures and message_id in failures[0]["message"]
+        # 注意：测试 patch 掉了 complete()，客户端级 "VL request failed" 不会触发；
+        # 上游错误 "conn refused" 在 record["exception"]（异常栈）里，不在渲染消息里。
+        assert failures[0]["exception"] is not None
 
     async def test_vl_review_uses_scene_sampling_settings(self, async_client: AsyncClient, init_db):
         source = await self._create_source()
