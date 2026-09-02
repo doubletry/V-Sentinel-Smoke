@@ -990,7 +990,7 @@ wheels = [
 
 [[package]]
 name = "v-sentinel"
-version = "2.7.1"
+version = "2.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
