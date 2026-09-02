@@ -5,11 +5,11 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
-from backend.auth.dependencies import current_user, has_permission, require_any_permission, require_permission
+from backend.auth.dependencies import current_user, has_permission, require_any_permission
 from backend.db import database as db
 from backend.models.schemas import AppSettingsUpdate, CurrentUser, EmailTestRequest, VlTestRequest
 from backend.notifications.email_config import build_email_settings_smtp_config
-from core.vl_confirm import VLConfirmClient, VL_TEST_PROMPT, build_vl_test_image_data_url, vl_sampling_kwargs
+from core.vl_confirm import VL_TEST_PROMPT, build_vl_client, build_vl_test_image_data_url
 from core.notification_client import NotificationPayload, SmtpNotificationProvider
 from core.notification_template import NOTIFICATION_TEMPLATE_PLACEHOLDERS
 
@@ -72,6 +72,8 @@ PLUGIN_SETTING_KEYS = {
     "vl_confirm_api_key",
     "vl_confirm_model",
     "vl_confirm_timeout",
+    "vl_confirm_proxy_mode",
+    "vl_confirm_proxy_url",
     "smoke_vl_confirm_enabled",
     "smoke_vl_confirm_image_source",
     "smoke_vl_confirm_image_crop",
@@ -261,27 +263,35 @@ async def test_vl_settings(
         raise HTTPException(status_code=422, detail="scene_id must be 'smoke' or 'fire_door'")
     app_settings = await db.get_all_settings()
     base_url = str(data.vl_confirm_base_url or app_settings.get("vl_confirm_base_url") or "").strip()
-    api_key = str(data.vl_confirm_api_key or app_settings.get("vl_confirm_api_key") or "").strip()
     model = str(data.vl_confirm_model or app_settings.get("vl_confirm_model") or "").strip()
-    timeout_raw = str(data.vl_confirm_timeout or app_settings.get("vl_confirm_timeout") or "60")
     if not base_url or not model:
         raise HTTPException(status_code=422, detail="VL base URL and model are required")
-    try:
-        timeout = max(1, int(float(timeout_raw)))
-    except (ValueError, OverflowError):
-        timeout = 60
+    proxy_mode = str(data.vl_confirm_proxy_mode or "").strip().lower() or "none"
+    proxy_url = str(data.vl_confirm_proxy_url or "").strip()
+    if proxy_mode == "manual" and not proxy_url.lower().startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=422,
+            detail="vl_confirm_proxy_url must start with http:// or https:// in manual mode",
+        )
     sampling_overrides = {
         key: value
         for key, value in data.model_dump().items()
         if key.startswith(f"{data.scene_id}_vl_confirm_") and value is not None
     }
-    client = VLConfirmClient(
-        base_url=base_url,
-        api_key=api_key or "EMPTY",
-        model=model,
-        timeout=timeout,
-        **vl_sampling_kwargs(app_settings, data.scene_id, overrides=sampling_overrides),
-    )
+    overrides = {
+        "vl_confirm_base_url": data.vl_confirm_base_url,
+        "vl_confirm_api_key": data.vl_confirm_api_key,
+        "vl_confirm_model": data.vl_confirm_model,
+        "vl_confirm_timeout": data.vl_confirm_timeout,
+        "vl_confirm_proxy_mode": proxy_mode,
+        "vl_confirm_proxy_url": proxy_url,
+    }
+    overrides.update(sampling_overrides)
+    overrides = {k: v for k, v in overrides.items() if v is not None}
+    try:
+        client = build_vl_client(app_settings, data.scene_id, overrides=overrides)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     started = time.monotonic()
     try:
         raw = await client.complete(build_vl_test_image_data_url(), VL_TEST_PROMPT)

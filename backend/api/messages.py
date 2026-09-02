@@ -28,7 +28,7 @@ from core.smoke.constants import (
     DEFAULT_VL_CONFIRM_PROMPT as SMOKE_DEFAULT_VL_PROMPT,
     DEFAULT_VL_CONFIRM_RESPONSE_KEY as SMOKE_DEFAULT_VL_RESPONSE_KEY,
 )
-from core.vl_confirm import VLConfirmClient, encode_frame_as_data_url, parse_vl_response, vl_sampling_kwargs
+from core.vl_confirm import build_vl_client, encode_frame_as_data_url, parse_vl_response
 
 router = APIRouter(prefix="/api/messages", tags=["messages"])
 
@@ -144,10 +144,14 @@ async def review_message_with_vl(
     model = str(settings_map.get("vl_confirm_model") or "").strip()
     if not base_url or not model:
         raise HTTPException(status_code=422, detail="VL base URL and model are required")
-    try:
-        timeout = max(1, int(float(settings_map.get("vl_confirm_timeout") or 60)))
-    except ValueError:
-        timeout = 60
+    proxy_mode = str(settings_map.get("vl_confirm_proxy_mode") or "").strip().lower()
+    if proxy_mode == "manual":
+        proxy_url = str(settings_map.get("vl_confirm_proxy_url") or "").strip()
+        if not proxy_url.lower().startswith(("http://", "https://")):
+            raise HTTPException(
+                status_code=422,
+                detail="vl_confirm_proxy_url must start with http:// or https:// in manual mode",
+            )
 
     image_source = str(settings_map.get(f"{scene_id}_vl_confirm_image_source") or "original").strip().lower()
     kind = "detected" if image_source == "annotated" else "original"
@@ -173,13 +177,10 @@ async def review_message_with_vl(
     prompt = prompt or default_prompt
     response_key = response_key or default_response_key
 
-    client = VLConfirmClient(
-        base_url=base_url,
-        api_key=str(settings_map.get("vl_confirm_api_key") or "EMPTY").strip() or "EMPTY",
-        model=model,
-        timeout=timeout,
-        **vl_sampling_kwargs(settings_map, scene_id),
-    )
+    try:
+        client = build_vl_client(settings_map, scene_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     started = time.monotonic()
     try:
         raw = await client.complete(image_data_url, prompt)
