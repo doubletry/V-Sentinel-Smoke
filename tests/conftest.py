@@ -12,6 +12,18 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 
+# ── Force the .env → os.environ load to happen now / 提前触发 .env 载入 ──
+# backend.config loads .env into os.environ at import time (only for keys not
+# already set). Importing it here — before any fixture runs — guarantees the
+# per-test monkeypatch below can deterministically remove deployment values
+# (e.g. VITE_APP_BASE_PATH=/smoke) regardless of which test triggers the
+# first backend import.
+# backend.config 在导入时把 .env 载入 os.environ（仅补设不存在的键）。在这里
+# （任何 fixture 运行前）导入它，确保下面的 per-test monkeypatch 能确定性地
+# 清掉部署值（如 VITE_APP_BASE_PATH=/smoke），与首个 backend 导入发生在哪个
+# 测试无关。
+import backend.config  # noqa: E402,F401
+
 # ── Override DB path before any backend import / 在导入后台模块前覆盖数据库路径 ──
 # Use a per-test temporary database so tests are isolated.
 # 每个测试使用临时数据库以保证隔离性。
@@ -29,6 +41,13 @@ def _tmp_db(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> Generator[str,
     monkeypatch.setenv("V_SENTINEL_ADMIN_PASSWORD", "admin-secret")
     monkeypatch.setenv("V_SENTINEL_OPERATOR_PASSWORD", "operator-secret")
     monkeypatch.setenv("V_SENTINEL_USER_PASSWORD", "user-secret")
+    # Isolate frontend base path: a local/deployment .env may set these
+    # (backend.config loads .env into os.environ at import time), which would
+    # leak into tests asserting default SPA base path behaviour.
+    # 隔离前端 base path：本地/部署 .env 可能设置了它们（backend.config 导入时
+    # 会把 .env 载入 os.environ），否则会泄漏进断言默认 SPA base 行为的测试。
+    monkeypatch.delenv("VITE_APP_BASE_PATH", raising=False)
+    monkeypatch.delenv("APP_BASE_PATH", raising=False)
 
     # Patch the module-level _DB_PATH in database.py / 修补 database.py 中的模块级 _DB_PATH
     import backend.db.database as db_mod
