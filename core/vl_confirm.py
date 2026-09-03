@@ -360,14 +360,16 @@ def build_vl_client(
     url = str(ov.get("vl_confirm_proxy_url") or settings.get("vl_confirm_proxy_url") or "")
     try:
         timeout = int(float(ov.get("vl_confirm_timeout") or settings.get("vl_confirm_timeout") or DEFAULT_VL_TIMEOUT))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         timeout = DEFAULT_VL_TIMEOUT
-    logger.info("VL client: proxy_mode={}", mode)
+    timeout = max(1, timeout)
+    http_client = build_vl_http_client(mode, url)
+    logger.info("VL client: proxy_mode={}", str(mode or "none").strip().lower() or "none")
     return VLConfirmClient(
         base_url=str(ov.get("vl_confirm_base_url") or settings.get("vl_confirm_base_url") or DEFAULT_VL_BASE_URL),
         api_key=str(ov.get("vl_confirm_api_key") or settings.get("vl_confirm_api_key") or DEFAULT_VL_API_KEY),
         model=str(ov.get("vl_confirm_model") or settings.get("vl_confirm_model") or DEFAULT_VL_MODEL),
         timeout=timeout,
         **vl_sampling_kwargs(settings, scene_id, ov),
-        http_client=build_vl_http_client(mode, url),
+        http_client=http_client,
     )

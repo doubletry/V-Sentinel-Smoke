@@ -668,6 +668,59 @@ def test_build_vl_client_defaults_when_settings_empty():
     assert client._timeout == 60.0
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("0", 1.0),
+        ("-5", 1.0),
+        ("inf", 60.0),
+        ("abc", 60.0),
+    ],
+)
+def test_build_vl_client_timeout_floor_and_lenient_parse(raw, expected):
+    from core.vl_confirm import build_vl_client
+
+    client = build_vl_client({"vl_confirm_timeout": raw}, "smoke")
+    assert client._timeout == expected
+
+
+def test_build_vl_client_logs_normalized_mode_after_success():
+    from core.vl_confirm import build_vl_client
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+    try:
+        client = build_vl_client(
+            {
+                "vl_confirm_proxy_mode": " MANUAL ",
+                "vl_confirm_proxy_url": "http://127.0.0.1:3128",
+                "vl_confirm_timeout": "90",
+            },
+            "smoke",
+        )
+    finally:
+        logger.remove(sink_id)
+
+    assert client._timeout == 90.0
+    assert any(r["message"] == "VL client: proxy_mode=manual" for r in records)
+
+
+def test_build_vl_client_rejected_manual_config_logs_nothing():
+    from core.vl_confirm import build_vl_client
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+    try:
+        with pytest.raises(ValueError, match="http:// or https://"):
+            build_vl_client(
+                {"vl_confirm_proxy_mode": "manual", "vl_confirm_proxy_url": ""}, "smoke"
+            )
+    finally:
+        logger.remove(sink_id)
+
+    assert not any("VL client: proxy_mode" in r["message"] for r in records)
+
+
 async def _model_ok(request):
     return VALID_COMPLETION
 
