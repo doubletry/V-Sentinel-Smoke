@@ -94,16 +94,24 @@ async def whep_offer(
             content_type="application/sdp",
         )
     except httpx.TimeoutException:
+        logger.warning("WHEP proxy POST {} timed out", normalized_path)
         raise HTTPException(status_code=504, detail="Upstream WHEP request timed out")
     except httpx.RequestError as exc:
         logger.warning("WHEP proxy POST {} failed: {}", normalized_path, exc)
         raise HTTPException(status_code=502, detail="Upstream WHEP request failed")
 
     if upstream.status_code == 404:
+        logger.info("WHEP proxy POST {} upstream 404 (stream not found)", normalized_path)
         raise HTTPException(status_code=404, detail="Stream not found")
     if upstream.status_code == 401 or upstream.status_code == 403:
+        logger.warning(
+            "WHEP proxy POST {} upstream auth failed: {}", normalized_path, upstream.status_code
+        )
         raise HTTPException(status_code=502, detail="Upstream authentication failed")
     if upstream.status_code != 201:
+        logger.warning(
+            "WHEP proxy POST {} upstream error: {}", normalized_path, upstream.status_code
+        )
         raise HTTPException(status_code=502, detail=f"Upstream WHEP error: {upstream.status_code}")
 
     response = Response(
@@ -147,6 +155,7 @@ async def whep_patch(
             content_type=request.headers.get("Content-Type", "application/trickle-ice-sdpfrag"),
         )
     except httpx.TimeoutException:
+        logger.warning("WHEP proxy PATCH {}/{} timed out", normalized_path, session_id)
         raise HTTPException(status_code=504, detail="Upstream WHEP PATCH timed out")
     except httpx.RequestError as exc:
         logger.warning("WHEP proxy PATCH {}/{} failed: {}", normalized_path, session_id, exc)
@@ -154,6 +163,9 @@ async def whep_patch(
 
     if upstream.status_code in (204, 304):
         return Response(status_code=upstream.status_code)
+    logger.warning(
+        "WHEP proxy PATCH {}/{} upstream error: {}", normalized_path, session_id, upstream.status_code
+    )
     return Response(content=upstream.content, status_code=upstream.status_code)
 
 
@@ -182,9 +194,14 @@ async def whep_delete(
             password,
         )
     except httpx.TimeoutException:
+        logger.warning("WHEP proxy DELETE {}/{} timed out", normalized_path, session_id)
         raise HTTPException(status_code=504, detail="Upstream WHEP DELETE timed out")
     except httpx.RequestError as exc:
         logger.warning("WHEP proxy DELETE {}/{} failed: {}", normalized_path, session_id, exc)
         raise HTTPException(status_code=502, detail="Upstream WHEP DELETE failed")
 
+    if upstream.status_code >= 400:
+        logger.warning(
+            "WHEP proxy DELETE {}/{} upstream error: {}", normalized_path, session_id, upstream.status_code
+        )
     return Response(status_code=204)

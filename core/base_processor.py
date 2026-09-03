@@ -110,6 +110,30 @@ class AnalysisResult:
 # ── BaseVideoProcessor ───────────────────────────────────────────────────────
 
 
+def redact_url(url: str) -> str:
+    """Redact ``user:password@`` userinfo from a URL before logging.
+    脱敏 URL 中的 ``user:password@`` 凭据，用于日志输出。"""
+    text = str(url or "")
+    scheme_end = text.find("://")
+    if scheme_end == -1:
+        return text
+    rest = text[scheme_end + 3:]
+    slash = rest.find("/")
+    authority = rest if slash == -1 else rest[:slash]
+    at = authority.rfind("@")
+    if at == -1:
+        return text
+    qmark = authority.find("?")
+    if qmark != -1 and qmark < at:
+        return text
+    userinfo = authority[:at]
+    if ":" in userinfo:
+        user, _sep, _password = userinfo.partition(":")
+        tail = rest[slash:] if slash != -1 else ""
+        return f"{text[:scheme_end + 3]}{user}:***@{authority[at + 1:]}{tail}"
+    return text
+
+
 class BaseVideoProcessor(ABC):
     """Standalone base processor for independent development.
 
@@ -263,7 +287,7 @@ class BaseVideoProcessor(ABC):
     def _frame_reader(self, loop: asyncio.AbstractEventLoop) -> None:
         """Read frames from RTSP using PyAV with low-latency options.
         使用 PyAV 和低延迟参数从 RTSP 读取帧。"""
-        logger.info("Frame reader started for {}", self.rtsp_url)
+        logger.info("Frame reader started for {}", redact_url(self.rtsp_url))
         reconnect_attempts = 0
         max_attempts = RTSP_MAX_RECONNECT_ATTEMPTS  # 0 = unlimited
         frame_counter = 0  # for FRAME_SAMPLE_INTERVAL skipping
@@ -294,7 +318,7 @@ class BaseVideoProcessor(ABC):
                 )
                 if video_stream is None:
                     raise RuntimeError(
-                        f"No video track found in stream {self.rtsp_url}"
+                        f"No video track found in stream {redact_url(self.rtsp_url)}"
                     )
                 video_stream.thread_type = "AUTO"
                 source_fps = self._preferred_source_fps(video_stream, self.rtsp_url)
@@ -348,10 +372,13 @@ class BaseVideoProcessor(ABC):
                         self._enqueue_frame_from_reader, rgb, encoded
                     )
                 if not stream_ok and not self._stop_event.is_set():
-                    logger.warning("PyAV reader ended before yielding frames for {}", self.rtsp_url)
+                    logger.warning("PyAV reader ended before yielding frames for {}", redact_url(self.rtsp_url))
             except Exception as exc:
                 if not self._stop_event.is_set():
-                    logger.exception("Frame reader error for {}: {}", self.rtsp_url, exc)
+                    exc_text = str(exc).replace(self.rtsp_url, redact_url(self.rtsp_url))
+                    logger.error(
+                        "Frame reader error for {}: {}", redact_url(self.rtsp_url), exc_text
+                    )
             finally:
                 try:
                     if container is not None:
@@ -367,13 +394,13 @@ class BaseVideoProcessor(ABC):
             if max_attempts > 0 and reconnect_attempts > max_attempts:
                 logger.error(
                     "RTSP reconnect limit ({}) reached for {}",
-                    max_attempts, self.rtsp_url,
+                    max_attempts, redact_url(self.rtsp_url),
                 )
                 break
 
             logger.warning(
                 "RTSP stream lost for {}, reconnecting in {:.1f}s (attempt {}{})",
-                self.rtsp_url,
+                redact_url(self.rtsp_url),
                 RTSP_RECONNECT_DELAY,
                 reconnect_attempts,
                 f"/{max_attempts}" if max_attempts > 0 else "",
@@ -385,7 +412,12 @@ class BaseVideoProcessor(ABC):
             loop.call_soon_threadsafe(self._enqueue_reader_sentinel)
         except Exception:
             pass
-        logger.info("Frame reader exited for {}", self.rtsp_url)
+        if self._stop_event.is_set():
+            logger.info("Frame reader exited for {}", redact_url(self.rtsp_url))
+        else:
+            logger.error(
+                "Frame reader exited without stop request: source={}", self.source_id
+            )
 
     @staticmethod
     def _stream_fps(video_stream: Any) -> float | None:
@@ -818,8 +850,12 @@ class BaseVideoProcessor(ABC):
         for task in done:
             try:
                 await task
-            except BaseException:
+            except asyncio.CancelledError:
                 pass
+            except Exception:
+                logger.opt(exception=True).warning(
+                    "Frame task failed: source={}", self.source_id
+                )
 
     async def _process_frame_item(self, frame: np.ndarray, encoded: bytes) -> None:
         """Process one frame and hand off any display work asynchronously."""
@@ -838,7 +874,12 @@ class BaseVideoProcessor(ABC):
             logger.error("process_frame error: {}", exc)
             result = AnalysisResult()
 
-        await self._handle_result(frame, result)
+        try:
+            await self._handle_result(frame, result)
+        except Exception:
+            logger.opt(exception=True).error(
+                "Failed to handle frame result: source={}", self.source_id
+            )
 
     async def _handle_result(self, frame: np.ndarray, result: AnalysisResult) -> None:
         """Default per-result handling: enqueue for drawing/pushing if needed."""
@@ -1176,13 +1217,17 @@ class BaseVideoProcessor(ABC):
                     self._push_height = h
                     self._push_fps = target_fps
                     self._push_bitrate = video_bitrate
+                    logger.info(
+                        "ffmpeg push started for {}: {}x{} @ {} fps, bitrate {}",
+                        self.source_id, w, h, target_fps, video_bitrate,
+                    )
 
                     time.sleep(PUSH_STARTUP_CHECK_DELAY)
                     if self._push_proc.poll() is not None:
                         stderr_text = self._read_push_stderr()
                         logger.warning(
                             "ffmpeg exited immediately for {} (code {}): {}",
-                            rtsp_url,
+                            redact_url(rtsp_url),
                             self._push_proc.returncode,
                             stderr_text,
                         )
@@ -1197,7 +1242,7 @@ class BaseVideoProcessor(ABC):
                         stderr_text = self._read_push_stderr()
                         logger.warning(
                             "ffmpeg exited during startup for {} (code {}): {}",
-                            rtsp_url,
+                            redact_url(rtsp_url),
                             self._push_proc.returncode,
                             stderr_text,
                         )
@@ -1214,14 +1259,14 @@ class BaseVideoProcessor(ABC):
                 stderr_text = self._read_push_stderr()
                 logger.warning(
                     "Push error for {}: {} | stderr: {}",
-                    rtsp_url,
+                    redact_url(rtsp_url),
                     exc,
                     stderr_text,
                 )
                 self._close_push_process()
                 self._record_push_failure()
             except Exception as exc:
-                logger.warning("Push error for {}: {}", rtsp_url, exc)
+                logger.warning("Push error for {}: {}", redact_url(rtsp_url), exc)
                 self._close_push_process()
                 self._record_push_failure()
 
@@ -1383,6 +1428,9 @@ class BaseVideoProcessor(ABC):
         """Enable or disable push at runtime without restarting analysis.
         运行时启用或禁用推流，无需重启分析进程。"""
         self.push_result_stream = bool(enabled)
+        logger.info(
+            "Push result stream {}: source={}", self.push_result_stream, self.source_id
+        )
         if self.push_result_stream:
             self._start_output_worker()
         else:

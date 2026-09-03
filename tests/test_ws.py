@@ -5,6 +5,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from loguru import logger
 
 from backend.api.ws import WSManager
 from backend.models.schemas import AnalysisMessage
@@ -111,3 +112,77 @@ class TestWSManager:
         # Dead connection should have been removed
         assert ws_dead not in mgr._connections
         assert ws_ok in mgr._connections
+
+    async def test_broadcast_persist_failure_is_logged_not_raised(self):
+        from backend.models.schemas import AnalysisMessage
+
+        async def failing_persist(message):
+            raise RuntimeError("db down")
+
+        mgr = WSManager(persist_message=failing_persist)
+        ws = AsyncMock()
+        await mgr.connect(ws)
+
+        msg = AnalysisMessage(
+            timestamp="t",
+            source_name="c",
+            source_id="s-1",
+            level="info",
+            message="m",
+        )
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="ERROR")
+        try:
+            await mgr.broadcast(msg)  # 不得抛出
+        finally:
+            logger.remove(sink_id)
+
+        ws.send_text.assert_awaited_once()  # 广播不受持久化失败影响
+        assert any(
+            "Failed to persist analysis message" in r["message"] and "s-1" in r["message"]
+            for r in records
+        )
+        assert any(
+            r["exception"] is not None
+            for r in records
+            if "Failed to persist analysis message" in r["message"]
+        )
+
+
+class TestWSEndpointAuth:
+    def test_ws_invalid_token_close_is_logged(self):
+        from starlette.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        from backend.main import app
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            with TestClient(app) as client:
+                with pytest.raises(WebSocketDisconnect) as excinfo:
+                    with client.websocket_connect("/ws/messages?token=bad-token"):
+                        pass
+                assert excinfo.value.code == 4001
+        finally:
+            logger.remove(sink_id)
+
+        assert any("invalid token" in r["message"] for r in records)
+
+    def test_ws_missing_token_close_is_logged(self):
+        from starlette.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        from backend.main import app
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            with TestClient(app) as client:
+                with pytest.raises(WebSocketDisconnect):
+                    with client.websocket_connect("/ws/messages"):
+                        pass
+        finally:
+            logger.remove(sink_id)
+
+        assert any("missing token" in r["message"] for r in records)

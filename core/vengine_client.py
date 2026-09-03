@@ -55,6 +55,8 @@ _DEFAULT_APP_SETTINGS: dict[str, str] = {
 
 _DOCKER_HOST_ALIASES = {"docker.internal", "host.docker.internal"}
 
+NON_OK_LOG_COOLDOWN_SECONDS = 60.0
+
 
 class AsyncVEngineClient:
     """Async gRPC client for all V-Engine services.
@@ -83,6 +85,7 @@ class AsyncVEngineClient:
         self._channels: dict[str, grpc.aio.Channel] = {}
         self._stubs: dict[str, object] = {}
         self._enabled: dict[str, bool] = {s: True for s in self.SERVICE_NAMES}
+        self._non_ok_last: dict[str, tuple[str, float]] = {}
 
     # ── Address resolution / 地址解析 ────────────────────────────────────────
 
@@ -126,6 +129,7 @@ class AsyncVEngineClient:
         if gateway_ip:
             logger.info("Resolved Docker host alias '{}' to '{}'", normalized_host, gateway_ip)
             return gateway_ip
+        logger.warning("Could not resolve Docker host alias '{}', using it as-is", normalized_host)
         return normalized_host
 
     @classmethod
@@ -161,6 +165,19 @@ class AsyncVEngineClient:
         检查指定的 V-Engine 服务是否已启用。"""
         return self._enabled.get(service, False)
 
+    def _log_non_ok(self, service: str, status_code: int, error_message: str) -> None:
+        """Log a non-OK gRPC response, rate-limited per service.
+        记录非 OK 的 gRPC 响应；同一服务相同错误 60 秒内只记一次，防止逐帧刷屏。"""
+        key = f"{status_code}:{error_message}"
+        now = time.monotonic()
+        last = self._non_ok_last.get(service)
+        if last is not None and last[0] == key and now - last[1] < NON_OK_LOG_COOLDOWN_SECONDS:
+            return
+        self._non_ok_last[service] = (key, now)
+        logger.warning(
+            "{} gRPC non-OK: status={} error={}", service, status_code, error_message
+        )
+
     # ── Connect / reconnect / 连接与重连 ─────────────────────────────────────
 
     async def connect(self, app_settings: dict[str, str] | None = None) -> None:
@@ -180,9 +197,10 @@ class AsyncVEngineClient:
         enabled_list = [s for s, e in self._enabled.items() if e]
         disabled_list = [s for s, e in self._enabled.items() if not e]
         logger.info(
-            "AsyncVEngineClient connected — enabled: {}, disabled: {}",
+            "AsyncVEngineClient connected — enabled: {}, disabled: {}, addresses: {}",
             enabled_list or "(none)",
             disabled_list or "(none)",
+            addrs,
         )
 
     async def reconnect_from_settings(self, app_settings: dict[str, str]) -> None:
@@ -510,6 +528,12 @@ class AsyncVEngineClient:
                         if is_batch:
                             item["image_id"] = det_result.image_id
                         results.append(item)
+            else:
+                self._log_non_ok(
+                    "detection",
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return results
         except grpc.aio.AioRpcError as exc:
             logger.error("Detection gRPC error: {} - {}", exc.code(), exc.details())
@@ -595,6 +619,12 @@ class AsyncVEngineClient:
                     if is_batch:
                         item["image_id"] = res.image_id
                     results.append(item)
+            else:
+                self._log_non_ok(
+                    "classification",
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return results
         except grpc.aio.AioRpcError as exc:
             logger.error(
@@ -681,6 +711,12 @@ class AsyncVEngineClient:
                         if is_batch:
                             item["image_id"] = ocr_result.image_id
                         results.append(item)
+            else:
+                self._log_non_ok(
+                    "ocr",
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return results
         except grpc.aio.AioRpcError as exc:
             logger.error("OCR gRPC error: {} - {}", exc.code(), exc.details())
@@ -765,6 +801,12 @@ class AsyncVEngineClient:
                     if is_batch:
                         item["sequence_id"] = res.sequence_id
                     results.append(item)
+            else:
+                self._log_non_ok(
+                    "action",
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return results
         except grpc.aio.AioRpcError as exc:
             logger.error("Action gRPC error: {} - {}", exc.code(), exc.details())
@@ -813,6 +855,12 @@ class AsyncVEngineClient:
                             "size": res.size,
                         }
                     )
+            else:
+                self._log_non_ok(
+                    "upload",
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return results
         except grpc.aio.AioRpcError as exc:
             logger.error("Upload image gRPC error: {} - {}", exc.code(), exc.details())
@@ -858,6 +906,12 @@ class AsyncVEngineClient:
                             "size": res.size,
                         }
                     )
+            else:
+                self._log_non_ok(
+                    "upload",
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return results
         except grpc.aio.AioRpcError as exc:
             logger.error("Upload video gRPC error: {} - {}", exc.code(), exc.details())
@@ -885,6 +939,7 @@ class AsyncVEngineClient:
         try:
             stub = self._stubs.get(service)
             if stub is None:
+                logger.warning("V-Engine service '{}' not connected", service)
                 return {"error": f"Unknown service: {service}"}
             request = base_pb2.LoadModelRequest(
                 request_header=self._make_header(),
@@ -924,6 +979,7 @@ class AsyncVEngineClient:
         try:
             stub = self._stubs.get(service)
             if stub is None:
+                logger.warning("V-Engine service '{}' not connected", service)
                 return {"error": f"Unknown service: {service}"}
             request = base_pb2.UnloadModelRequest(
                 request_header=self._make_header(),
@@ -955,6 +1011,7 @@ class AsyncVEngineClient:
         try:
             stub = self._stubs.get(service)
             if stub is None:
+                logger.warning("V-Engine service '{}' not connected", service)
                 return []
             request = base_pb2.ListModelsRequest(
                 request_header=self._make_header(),
@@ -976,6 +1033,12 @@ class AsyncVEngineClient:
                             "version": mi.model_version,
                         }
                     )
+            else:
+                self._log_non_ok(
+                    service,
+                    response.response_header.status_code,
+                    response.response_header.error_message,
+                )
             return models
         except grpc.aio.AioRpcError as exc:
             logger.error("ListModels gRPC error: {} - {}", exc.code(), exc.details())
@@ -990,6 +1053,7 @@ class AsyncVEngineClient:
         try:
             stub = self._stubs.get(service)
             if stub is None:
+                logger.warning("V-Engine service '{}' not connected", service)
                 return {"error": f"Unknown service: {service}"}
             request = base_pb2.HealthCheckRequest()
             response = await stub.HealthCheck(request)

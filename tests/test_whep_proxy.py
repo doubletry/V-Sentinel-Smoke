@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
+from loguru import logger
 
 from backend.api.whep_proxy import _build_whep_url, _validate_stream_path
 
@@ -104,3 +105,49 @@ async def test_patch_discards_body_on_204(async_client, monkeypatch):
     )
     assert resp.status_code == 204
     assert resp.content == b""
+
+
+async def test_delete_upstream_error_is_logged(async_client, monkeypatch):
+    from backend.api import whep_proxy
+    import httpx as httpx_lib
+
+    async def fake_proxy(method, url, username, password, body=None, content_type=None):
+        return httpx_lib.Response(500, content=b"boom")
+
+    monkeypatch.setattr(whep_proxy, "_proxy_to_mediamtx", fake_proxy)
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        resp = await async_client.delete(
+            "/api/video/huotai/zhongkong/10.37.192.5/whep-session/sess-1"
+        )
+    finally:
+        logger.remove(sink_id)
+
+    assert resp.status_code == 204  # 行为不变：仍恒返 204
+    assert any("WHEP proxy DELETE" in r["message"] and "500" in r["message"] for r in records)
+
+
+async def test_offer_timeout_is_logged(async_client, monkeypatch):
+    from backend.api import whep_proxy
+    import httpx as httpx_lib
+
+    async def fake_proxy(method, url, username, password, body=None, content_type=None):
+        raise httpx_lib.TimeoutException(
+            "upstream timeout", request=httpx_lib.Request("POST", "http://x/whep")
+        )
+
+    monkeypatch.setattr(whep_proxy, "_proxy_to_mediamtx", fake_proxy)
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        resp = await async_client.post(
+            "/api/video/cam1/whep-offer",
+            content=b"v=0\r\n",
+            headers={"Content-Type": "application/sdp"},
+        )
+    finally:
+        logger.remove(sink_id)
+
+    assert resp.status_code == 504
+    assert any("WHEP proxy POST" in r["message"] and "timed out" in r["message"] for r in records)

@@ -6,6 +6,7 @@ from urllib.parse import quote
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
+from loguru import logger
 
 from backend.auth.dependencies import require_permission
 from backend.db import database as db
@@ -34,6 +35,7 @@ async def create_source(
             raise HTTPException(
                 status_code=409, detail="A source with this RTSP URL already exists"
             )
+        logger.opt(exception=True).warning("Failed to create source: name={}", source.name)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

@@ -77,11 +77,19 @@ PLUGIN_SETTING_KEYS = {
     "smoke_vl_confirm_image_crop",
     "smoke_vl_confirm_prompt",
     "smoke_vl_confirm_response_key",
+    "smoke_vl_confirm_max_tokens",
+    "smoke_vl_confirm_temperature",
+    "smoke_vl_confirm_top_p",
+    "smoke_vl_confirm_disable_thinking",
     "fire_door_vl_confirm_enabled",
     "fire_door_vl_confirm_image_source",
     "fire_door_vl_confirm_image_crop",
     "fire_door_vl_confirm_prompt",
     "fire_door_vl_confirm_response_key",
+    "fire_door_vl_confirm_max_tokens",
+    "fire_door_vl_confirm_temperature",
+    "fire_door_vl_confirm_top_p",
+    "fire_door_vl_confirm_disable_thinking",
 }
 
 
@@ -172,6 +180,12 @@ async def update_settings(
 
     previous_settings = await db.get_all_settings()
     result = await db.update_settings(updates)
+    changed_keys = sorted(
+        key for key in updates
+        if str(previous_settings.get(key) or "") != str(result.get(key) or "")
+    )
+    if changed_keys:
+        logger.info("Settings updated, changed keys: {}", changed_keys)
     request.app.title = result.get("site_title") or request.app.title
     if "message_retention_days" in updates:
         try:
@@ -272,11 +286,20 @@ async def test_vl_settings(
     try:
         raw = await client.complete(build_vl_test_image_data_url(), VL_TEST_PROMPT)
     except Exception as exc:
+        logger.opt(exception=True).warning(
+            "VL connection test failed: scene={} model={} base_url={}",
+            data.scene_id, model, base_url,
+        )
         raise HTTPException(status_code=502, detail=f"VL request failed: {exc}")
+    latency_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "VL connection test ok: scene={} model={} latency_ms={}",
+        data.scene_id, model, latency_ms,
+    )
     return {
         "status": "ok",
         "model": model,
-        "latency_ms": int((time.monotonic() - started) * 1000),
+        "latency_ms": latency_ms,
         "response": raw,
     }
 

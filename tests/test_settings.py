@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+from loguru import logger
 
 from backend.config import DEFAULT_APP_SETTINGS
 from backend.db.database import (
@@ -257,6 +258,31 @@ class TestSettingsAPI:
         assert resp.status_code == 502
         assert "401 unauthorized" in resp.json()["detail"]
 
+    async def test_vl_test_failure_logs_warning(self, async_client: AsyncClient):
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            with patch(
+                "core.vl_confirm.VLConfirmClient.complete",
+                new=AsyncMock(side_effect=Exception("vl backend down")),
+            ):
+                resp = await async_client.post(
+                    "/api/settings/vl/test",
+                    json={
+                        "scene_id": "smoke",
+                        "vl_confirm_base_url": "http://vl.example.com/v1",
+                        "vl_confirm_model": "/models/test-vl",
+                    },
+                )
+        finally:
+            logger.remove(sink_id)
+
+        assert resp.status_code == 502
+        failures = [r for r in records if "VL connection test failed" in r["message"]]
+        assert failures
+        assert "smoke" in failures[0]["message"]
+        assert "/models/test-vl" in failures[0]["message"]
+
     async def test_vl_test_endpoint_missing_scene_rejected(self, async_client: AsyncClient):
         resp = await async_client.post(
             "/api/settings/vl/test",
@@ -307,6 +333,40 @@ class TestSettingsAPI:
             )
         assert resp.status_code == 200
         assert mock_cls.call_args.kwargs["max_tokens"] == 128
+
+    async def test_update_persists_vl_sampling_settings(self, async_client: AsyncClient):
+        payload = {
+            "smoke_vl_confirm_max_tokens": "2048",
+            "smoke_vl_confirm_temperature": "0.2",
+            "smoke_vl_confirm_top_p": "0.8",
+            "smoke_vl_confirm_disable_thinking": "true",
+            "fire_door_vl_confirm_max_tokens": "4096",
+            "fire_door_vl_confirm_temperature": "0.1",
+            "fire_door_vl_confirm_top_p": "0.7",
+            "fire_door_vl_confirm_disable_thinking": "true",
+        }
+        resp = await async_client.put("/api/settings", json=payload)
+        assert resp.status_code == 200
+        for key, value in payload.items():
+            assert resp.json()[key] == value
+        got = await async_client.get("/api/settings")
+        assert got.status_code == 200
+        for key, value in payload.items():
+            assert got.json()[key] == value
+
+    async def test_plugin_role_can_update_vl_sampling_settings(self, async_client: AsyncClient):
+        from backend.auth.security import create_access_token
+
+        token = create_access_token(username="op-vl-sampling", role="operator")["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = await async_client.put(
+            "/api/settings",
+            json={"smoke_vl_confirm_disable_thinking": "true"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        got = await async_client.get("/api/settings", headers=headers)
+        assert got.json()["smoke_vl_confirm_disable_thinking"] == "true"
 
     async def test_update_mediamtx_rtsp_settings_rewrites_existing_source_urls(
         self,
@@ -417,6 +477,20 @@ class TestSettingsAPI:
 
         assert resp.status_code == 422
         assert "must match" in resp.json()["detail"]
+
+    async def test_update_settings_logs_changed_keys(self, async_client: AsyncClient):
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+        try:
+            resp = await async_client.put("/api/settings", json={"site_title": "LogCheck"})
+        finally:
+            logger.remove(sink_id)
+
+        assert resp.status_code == 200
+        assert any(
+            "Settings updated, changed keys" in r["message"] and "site_title" in r["message"]
+            for r in records
+        )
 
 
 class TestVEngineClientAddresses:

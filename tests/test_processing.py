@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
+from loguru import logger
 
 from backend.api.ws import WSManager
 from backend.config import DEFAULT_APP_SETTINGS
@@ -199,6 +200,54 @@ class TestBaseVideoProcessor:
 
         proc._stop_output_worker.assert_called_once()
 
+    async def test_process_frame_item_logs_handle_result_failure(self):
+        proc = self._make_processor()
+        proc.push_result_stream = False
+        proc._handle_result = AsyncMock(side_effect=RuntimeError("ws down"))
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="ERROR")
+        try:
+            frame = np.zeros((10, 10, 3), dtype=np.uint8)
+            await proc._process_frame_item(frame, b"encoded")  # 不得抛出
+        finally:
+            logger.remove(sink_id)
+
+        assert any(
+            "Failed to handle frame result" in r["message"] and "s1" in r["message"]
+            for r in records
+        )
+        assert any(
+            r["exception"] is not None
+            for r in records
+            if "Failed to handle frame result" in r["message"]
+        )
+
+    async def test_wait_for_processing_slot_logs_failed_task(self):
+        proc = self._make_processor()
+        proc._max_inflight_frames = 1
+
+        async def boom():
+            raise RuntimeError("inference boom")
+
+        task = asyncio.create_task(boom())
+        await asyncio.sleep(0)  # 让任务失败
+        proc._processing_tasks.add(task)
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            await proc._wait_for_processing_slot()
+        finally:
+            logger.remove(sink_id)
+
+        assert any("Frame task failed" in r["message"] and "s1" in r["message"] for r in records)
+        assert any(
+            r["exception"] is not None
+            for r in records
+            if "Frame task failed" in r["message"]
+        )
+
 
 class TestProcessorManager:
     def _make_manager(self, app_settings: dict | None = None) -> ProcessorManager:
@@ -327,6 +376,32 @@ class TestProcessorManager:
     async def test_stop_all_empty(self):
         mgr = self._make_manager()
         await mgr.stop_all()  # Should not raise
+
+    async def test_stop_all_logs_failed_stops(self, init_db):
+        source = await create_source(
+            VideoSourceCreate(name="cam-fail", rtsp_url="rtsp://localhost:8554/cam-fail")
+        )
+        mgr = self._make_manager()
+        processor = MagicMock(status="running")
+        processor.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
+        mgr._processors[source.id] = processor
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            await mgr.stop_all()
+        finally:
+            logger.remove(sink_id)
+
+        assert any(
+            "failed to stop processor" in r["message"] and source.id in r["message"]
+            for r in records
+        )
+        # 汇总日志如实报告失败：stopped 0 processor(s), 1 failed: [<source_id>]
+        assert any(
+            "stopped" in r["message"] and "failed" in r["message"] and source.id in r["message"]
+            for r in records
+        )
 
     def test_smoke_adapter_initializes_core_state(self):
         from backend.processing.smoke import SmokeFireProcessor

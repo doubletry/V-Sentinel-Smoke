@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 import pytest
 
+from loguru import logger
+
 from core.vl_confirm import (
     VLConfirmClient,
     VL_TEST_PROMPT,
@@ -370,3 +372,174 @@ async def test_complete_disable_thinking_sends_extra_body():
 
     kwargs = client._client.chat.completions.create.await_args.kwargs
     assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+async def test_complete_success_logs_raw_response():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '{"smoke": true}'
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="INFO")
+    try:
+        raw = await client.complete("data:image/jpeg;base64,abc", "Ping")
+    finally:
+        logger.remove(sink_id)
+
+    assert raw == '{"smoke": true}'
+    messages = [r["message"] for r in records]
+    assert any("VL request ok" in m and "/models/Mage-VL" in m for m in messages)
+    assert any("VL raw response" in m and '{"smoke": true}' in m for m in messages)
+
+
+async def test_complete_failure_logs_exception_details():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(
+        side_effect=RuntimeError("conn-refused-detail")
+    )
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        with pytest.raises(RuntimeError, match="conn-refused-detail"):
+            await client.complete("data:image/jpeg;base64,abc", "Ping")
+    finally:
+        logger.remove(sink_id)
+
+    failures = [r for r in records if "VL request failed" in r["message"]]
+    assert failures, "expected a 'VL request failed' warning"
+    assert "conn-refused-detail" in failures[0]["message"]
+    # 回归：loguru 忽略 stdlib 风格 exc_info=True；record 必须携带异常（完整栈），
+    # 否则 VL 服务端返回的错误体在日志中不可见。
+    assert failures[0]["exception"] is not None
+
+
+async def test_confirm_failure_logs_failing_open():
+    client = VLConfirmClient("http://localhost:30000/v1", "EMPTY", "/models/Mage-VL")
+    client._client = AsyncMock()
+    client._client.chat.completions.create = AsyncMock(side_effect=Exception("boom-vl"))
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+    try:
+        result = await client.confirm("data:image/jpeg;base64,abc", "Verify", "open")
+    finally:
+        logger.remove(sink_id)
+
+    assert result is None
+    assert any(
+        "failing open" in r["message"] and "/models/Mage-VL" in r["message"]
+        for r in records
+    )
+
+
+# --- Total-timeout enforcement against a real local OpenAI-compatible server ---
+
+VALID_COMPLETION = {
+    "id": "cmpl-test",
+    "object": "chat.completion",
+    "created": 0,
+    "model": "test-model",
+    "choices": [
+        {
+            "index": 0,
+            "message": {"role": "assistant", "content": '{"connected": true}'},
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+}
+
+
+def _free_port() -> int:
+    import socket
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _run_local_vl_server(completions_handler) -> tuple[str, dict]:
+    """Start a local OpenAI-compatible server; returns (base_url, request_state)."""
+    import threading
+    import time as _time
+
+    import uvicorn
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    state: dict = {"n": 0}
+
+    @app.post("/v1/chat/completions")
+    async def completions():
+        state["n"] += 1
+        return await completions_handler(state["n"])
+
+    port = _free_port()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = _time.monotonic() + 5
+    while not server.started and _time.monotonic() < deadline:
+        _time.sleep(0.01)
+    assert server.started, "local VL test server did not start"
+
+    state["shutdown"] = lambda: (setattr(server, "should_exit", True), thread.join(timeout=5))
+    return f"http://127.0.0.1:{port}/v1", state
+
+
+async def test_no_success_arrives_after_configured_timeout():
+    """A response must never be delivered later than the configured timeout.
+
+    The OpenAI SDK silently retries timed-out attempts (default
+    max_retries=2); a retry succeeding after the budget used to surface as a
+    "success" with latency far above the timeout setting.
+    """
+    import asyncio
+    import time
+
+    async def handler(n: int):
+        if n == 1:
+            await asyncio.sleep(30)  # stalls well past the 1s client timeout
+        return VALID_COMPLETION
+
+    base_url, state = _run_local_vl_server(handler)
+    try:
+        client = VLConfirmClient(base_url=base_url, api_key="EMPTY", model="m", timeout=1)
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            await client.complete("data:image/jpeg;base64,abc", "Ping")
+        elapsed = time.monotonic() - started
+    finally:
+        state["shutdown"]()
+
+    assert elapsed < 5, f"call took {elapsed:.1f}s despite timeout=1s"
+    assert state["n"] == 1, "timed-out attempt must not be retried past the budget"
+
+
+async def test_all_slow_attempts_stay_within_total_budget():
+    """When every attempt is slow, the total elapsed time must respect the budget."""
+    import asyncio
+    import time
+
+    async def handler(n: int):
+        await asyncio.sleep(30)  # every attempt stalls past the 1s client timeout
+        return VALID_COMPLETION
+
+    base_url, state = _run_local_vl_server(handler)
+    try:
+        client = VLConfirmClient(base_url=base_url, api_key="EMPTY", model="m", timeout=1)
+        started = time.monotonic()
+        with pytest.raises(Exception):
+            await client.complete("data:image/jpeg;base64,abc", "Ping")
+        elapsed = time.monotonic() - started
+    finally:
+        state["shutdown"]()
+
+    assert elapsed < 2.5, (
+        f"total {elapsed:.1f}s for timeout=1s (SDK retries must not extend the budget)"
+    )

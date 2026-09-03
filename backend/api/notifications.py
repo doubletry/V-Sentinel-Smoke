@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from loguru import logger
 
 from backend.auth.dependencies import require_permission
 from backend.db import database as db
@@ -184,6 +185,10 @@ async def test_instance(
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 - surface provider errors to the UI
+        logger.warning(
+            "Notification instance test failed: provider={} type={} error={}",
+            provider.name, provider.type, exc,
+        )
         raise HTTPException(status_code=400, detail=str(exc) or exc.__class__.__name__) from exc
     audit_detail = {
         "provider_id": provider.id,

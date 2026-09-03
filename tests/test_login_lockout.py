@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from httpx import AsyncClient
+from loguru import logger
 
 
 class TestLoginLockout:
@@ -139,3 +140,33 @@ class TestLoginLockout:
         items = audit_logs.json()["items"]
         assert items
         assert items[0]["ip"] == forwarded_ip
+
+    async def test_ip_block_is_logged(self, async_client: AsyncClient):
+        await async_client.put(
+            "/api/settings",
+            json={
+                "login_lockout_max_attempts": "3",
+                "login_lockout_window_seconds": "300",
+                "login_lockout_duration_seconds": "900",
+            },
+        )
+        await async_client.post(
+            "/api/users",
+            json={"username": "victim-log", "password": "correct", "role": "operator"},
+        )
+
+        records: list[dict] = []
+        sink_id = logger.add(lambda m: records.append(m.record), level="WARNING")
+        try:
+            for _ in range(3):
+                await async_client.post(
+                    "/api/auth/login",
+                    json={"username": "victim-log", "password": "wrong"},
+                )
+        finally:
+            logger.remove(sink_id)
+
+        assert any(
+            "blocked" in r["message"] and "failed login attempts" in r["message"]
+            for r in records
+        )

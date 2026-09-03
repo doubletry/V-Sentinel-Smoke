@@ -103,7 +103,12 @@ class WSManager:
         # Persist to DB / 持久化到数据库
         message_id: str | None = None
         if self._persist_message is not None:
-            message_id = await self._persist_message(message)
+            try:
+                message_id = await self._persist_message(message)
+            except Exception:
+                logger.opt(exception=True).error(
+                    "Failed to persist analysis message: source={}", message.source_id
+                )
         if message_id:
             message.id = message_id
 
@@ -148,12 +153,15 @@ async def ws_messages_endpoint(websocket: WebSocket) -> None:
 
     # ── Authenticate via query parameter / 通过查询参数认证 ──
     token = websocket.query_params.get("token")
+    client_text = str(websocket.client) if websocket.client else "unknown"
     if not token:
+        logger.warning("WS client rejected: missing token, client={}", client_text)
         await websocket.close(code=4001, reason="Missing token")
         return
     try:
         verify_access_token(token)
     except Exception:
+        logger.warning("WS client rejected: invalid token, client={}", client_text)
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
