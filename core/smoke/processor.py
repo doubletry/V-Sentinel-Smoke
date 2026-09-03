@@ -136,11 +136,14 @@ class SmokeFireProcessor(BaseVideoProcessor):
         if is_alarmed:
             vl_task = None
             if self._vl_confirm_enabled():
-                vl_task = asyncio.create_task(
-                    self._vl_confirm_alert(frame, annotated, primary_roi)
-                )
-                self._pending_vl_tasks.add(vl_task)
-                vl_task.add_done_callback(self._pending_vl_tasks.discard)
+                if not self._pending_vl_tasks:
+                    vl_task = asyncio.create_task(
+                        self._vl_confirm_alert(frame, annotated, primary_roi)
+                    )
+                    self._pending_vl_tasks.add(vl_task)
+                    vl_task.add_done_callback(self._pending_vl_tasks.discard)
+                else:
+                    vl_task = next(iter(self._pending_vl_tasks))
             labels = sorted({str(det.get("label", "")).lower() for det in confirmed})
             pending_alert = {
                 "frame": frame,

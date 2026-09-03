@@ -428,3 +428,43 @@ async def test_alert_text_only_on_rising_edge():
     assert first_pending["scene_id"] == "smoke"
     assert second_pending is not None and "alert_text" not in second_pending
     assert first.messages[0]["message"] == first_pending["alert_text"]
+
+
+async def test_burst_frames_coalesce_to_one_in_flight_vl_task():
+    vengine = AsyncMock()
+    vengine.detect.return_value = [
+        {"x_min": 10, "y_min": 10, "x_max": 60, "y_max": 60, "confidence": 0.95, "label": "smoke", "class_id": 0}
+    ]
+    processor = _vl_processor(vengine)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    gate = asyncio.Event()
+    calls = 0
+
+    async def gated_verdict(*args):
+        nonlocal calls
+        calls += 1
+        await gate.wait()
+        return False
+
+    processor._vl_confirm_alert = lambda *args: gated_verdict()
+
+    first = await asyncio.wait_for(
+        processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, []),
+        timeout=5.0,
+    )
+    second = await asyncio.wait_for(
+        processor.process_frame(frame, b"not-a-real-jpeg", frame.shape, []),
+        timeout=5.0,
+    )
+
+    first_task = first.extra["pending_alert"]["vl_task"]
+    second_task = second.extra["pending_alert"]["vl_task"]
+    assert len(processor._pending_vl_tasks) == 1
+    assert second_task is first_task
+    assert calls == 1
+
+    gate.set()
+    await processor.finalize_result(first)
+    await processor.finalize_result(second)
+    assert first.messages[0]["false_positive"] == second.messages[0]["false_positive"] is True

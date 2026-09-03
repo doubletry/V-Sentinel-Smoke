@@ -191,11 +191,14 @@ class FireDoorProcessor(BaseVideoProcessor):
         if is_alarmed:
             vl_task = None
             if self._vl_confirm_enabled():
-                vl_task = asyncio.create_task(
-                    self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
-                )
-                self._pending_vl_tasks.add(vl_task)
-                vl_task.add_done_callback(self._pending_vl_tasks.discard)
+                if not self._pending_vl_tasks:
+                    vl_task = asyncio.create_task(
+                        self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
+                    )
+                    self._pending_vl_tasks.add(vl_task)
+                    vl_task.add_done_callback(self._pending_vl_tasks.discard)
+                else:
+                    vl_task = next(iter(self._pending_vl_tasks))
             best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
             pending_alert = {
                 "frame": frame,
