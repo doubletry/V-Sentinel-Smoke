@@ -92,6 +92,7 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
         self.ws_manager = ws_manager
         self.agent = agent
         self.started_at: str | None = None
+        self._dispatch_tasks: set[asyncio.Task] = set()
 
     async def start(self) -> None:
         """Start the processing task with timestamp tracking.
@@ -102,37 +103,89 @@ class BaseVideoProcessor(_CoreBaseVideoProcessor):
         self.started_at = datetime.now(timezone.utc).isoformat()
         await super().start()
 
+    async def stop(self) -> None:
+        """Cancel pending dispatch tasks, then stop the core pipeline.
+        先取消挂起的分发任务，再停止核心流水线。"""
+        if self._dispatch_tasks:
+            for task in list(self._dispatch_tasks):
+                task.cancel()
+            try:
+                await asyncio.gather(*self._dispatch_tasks, return_exceptions=True)
+            except Exception:
+                pass
+            self._dispatch_tasks.clear()
+        await super().stop()
+
     # ── Result dispatch / 结果分发 ────────────────────────────────────────────
 
     async def _handle_result(self, frame, result: AnalysisResult) -> None:
-        """Dispatch messages, then hand off display work to the core worker."""
-        if self.agent is not None:
-            await self.agent.submit(
-                self.source_id, self.source_name, result
-            )
-        else:
-            for msg in result.messages:
-                if not isinstance(msg, AnalysisMessage):
-                    msg = AnalysisMessage(
-                        id=msg.get("id"),
-                        timestamp=msg.get(
-                            "timestamp", datetime.now(timezone.utc).isoformat()
-                        ),
-                        source_name=msg.get("source_name", self.source_name),
-                        source_id=msg.get("source_id", self.source_id),
-                        scene_id=msg.get("scene_id", "smoke"),
-                        level=msg.get("level", "info"),
-                        message=msg.get("message", ""),
-                        image_url=msg.get("image_url"),
-                        image_base64=msg.get("image_base64"),
-                        original_image_url=msg.get("original_image_url"),
-                        original_image_base64=msg.get("original_image_base64"),
-                        detected_image_url=msg.get("detected_image_url"),
-                        detected_image_base64=msg.get("detected_image_base64"),
-                        false_positive=bool(msg.get("false_positive", False)),
-                    )
-                await self.ws_manager.broadcast(msg)
+        """Enqueue display first so the real-time push never waits for slow
+        steps (e.g. VL confirm), then dispatch messages on a detached task.
+        先入队推流，保证实时画面不等待慢速步骤（如 VL 复判）；
+        消息分发在脱离帧槽位的后台任务中完成。"""
         await super()._handle_result(frame, result)
+        task = asyncio.create_task(
+            self._dispatch_result(result), name=f"dispatch-{self.source_id}"
+        )
+        self._dispatch_tasks.add(task)
+        task.add_done_callback(self._dispatch_tasks.discard)
+
+    async def _dispatch_result(self, result: AnalysisResult) -> None:
+        """Send the immediate alert, finalize (await slow verdicts), then dispatch.
+        先发即时告警横幅，再完成场景钩子（等待慢速结论），最后分发消息。"""
+        try:
+            await self._send_immediate_alert(result)
+            await self.finalize_result(result)
+            if self.agent is not None:
+                await self.agent.submit(
+                    self.source_id, self.source_name, result
+                )
+            else:
+                for msg in result.messages:
+                    if not isinstance(msg, AnalysisMessage):
+                        msg = AnalysisMessage(
+                            id=msg.get("id"),
+                            timestamp=msg.get(
+                                "timestamp", datetime.now(timezone.utc).isoformat()
+                            ),
+                            source_name=msg.get("source_name", self.source_name),
+                            source_id=msg.get("source_id", self.source_id),
+                            scene_id=msg.get("scene_id", "smoke"),
+                            level=msg.get("level", "info"),
+                            message=msg.get("message", ""),
+                            image_url=msg.get("image_url"),
+                            image_base64=msg.get("image_base64"),
+                            original_image_url=msg.get("original_image_url"),
+                            original_image_base64=msg.get("original_image_base64"),
+                            detected_image_url=msg.get("detected_image_url"),
+                            detected_image_base64=msg.get("detected_image_base64"),
+                            false_positive=bool(msg.get("false_positive", False)),
+                        )
+                    await self.ws_manager.broadcast(msg)
+        except Exception:
+            logger.opt(exception=True).error(
+                "Failed to dispatch frame result: source={}", self.source_id
+            )
+
+    async def _send_immediate_alert(self, result: AnalysisResult) -> None:
+        """Send the immediate top-banner alert (no VL wait, no DB persist).
+        发送即时顶部告警横幅（不等 VL 结论、不入库）。"""
+        pending = result.extra.get("pending_alert")
+        if not isinstance(pending, dict):
+            return
+        text = str(pending.get("alert_text") or "").strip()
+        if not text or self.ws_manager is None:
+            return
+        await self.ws_manager.send_notification(
+            {
+                "type": "alert_notify",
+                "timestamp": pending.get("timestamp"),
+                "source_id": self.source_id,
+                "source_name": self.source_name,
+                "scene_id": str(pending.get("scene_id") or ""),
+                "message": text,
+            }
+        )
 
     @property
     def push_active(self) -> bool:

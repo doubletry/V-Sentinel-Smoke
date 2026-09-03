@@ -579,6 +579,8 @@ class AppSettingsUpdate(BaseModel):
     vl_confirm_api_key: str | None = None
     vl_confirm_model: str | None = None
     vl_confirm_timeout: str | None = None
+    vl_confirm_proxy_mode: str | None = None
+    vl_confirm_proxy_url: str | None = None
     # VL secondary confirmation (per-scene) / VL 二次确认（场景级）
     smoke_vl_confirm_enabled: str | None = None
     smoke_vl_confirm_image_source: str | None = None
@@ -637,6 +639,8 @@ class VlTestRequest(BaseModel):
     vl_confirm_api_key: str | None = None
     vl_confirm_model: str | None = None
     vl_confirm_timeout: str | None = None
+    vl_confirm_proxy_mode: str | None = None
+    vl_confirm_proxy_url: str | None = None
     smoke_vl_confirm_max_tokens: str | None = None
     smoke_vl_confirm_temperature: str | None = None
     smoke_vl_confirm_top_p: str | None = None

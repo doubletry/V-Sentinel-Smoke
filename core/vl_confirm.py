@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import io
 import json
 import re
 import time
 from typing import Any
 
 import cv2
+import httpx2
 import numpy as np
 from loguru import logger
 
@@ -23,6 +23,11 @@ try:
     from openai import AsyncOpenAI
 except ImportError:  # pragma: no cover - optional dependency
     AsyncOpenAI = None  # type: ignore[assignment]
+
+try:
+    from openai import DefaultAsyncHttpxClient
+except ImportError:  # pragma: no cover - 极老版本 openai
+    DefaultAsyncHttpxClient = None  # type: ignore[assignment]
 
 
 VL_TEST_PROMPT = (
@@ -78,6 +83,11 @@ def parse_vl_response(text: str, response_key: str) -> bool | None:
 DEFAULT_VL_MAX_TOKENS = 1024
 DEFAULT_VL_TEMPERATURE = 0.0
 VL_MAX_TOKENS_LIMIT = 32768
+
+DEFAULT_VL_BASE_URL = "http://localhost:30000/v1"
+DEFAULT_VL_API_KEY = "EMPTY"
+DEFAULT_VL_MODEL = "/models/Mage-VL"
+DEFAULT_VL_TIMEOUT = 60
 
 
 def _parse_float(raw: object, default: float) -> float:
@@ -218,11 +228,12 @@ class VLConfirmClient:
         base_url: str,
         api_key: str,
         model: str,
-        timeout: int = 60,
+        timeout: float = 60.0,
         max_tokens: int = 1024,
         temperature: float = 0.0,
         top_p: float | None = None,
         disable_thinking: bool = False,
+        http_client: "httpx2.AsyncClient | None" = None,
     ) -> None:
         self._base_url = base_url
         self._model = model
@@ -231,12 +242,14 @@ class VLConfirmClient:
         self._temperature = temperature
         self._top_p = top_p
         self._disable_thinking = disable_thinking
+        self._api_key = api_key
         if AsyncOpenAI is None:
             raise RuntimeError("openai SDK is not installed")
         self._client = AsyncOpenAI(
             base_url=base_url,
             api_key=api_key,
             timeout=self._timeout,
+            http_client=http_client,
         )
 
     async def complete(self, image_data_url: str, prompt: str) -> str:
@@ -310,3 +323,53 @@ class VLConfirmClient:
         except Exception:
             logger.warning("VL confirm failed, failing open: model={}", self._model)
             return None
+
+
+def build_vl_http_client(mode: str, url: str) -> "httpx2.AsyncClient | None":
+    """Build the httpx2 transport for a VL client per proxy mode.
+    按代理模式构造 VL 客户端的 httpx2 传输。
+
+    Returns ``None`` for ``system`` mode so the openai SDK builds its own
+    default client (which reads environment proxies).
+    """
+    normalized = str(mode or "none").strip().lower()
+    if normalized == "system":
+        return None
+    if normalized == "manual":
+        text = str(url or "").strip()
+        if not text.lower().startswith(("http://", "https://")):
+            raise ValueError("VL manual proxy URL must start with http:// or https://")
+        return DefaultAsyncHttpxClient(proxy=text, trust_env=False)
+    # none / 未知值 → 确定性直连（忽略环境变量）
+    return DefaultAsyncHttpxClient(trust_env=False)
+
+
+def build_vl_client(
+    settings: dict,
+    scene_id: str,
+    overrides: dict | None = None,
+) -> VLConfirmClient:
+    """Build a VLConfirmClient from global settings (+ per-request overrides).
+    用全局设置（+ 请求级 overrides）统一构造 VLConfirmClient。
+
+    Merge order matches the historical call sites:
+    ``overrides → settings → defaults``.
+    """
+    ov = dict(overrides or {})
+    mode = str(ov.get("vl_confirm_proxy_mode") or settings.get("vl_confirm_proxy_mode") or "none")
+    url = str(ov.get("vl_confirm_proxy_url") or settings.get("vl_confirm_proxy_url") or "")
+    try:
+        timeout = int(float(ov.get("vl_confirm_timeout") or settings.get("vl_confirm_timeout") or DEFAULT_VL_TIMEOUT))
+    except (TypeError, ValueError, OverflowError):
+        timeout = DEFAULT_VL_TIMEOUT
+    timeout = max(1, timeout)
+    http_client = build_vl_http_client(mode, url)
+    logger.info("VL client: proxy_mode={}", str(mode or "none").strip().lower() or "none")
+    return VLConfirmClient(
+        base_url=str(ov.get("vl_confirm_base_url") or settings.get("vl_confirm_base_url") or DEFAULT_VL_BASE_URL),
+        api_key=str(ov.get("vl_confirm_api_key") or settings.get("vl_confirm_api_key") or DEFAULT_VL_API_KEY),
+        model=str(ov.get("vl_confirm_model") or settings.get("vl_confirm_model") or DEFAULT_VL_MODEL),
+        timeout=timeout,
+        **vl_sampling_kwargs(settings, scene_id, ov),
+        http_client=http_client,
+    )

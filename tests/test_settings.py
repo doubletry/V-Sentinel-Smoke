@@ -2,19 +2,19 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 from loguru import logger
 
-from backend.config import DEFAULT_APP_SETTINGS
 from backend.db.database import (
     create_source,
     get_all_settings,
     get_setting,
     get_source,
     rewrite_source_rtsp_urls,
+    save_analysis_message,
     update_settings,
 )
 from backend.models.schemas import VideoSourceCreate
@@ -298,7 +298,7 @@ class TestSettingsAPI:
         assert resp.status_code == 422
 
     async def test_vl_test_endpoint_sampling_overrides_applied(self, async_client: AsyncClient):
-        with patch("backend.api.settings.VLConfirmClient") as mock_cls:
+        with patch("core.vl_confirm.VLConfirmClient") as mock_cls:
             mock_cls.return_value.complete = AsyncMock(return_value='{"connected": true}')
             resp = await async_client.post(
                 "/api/settings/vl/test",
@@ -321,7 +321,7 @@ class TestSettingsAPI:
 
     async def test_vl_test_endpoint_sampling_falls_back_to_scene_settings(self, async_client: AsyncClient):
         await update_settings({"smoke_vl_confirm_max_tokens": "128"})
-        with patch("backend.api.settings.VLConfirmClient") as mock_cls:
+        with patch("core.vl_confirm.VLConfirmClient") as mock_cls:
             mock_cls.return_value.complete = AsyncMock(return_value='{"connected": true}')
             resp = await async_client.post(
                 "/api/settings/vl/test",
@@ -556,3 +556,91 @@ class TestVEngineClientAddresses:
 
         assert resp.status_code == 200
         assert processor_manager._app_settings["smoke_detection_model_name"] == "updated-model"
+
+
+async def test_update_persists_vl_proxy_settings(async_client):
+    response = await async_client.put(
+        "/api/settings",
+        json={
+            "vl_confirm_proxy_mode": "manual",
+            "vl_confirm_proxy_url": "http://10.0.0.1:3128",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["vl_confirm_proxy_mode"] == "manual"
+    assert response.json()["vl_confirm_proxy_url"] == "http://10.0.0.1:3128"
+
+    fetched = await async_client.get("/api/settings")
+    assert fetched.status_code == 200, fetched.text
+    assert fetched.json()["vl_confirm_proxy_mode"] == "manual"
+    assert fetched.json()["vl_confirm_proxy_url"] == "http://10.0.0.1:3128"
+
+
+async def test_plugin_role_can_update_vl_proxy_settings(async_client, init_db):
+    from backend.auth.security import create_access_token
+
+    token = create_access_token(username="op-vl-proxy", role="operator")["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    response = await async_client.put(
+        "/api/settings",
+        json={"vl_confirm_proxy_mode": "system"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["vl_confirm_proxy_mode"] == "system"
+
+
+async def test_vl_test_rejects_invalid_manual_proxy(async_client):
+    response = await async_client.post(
+        "/api/settings/vl/test",
+        json={
+            "scene_id": "smoke",
+            "vl_confirm_base_url": "http://localhost:9/v1",
+            "vl_confirm_proxy_mode": "manual",
+            "vl_confirm_proxy_url": "",
+        },
+    )
+    assert response.status_code == 422, response.text
+
+
+async def test_vl_test_uses_request_proxy_overrides(async_client):
+    import httpx2
+
+    with patch(
+        "core.vl_confirm.DefaultAsyncHttpxClient",
+        return_value=MagicMock(spec=httpx2.AsyncClient),
+    ) as mock_http:
+        response = await async_client.post(
+            "/api/settings/vl/test",
+            json={
+                "scene_id": "smoke",
+                "vl_confirm_base_url": "http://localhost:9/v1",
+                "vl_confirm_proxy_mode": "manual",
+                "vl_confirm_proxy_url": "http://10.9.9.9:3128",
+            },
+        )
+    assert response.status_code in (200, 502), response.text
+    kwargs = mock_http.call_args.kwargs
+    assert kwargs.get("proxy") == "http://10.9.9.9:3128"
+
+
+async def test_vl_review_rejects_invalid_manual_proxy(async_client, init_db):
+    message_id = await save_analysis_message(
+        {
+            "source_name": "Cam1",
+            "source_id": "s1",
+            "level": "alert",
+            "message": "smoke detected",
+        }
+    )
+    await update_settings(
+        {
+            "smoke_vl_confirm_enabled": "true",
+            "vl_confirm_base_url": "http://vl.example.com/v1",
+            "vl_confirm_model": "/models/test-vl",
+            "vl_confirm_proxy_mode": "manual",
+            "vl_confirm_proxy_url": "not-a-url",
+        }
+    )
+    response = await async_client.post(f"/api/messages/{message_id}/vl-review")
+    assert response.status_code == 422, response.text

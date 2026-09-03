@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -131,6 +132,21 @@ class WSManager:
         for ws in connections:
             try:
                 await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            await self.disconnect(ws)
+
+    async def send_notification(self, payload: dict[str, Any]) -> None:
+        """Send a raw notification to all clients without persisting it.
+        向所有客户端发送轻量通知（不持久化，不进消息页）。"""
+        text = json.dumps(payload, ensure_ascii=False)
+        dead: list[WebSocket] = []
+        async with self._lock:
+            connections = set(self._connections)
+        for ws in connections:
+            try:
+                await ws.send_text(text)
             except Exception:
                 dead.append(ws)
         for ws in dead:

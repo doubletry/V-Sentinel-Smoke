@@ -90,6 +90,10 @@
         </div>
       </el-header>
       <el-main class="app-main">
+        <div v-if="messageStore.activeAlert" class="alert-banner" role="alert">
+          <el-icon class="alert-banner__icon"><Bell /></el-icon>
+          <span class="alert-banner__text">{{ messageStore.activeAlert.message }}</span>
+        </div>
         <router-view />
       </el-main>
     </el-container>
@@ -148,6 +152,7 @@ import config from './config.js'
 import { LOCALE_STORAGE_KEY, setI18nLocale } from './i18n/index.js'
 import { useAppSettingsStore } from './stores/appSettings.js'
 import { useAuthStore } from './stores/auth.js'
+import { useMessageStore } from './stores/message.js'
 import { canViewAuditLogs, getDefaultManagementPath } from './utils/settingsRoutes.js'
 import { resolveAppUrl } from './utils/appPath.js'
 
@@ -156,6 +161,7 @@ const route = useRoute()
 const router = useRouter()
 const appSettingsStore = useAppSettingsStore()
 const authStore = useAuthStore()
+const messageStore = useMessageStore()
 const accountMenuVisible = ref(false)
 const passwordDialogVisible = ref(false)
 const passwordSubmitting = ref(false)
@@ -218,6 +224,15 @@ function syncFavicon(href) {
 
 watch(() => appSettingsStore.siteTitle, syncDocumentTitle, { immediate: true })
 watch(() => appSettingsStore.faviconUrl, syncFavicon, { immediate: true })
+
+watch(
+  () => authStore.token,
+  (token) => {
+    if (token) messageStore.connectWS()
+    else messageStore.disconnectWS()
+  },
+  { immediate: true },
+)
 
 function resetPasswordForm() {
   passwordForm.currentPassword = ''
@@ -440,6 +455,20 @@ body {
   flex: 1;
   overflow: hidden;
   padding: 0;
+}
+
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  background: rgba(245, 108, 0, 0.12);
+  border: 1px solid rgba(245, 108, 0, 0.55);
+  border-left: 3px solid #f56c00;
+  border-radius: 4px;
+  color: #ffb26b;
+  font-size: 13px;
 }
 
 @media (max-width: 960px) {

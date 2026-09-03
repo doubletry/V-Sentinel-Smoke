@@ -1,6 +1,7 @@
 """Fire safety door classification processor."""
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from datetime import datetime, timezone
 import time
@@ -22,7 +23,7 @@ from core.fire_door.constants import (
     FIRE_DOOR_ROI_TAG,
 )
 from core.fire_door.email import build_fire_door_email_event
-from core.vl_confirm import VLConfirmClient, build_vl_image_data_url, vl_sampling_kwargs
+from core.vl_confirm import build_vl_client, build_vl_image_data_url
 
 
 class FireDoorProcessor(BaseVideoProcessor):
@@ -32,6 +33,19 @@ class FireDoorProcessor(BaseVideoProcessor):
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._roi_alarm_history: dict[str, deque[float]] = {}
         self._roi_last_alarm_at: dict[str, float] = {}
+        self._pending_vl_tasks: set[asyncio.Task] = set()
+        self._was_alarmed = False
+
+    async def stop(self) -> None:
+        if self._pending_vl_tasks:
+            for task in list(self._pending_vl_tasks):
+                task.cancel()
+            try:
+                await asyncio.gather(*self._pending_vl_tasks, return_exceptions=True)
+            except Exception:
+                pass
+            self._pending_vl_tasks.clear()
+        await super().stop()
 
     def _setting_float(self, key: str, default: float) -> float:
         try:
@@ -170,67 +184,112 @@ class FireDoorProcessor(BaseVideoProcessor):
         result.annotated_frame = annotated
 
         alert_items = [item for item in classifications if item.get("alarm")]
-        vl_rejected = False
-        if alert_items and self._vl_confirm_enabled():
-            vl_result = await self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
-            if vl_result is False:
-                vl_rejected = True
-                logger.warning(
-                    "Alarm rejected by VL confirm, marked false positive: source={}",
-                    self.source_name,
-                )
-            elif vl_result is True:
-                logger.info("Alarm confirmed by VL confirm: source={}", self.source_name)
-            # True or None (fail-open) → keep alerts
-        if alert_items:
+        is_alarmed = bool(alert_items)
+        rising_edge = is_alarmed and not self._was_alarmed
+        self._was_alarmed = is_alarmed
+        pending_alert = None
+        if is_alarmed:
+            vl_task = None
+            if self._vl_confirm_enabled():
+                if not self._pending_vl_tasks:
+                    vl_task = asyncio.create_task(
+                        self._vl_confirm_alert(frame, annotated, alert_items, roi_pixel_points)
+                    )
+                    self._pending_vl_tasks.add(vl_task)
+                    vl_task.add_done_callback(self._pending_vl_tasks.discard)
+                else:
+                    vl_task = next(iter(self._pending_vl_tasks))
             best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
-            open_count = sum(1 for item in classifications if item.get("door_state") == "open")
-            closed_count = sum(1 for item in classifications if item.get("door_state") == "closed")
-            original_image_base64 = self._encode_thumbnail(frame)
-            detected_image_base64 = self._encode_thumbnail(annotated)
-            confidence = float(best.get("confidence") or 0.0)
-            event = build_fire_door_email_event(
-                timestamp=timestamp,
-                source_id=self.source_id,
-                source_name=self.source_name,
-                source_rtsp_url=self.rtsp_url,
-                source_route_path=self._stream_path(),
-                source_remark=str(getattr(self, "source_remark", "") or ""),
-                roi_id=str(best.get("roi_id") or ""),
-                roi_tag=str(best.get("roi_tag") or ""),
-                roi_index=int(best.get("roi_index") or 0),
-                roi_count=len(fire_rois),
-                door_state=str(best.get("door_state") or ""),
-                door_state_label=str(best.get("stable_label") or ""),
-                confidence=confidence,
-                alarm_label=str(best.get("door_state") or best.get("raw_label") or ""),
-                open_count=open_count,
-                closed_count=closed_count,
-                original_image_base64=original_image_base64,
-                detected_image_base64=detected_image_base64,
-            )
-            result.messages.append(
-                {
-                    "timestamp": timestamp,
-                    "source_name": self.source_name,
-                    "source_id": self.source_id,
-                    "scene_id": "fire_door",
-                    "level": "alert",
-                    "message": (
-                        f"Fire door open on {self.source_name} "
-                        f"ROI {event['roi_index']}/{event['roi_count']} "
-                        f"({confidence:.2f})"
-                    ),
-                    "image_base64": detected_image_base64,
-                    "original_image_base64": original_image_base64,
-                    "detected_image_base64": detected_image_base64,
-                    "false_positive": vl_rejected,
-                }
-            )
-            if not vl_rejected:
-                result.extra["email_event"] = event
-                result.extra["fire_door_event"] = event
+            pending_alert = {
+                "frame": frame,
+                "annotated": annotated,
+                "alert_items": alert_items,
+                "classifications": classifications,
+                "fire_rois": fire_rois,
+                "timestamp": timestamp,
+                "vl_task": vl_task,
+                "scene_id": "fire_door",
+            }
+            if rising_edge:
+                pending_alert["alert_text"] = (
+                    f"Fire door open on {self.source_name} "
+                    f"ROI {int(best.get('roi_index') or 0)}/{len(fire_rois)} "
+                    f"({float(best.get('confidence') or 0.0):.2f})"
+                )
+        result.extra["pending_alert"] = pending_alert
         return result
+
+    async def finalize_result(self, result: AnalysisResult) -> None:
+        """Build the alarm message once the VL verdict (if any) resolves.
+        在 VL 复判结论（如有）落地后构建告警消息。"""
+        pending = result.extra.pop("pending_alert", None)
+        if pending is None:
+            return
+        vl_task = pending["vl_task"]
+        vl_result = await vl_task if vl_task is not None else None
+        vl_rejected = vl_result is False
+        if vl_result is False:
+            logger.warning(
+                "Alarm rejected by VL confirm, marked false positive: source={}",
+                self.source_name,
+            )
+        elif vl_result is True:
+            logger.info(
+                "Alarm confirmed by VL confirm: source={}", self.source_name
+            )
+        frame = pending["frame"]
+        annotated = pending["annotated"]
+        alert_items = pending["alert_items"]
+        classifications = pending["classifications"]
+        fire_rois = pending["fire_rois"]
+        timestamp = pending["timestamp"]
+        best = max(alert_items, key=lambda item: float(item.get("confidence") or 0.0))
+        open_count = sum(1 for item in classifications if item.get("door_state") == "open")
+        closed_count = sum(1 for item in classifications if item.get("door_state") == "closed")
+        original_image_base64 = self._encode_thumbnail(frame)
+        detected_image_base64 = self._encode_thumbnail(annotated)
+        confidence = float(best.get("confidence") or 0.0)
+        event = build_fire_door_email_event(
+            timestamp=timestamp,
+            source_id=self.source_id,
+            source_name=self.source_name,
+            source_rtsp_url=self.rtsp_url,
+            source_route_path=self._stream_path(),
+            source_remark=str(getattr(self, "source_remark", "") or ""),
+            roi_id=str(best.get("roi_id") or ""),
+            roi_tag=str(best.get("roi_tag") or ""),
+            roi_index=int(best.get("roi_index") or 0),
+            roi_count=len(fire_rois),
+            door_state=str(best.get("door_state") or ""),
+            door_state_label=str(best.get("stable_label") or ""),
+            confidence=confidence,
+            alarm_label=str(best.get("door_state") or best.get("raw_label") or ""),
+            open_count=open_count,
+            closed_count=closed_count,
+            original_image_base64=original_image_base64,
+            detected_image_base64=detected_image_base64,
+        )
+        result.messages.append(
+            {
+                "timestamp": timestamp,
+                "source_name": self.source_name,
+                "source_id": self.source_id,
+                "scene_id": "fire_door",
+                "level": "alert",
+                "message": (
+                    f"Fire door open on {self.source_name} "
+                    f"ROI {event['roi_index']}/{event['roi_count']} "
+                    f"({confidence:.2f})"
+                ),
+                "image_base64": detected_image_base64,
+                "original_image_base64": original_image_base64,
+                "detected_image_base64": detected_image_base64,
+                "false_positive": vl_rejected,
+            }
+        )
+        if not vl_rejected:
+            result.extra["email_event"] = event
+            result.extra["fire_door_event"] = event
 
     def _vl_confirm_enabled(self) -> bool:
         return str(self.app_settings.get("fire_door_vl_confirm_enabled") or "false").lower() == "true"
@@ -267,16 +326,19 @@ class FireDoorProcessor(BaseVideoProcessor):
             or DEFAULT_VL_CONFIRM_RESPONSE_KEY
         )
 
-        client = VLConfirmClient(
-            base_url=str(
-                self.app_settings.get("vl_confirm_base_url")
-                or "http://localhost:30000/v1"
-            ),
-            api_key=str(self.app_settings.get("vl_confirm_api_key") or "EMPTY"),
-            model=str(self.app_settings.get("vl_confirm_model") or "/models/Mage-VL"),
-            timeout=self._setting_int("vl_confirm_timeout", 60),
-            **vl_sampling_kwargs(self.app_settings, "fire_door"),
-        )
+        try:
+            client = build_vl_client(self.app_settings, "fire_door")
+        except ValueError as exc:
+            logger.warning(
+                "VL manual proxy misconfigured ({}), falling back to direct: source={}",
+                exc,
+                self.source_name,
+            )
+            client = build_vl_client(
+                self.app_settings,
+                "fire_door",
+                overrides={"vl_confirm_proxy_mode": "none"},
+            )
         return await client.confirm(image_data_url, prompt, response_key)
 
     def _draw_fire_door_rois(

@@ -160,3 +160,93 @@ describe('message store — vl review', () => {
     expect(result.result).toBe('confirmed')
   })
 })
+
+describe('message store — WS auto-reconnect', () => {
+  function fakeWebSocketFactory() {
+    const instances = []
+    const FakeWebSocket = vi.fn(function () {
+      const ws = {
+        readyState: 1,
+        onopen: null,
+        onmessage: null,
+        onclose: null,
+        onerror: null,
+        close: vi.fn(),
+      }
+      instances.push(ws)
+      return ws
+    })
+    FakeWebSocket.CONNECTING = 0
+    FakeWebSocket.OPEN = 1
+    FakeWebSocket.CLOSING = 2
+    FakeWebSocket.CLOSED = 3
+    return { FakeWebSocket, instances }
+  }
+
+  function stubBrowserForWs() {
+    vi.useFakeTimers()
+    const fake = fakeWebSocketFactory()
+    vi.stubGlobal('WebSocket', fake.FakeWebSocket)
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:8000' },
+    })
+    return fake
+  }
+
+  function unstubBrowserForWs() {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  }
+
+  it('does not schedule a reconnect when the socket closes after an intentional disconnectWS', () => {
+    const { FakeWebSocket, instances } = stubBrowserForWs()
+    const store = useMessageStore()
+    store.connectWS()
+    expect(FakeWebSocket).toHaveBeenCalledTimes(1)
+    store.disconnectWS()
+    expect(instances[0].close).toHaveBeenCalled()
+    // The browser still fires onclose for the intentionally closed socket
+    instances[0].onclose()
+    vi.advanceTimersByTime(10000)
+    expect(FakeWebSocket).toHaveBeenCalledTimes(1)
+    expect(store.wsConnected).toBe(false)
+    unstubBrowserForWs()
+  })
+
+  it('still schedules a reconnect after an unexpected close', () => {
+    const { FakeWebSocket, instances } = stubBrowserForWs()
+    const store = useMessageStore()
+    store.connectWS()
+    instances[0].onclose()
+    expect(FakeWebSocket).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(3000)
+    expect(FakeWebSocket).toHaveBeenCalledTimes(2)
+    unstubBrowserForWs()
+  })
+})
+
+describe('message store — immediate alert banner', () => {
+  it('shows the alert and auto hides after the duration', () => {
+    vi.useFakeTimers()
+    const store = useMessageStore()
+    store.showActiveAlert({ message: 'Detected smoke on Cam1 (1 confirmed detection(s))', source_name: 'Cam1' })
+    expect(store.activeAlert.message).toBe('Detected smoke on Cam1 (1 confirmed detection(s))')
+    vi.advanceTimersByTime(5000)
+    expect(store.activeAlert).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('a new alert replaces the previous one and resets the hide timer', () => {
+    vi.useFakeTimers()
+    const store = useMessageStore()
+    store.showActiveAlert({ message: 'first', source_name: 'A' })
+    vi.advanceTimersByTime(3000)
+    store.showActiveAlert({ message: 'second', source_name: 'B' })
+    expect(store.activeAlert.message).toBe('second')
+    vi.advanceTimersByTime(4000)
+    expect(store.activeAlert.message).toBe('second')
+    vi.advanceTimersByTime(1000)
+    expect(store.activeAlert).toBeNull()
+    vi.useRealTimers()
+  })
+})

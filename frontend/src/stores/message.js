@@ -29,6 +29,25 @@ export const useMessageStore = defineStore('message', () => {
   const selectedIds = ref({})
   let _ws = null
   let _reconnectTimer = null
+  let _intentionalClose = false
+
+  const activeAlert = ref(null)
+  const ALERT_BANNER_DURATION_MS = 5000
+  let _alertHideTimer = null
+  let _alertSeq = 0
+
+  function showActiveAlert(payload) {
+    const seq = ++_alertSeq
+    activeAlert.value = {
+      seq,
+      message: String((payload && payload.message) || ''),
+      sourceName: String((payload && payload.source_name) || ''),
+    }
+    if (_alertHideTimer) clearTimeout(_alertHideTimer)
+    _alertHideTimer = setTimeout(() => {
+      if (_alertSeq === seq) activeAlert.value = null
+    }, ALERT_BANNER_DURATION_MS)
+  }
 
   const pageSizeOptions = PAGE_SIZE_OPTIONS
 
@@ -98,6 +117,10 @@ export const useMessageStore = defineStore('message', () => {
       try {
         const msg = JSON.parse(event.data)
         if (msg === 'pong') return
+        if (msg.type === 'alert_notify') {
+          showActiveAlert(msg)
+          return
+        }
         const matchesFilter = !filterSource.value || msg.source_id === filterSource.value
         const matchesFalsePositive = falsePositiveFilterMatches(msg.false_positive)
         const matchesDate = matchesActiveDateRange(msg.timestamp)
@@ -118,6 +141,11 @@ export const useMessageStore = defineStore('message', () => {
     _ws.onclose = () => {
       wsConnected.value = false
       _ws = null
+      // Skip auto-reconnect when the close was intentional (e.g. logout)
+      if (_intentionalClose) {
+        _intentionalClose = false
+        return
+      }
       // Auto reconnect after 3s
       _reconnectTimer = setTimeout(connectWS, 3000)
     }
@@ -132,7 +160,10 @@ export const useMessageStore = defineStore('message', () => {
       clearTimeout(_reconnectTimer)
       _reconnectTimer = null
     }
-    _ws?.close()
+    if (_ws) {
+      _intentionalClose = true
+      _ws.close()
+    }
     _ws = null
     wsConnected.value = false
   }
@@ -266,6 +297,8 @@ export const useMessageStore = defineStore('message', () => {
     pendingCount,
     pageSizeOptions,
     wsConnected,
+    activeAlert,
+    showActiveAlert,
     filterSource,
     falsePositiveFilter,
     startDate,

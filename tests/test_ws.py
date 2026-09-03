@@ -1,8 +1,7 @@
 """Tests for the WSManager class."""
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from loguru import logger
@@ -186,3 +185,26 @@ class TestWSEndpointAuth:
             logger.remove(sink_id)
 
         assert any("missing token" in r["message"] for r in records)
+
+
+class TestSendNotification:
+    async def test_send_notification_reaches_all_clients_without_persist(self):
+        import json
+
+        persist = AsyncMock(return_value="msg-id")
+        mgr = WSManager(persist_message=persist)
+        ws1 = AsyncMock()
+        ws2 = AsyncMock()
+        await mgr.connect(ws1)
+        await mgr.connect(ws2)
+
+        await mgr.send_notification(
+            {"type": "alert_notify", "message": "Detected smoke on Cam1"}
+        )
+
+        assert ws1.send_text.await_count == 1
+        assert ws2.send_text.await_count == 1
+        payload = json.loads(ws1.send_text.call_args[0][0])
+        assert payload["type"] == "alert_notify"
+        assert payload["message"] == "Detected smoke on Cam1"
+        persist.assert_not_awaited()

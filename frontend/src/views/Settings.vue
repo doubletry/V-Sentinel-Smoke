@@ -850,6 +850,16 @@
                       <el-form-item :label="t('settings.vlConfirmTimeout')">
                         <el-input v-model="form.vl_confirm_timeout" placeholder="60" />
                       </el-form-item>
+                      <el-form-item :label="t('settings.vlConfirmProxyMode')">
+                        <el-select v-model="form.vl_confirm_proxy_mode">
+                          <el-option value="none" :label="t('settings.vlConfirmProxyModeNone')" />
+                          <el-option value="manual" :label="t('settings.vlConfirmProxyModeManual')" />
+                          <el-option value="system" :label="t('settings.vlConfirmProxyModeSystem')" />
+                        </el-select>
+                      </el-form-item>
+                      <el-form-item v-if="form.vl_confirm_proxy_mode === 'manual'" :label="t('settings.vlConfirmProxyUrl')">
+                        <el-input v-model="form.vl_confirm_proxy_url" :placeholder="t('settings.vlConfirmProxyUrlPlaceholder')" />
+                      </el-form-item>
                       <el-form-item :label="t('settings.vlConfirmImageSource')">
                         <el-select v-model="form.smoke_vl_confirm_image_source">
                           <el-option :label="t('settings.vlConfirmImageSourceOriginal')" value="original" />
@@ -1369,6 +1379,8 @@ const VL_CONFIRM_GLOBAL_KEYS = [
   'vl_confirm_api_key',
   'vl_confirm_model',
   'vl_confirm_timeout',
+  'vl_confirm_proxy_mode',
+  'vl_confirm_proxy_url'
 ]
 const PROCESSOR_RESTART_SETTING_KEYS = [
   ...ACTIVE_PLUGIN_SETTING_KEYS,
@@ -1683,6 +1695,8 @@ const form = ref({
   vl_confirm_api_key: 'EMPTY',
   vl_confirm_model: '/models/Mage-VL',
   vl_confirm_timeout: '60',
+  vl_confirm_proxy_mode: 'none',
+  vl_confirm_proxy_url: '',
   fire_door_vl_confirm_prompt: '',
   fire_door_vl_confirm_response_key: 'open',
   smoke_vl_confirm_prompt: '',
@@ -2287,6 +2301,8 @@ async function testVlConfig() {
       [`${scene}_vl_confirm_temperature`]: form.value[`${scene}_vl_confirm_temperature`],
       [`${scene}_vl_confirm_top_p`]: form.value[`${scene}_vl_confirm_top_p`],
       [`${scene}_vl_confirm_disable_thinking`]: form.value[`${scene}_vl_confirm_disable_thinking`],
+      vl_confirm_proxy_mode: form.value.vl_confirm_proxy_mode || 'none',
+      vl_confirm_proxy_url: form.value.vl_confirm_proxy_url || undefined,
     }
     const result = await appSettingsStore.testVl(payload)
     ElMessage.success(
